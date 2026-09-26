@@ -24,40 +24,6 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
-const navGroups = [
-  {
-    items: [
-      { to: "/dashboard", icon: LayoutDashboard, label: "Tổng quan" },
-      { to: "/twin", icon: Box, label: "Digital Twin" },
-    ],
-  },
-  {
-    group: "QUẢN LÝ",
-    items: [
-      { to: "/rooms", icon: Building2, label: "Phòng học" },
-      { to: "/devices", icon: Cpu, label: "Thiết bị" },
-      { to: "/bookings", icon: History, label: "Lịch sử đặt phòng" },
-      { to: "/schedules", icon: Calendar, label: "Lịch học" },
-      { to: "/users", icon: Users, label: "Người dùng" },
-      { to: "/incidents", icon: AlertTriangle, label: "Sự cố & Bảo trì" },
-      { to: "/simulation", icon: Activity, label: "Mô phỏng sự cố" },
-      { to: "/statistics", icon: TrendingUp, label: "Thống kê" },
-    ],
-  },
-  {
-    group: "HỆ THỐNG",
-    items: [
-      { to: "/sensors", icon: Radio, label: "Cảm biến IoT" },
-      { to: "/energy", icon: Zap, label: "Điện năng" },
-      { to: "/reports", icon: BarChart3, label: "Báo cáo" },
-      { to: "/notifications", icon: Bell, label: "Thông báo", badge: 3 },
-      { to: "/logs", icon: ClipboardList, label: "Nhật ký hoạt động" },
-      { to: "/ai", icon: Bot, label: "AI Assistant" },
-      { to: "/settings", icon: Settings, label: "Cài đặt" },
-    ],
-  },
-];
-
 const PAGE_TITLES = {
   "/dashboard": { title: "Tổng quan", sub: "Digital Twin Smart Campus" },
   "/twin": { title: "Digital Twin 3D", sub: "Mô hình tòa nhà" },
@@ -85,6 +51,7 @@ export default function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [time, setTime] = useState(new Date());
   const [notifications] = useState(3);
+  const role = user?.role;
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -106,7 +73,62 @@ export default function MainLayout() {
       admin: "Quản trị viên",
       giang_vien: "Giảng viên",
       ky_thuat_vien: "Kỹ thuật viên",
-    }[user?.role] || user?.role;
+    }[role] || role;
+
+  // Phân quyền sidebar theo vai trò
+  const navGroups = [
+    {
+      items: [
+        { to: "/dashboard", icon: LayoutDashboard, label: "Tổng quan" },
+        { to: "/twin", icon: Box, label: "Digital Twin" },
+      ],
+    },
+    {
+      group: "QUẢN LÝ",
+      items: [
+        { to: "/rooms", icon: Building2, label: "Phòng học" },
+        ...(role === "admin" || role === "ky_thuat_vien"
+          ? [{ to: "/devices", icon: Cpu, label: "Thiết bị" }]
+          : []),
+        ...(role === "admin" || role === "giang_vien"
+          ? [
+              { to: "/bookings", icon: History, label: "Lịch sử đặt phòng" },
+              { to: "/schedules", icon: Calendar, label: "Lịch học" },
+            ]
+          : []),
+        ...(role === "admin"
+          ? [{ to: "/users", icon: Users, label: "Người dùng" }]
+          : []),
+        ...(role === "admin" || role === "ky_thuat_vien"
+          ? [
+              {
+                to: "/incidents",
+                icon: AlertTriangle,
+                label: "Sự cố & Bảo trì",
+              },
+              { to: "/simulation", icon: Activity, label: "Mô phỏng sự cố" },
+            ]
+          : []),
+        { to: "/statistics", icon: TrendingUp, label: "Thống kê" },
+      ],
+    },
+    {
+      group: "HỆ THỐNG",
+      items: [
+        ...(role === "admin" || role === "ky_thuat_vien"
+          ? [
+              { to: "/sensors", icon: Radio, label: "Cảm biến IoT" },
+              { to: "/energy", icon: Zap, label: "Điện năng" },
+              { to: "/reports", icon: BarChart3, label: "Báo cáo" },
+              { to: "/logs", icon: ClipboardList, label: "Nhật ký hoạt động" },
+            ]
+          : []),
+        { to: "/notifications", icon: Bell, label: "Thông báo", badge: 3 },
+        { to: "/ai", icon: Bot, label: "AI Assistant" },
+        { to: "/settings", icon: Settings, label: "Cài đặt" },
+      ],
+    },
+  ];
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -245,7 +267,6 @@ export default function MainLayout() {
               </p>
             </div>
 
-            {/* Divider */}
             <div className="w-px h-8 bg-gray-200" />
 
             {/* Notification */}

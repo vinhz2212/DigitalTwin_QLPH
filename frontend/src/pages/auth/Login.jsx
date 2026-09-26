@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import { Eye, EyeOff } from "lucide-react";
@@ -155,7 +155,7 @@ export default function Login() {
         </div>
 
         <div className="relative z-10 w-full max-w-lg text-white flex flex-col items-center">
-          {/* Logo + Name căn giữa */}
+          {/* Logo + Name */}
           <div className="flex flex-col items-center text-center mb-8">
             <div
               className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-xl mb-4"
@@ -213,7 +213,7 @@ export default function Login() {
       <div className="flex flex-1 items-center justify-center p-8">
         <div className="w-full max-w-sm">
           <div className="bg-white rounded-3xl shadow-2xl p-10 border border-gray-100">
-            {/* Logo + Title căn giữa */}
+            {/* Logo + Title */}
             <div className="flex flex-col items-center text-center mb-8">
               <div
                 className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-lg mb-4"
@@ -237,7 +237,7 @@ export default function Login() {
               />
             </div>
 
-            {/* Đăng nhập title */}
+            {/* Title */}
             <div className="text-center mb-6">
               <h2 className="text-2xl font-black text-gray-800">Đăng nhập</h2>
               <p className="text-sm text-gray-400 mt-1">
@@ -351,6 +351,17 @@ export default function Login() {
                 )}
               </button>
             </form>
+
+            {/* Register link */}
+            <p className="text-center text-sm text-gray-400 mt-5">
+              Chưa có tài khoản?{" "}
+              <Link
+                to="/register"
+                className="text-blue-600 font-bold hover:underline"
+              >
+                Đăng ký ngay
+              </Link>
+            </p>
           </div>
 
           <p className="text-center text-xs text-gray-400 mt-5">
