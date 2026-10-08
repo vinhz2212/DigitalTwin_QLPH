@@ -102,7 +102,7 @@ export default function Register() {
               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                  Username
+                  Tên đăng nhập
                 </label>
                 <input
                   type="text"
@@ -261,7 +261,8 @@ export default function Register() {
         </div>
 
         <p className="text-center text-xs text-blue-200 mt-4">
-          © 2024 SmartCampus Digital Twin. All rights reserved.
+          © 2026 SmartCampus Digital Twin | Developed by Nguyễn Công Vinh. All
+          rights reserved.
         </p>
       </div>
     </div>

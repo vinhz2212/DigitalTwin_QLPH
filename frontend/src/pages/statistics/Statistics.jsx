@@ -16,45 +16,7 @@ import {
   AreaChart,
   Area,
 } from "recharts";
-import { TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
-
-const roomUsageData = [
-  { name: "T2", A: 85, B: 72 },
-  { name: "T3", A: 90, B: 68 },
-  { name: "T4", A: 75, B: 80 },
-  { name: "T5", A: 88, B: 75 },
-  { name: "T6", A: 70, B: 65 },
-  { name: "T7", A: 40, B: 35 },
-];
-
-const incidentData = [
-  { date: "23/05", chay: 1, mat_dien: 2, may_chieu: 3, dieu_hoa: 1 },
-  { date: "24/05", chay: 0, mat_dien: 1, may_chieu: 2, dieu_hoa: 2 },
-  { date: "25/05", chay: 2, mat_dien: 0, may_chieu: 1, dieu_hoa: 0 },
-  { date: "26/05", chay: 0, mat_dien: 2, may_chieu: 4, dieu_hoa: 1 },
-  { date: "27/05", chay: 1, mat_dien: 1, may_chieu: 2, dieu_hoa: 3 },
-  { date: "28/05", chay: 0, mat_dien: 0, may_chieu: 1, dieu_hoa: 1 },
-  { date: "29/05", chay: 1, mat_dien: 2, may_chieu: 3, dieu_hoa: 2 },
-];
-
-const maintenanceData = [
-  { month: "T1", count: 12 },
-  { month: "T2", count: 8 },
-  { month: "T3", count: 15 },
-  { month: "T4", count: 10 },
-  { month: "T5", count: 18 },
-  { month: "T6", count: 14 },
-];
-
-const energyData = [
-  { date: "23/05", kwh: 80 },
-  { date: "24/05", kwh: 120 },
-  { date: "25/05", kwh: 95 },
-  { date: "26/05", kwh: 140 },
-  { date: "27/05", kwh: 110 },
-  { date: "28/05", kwh: 160 },
-  { date: "29/05", kwh: 420 },
-];
+import { TrendingUp, TrendingDown } from "lucide-react";
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -73,27 +35,33 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function Statistics() {
-  const [rooms, setRooms] = useState([]);
-  const [devices, setDevices] = useState([]);
-  const [incidents, setIncidents] = useState([]);
-  const [period, setPeriod] = useState("week");
+  const [overview, setOverview] = useState(null);
+  const [buildingData, setBuildingData] = useState([]);
+  const [incidentWeekly, setIncidentWeekly] = useState([]);
+  const [maintenanceMonthly, setMaintenanceMonthly] = useState([]);
+  const [topRooms, setTopRooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState("week");
 
   useEffect(() => {
-    fetchData();
+    fetchAll();
   }, []);
 
-  const fetchData = async () => {
+  const fetchAll = async () => {
     try {
       setLoading(true);
-      const [r, d, i] = await Promise.all([
-        api.get("/rooms"),
-        api.get("/devices"),
-        api.get("/incidents"),
+      const [ov, bd, iw, mm, tr] = await Promise.all([
+        api.get("/statistics/overview"),
+        api.get("/statistics/rooms-by-building"),
+        api.get("/statistics/incidents-weekly"),
+        api.get("/statistics/maintenance-monthly"),
+        api.get("/statistics/top-rooms"),
       ]);
-      setRooms(r.data);
-      setDevices(d.data);
-      setIncidents(i.data);
+      setOverview(ov.data);
+      setBuildingData(bd.data);
+      setIncidentWeekly(iw.data);
+      setMaintenanceMonthly(mm.data);
+      setTopRooms(tr.data);
     } catch (error) {
       console.error(error);
     } finally {
@@ -101,40 +69,52 @@ export default function Statistics() {
     }
   };
 
-  const roomStats = {
-    total: rooms.length,
-    trong: rooms.filter((r) => r.status === "trong").length,
-    dang_hoc: rooms.filter((r) => r.status === "dang_hoc").length,
-    bao_tri: rooms.filter((r) => r.status === "bao_tri").length,
-    su_co: rooms.filter((r) => r.status === "su_co").length,
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-400">Đang tải dữ liệu...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const deviceStats = {
-    total: devices.length,
-    hoat_dong: devices.filter((d) => d.status === "hoat_dong").length,
-    hong: devices.filter((d) => d.status === "hong").length,
-    dang_sua: devices.filter((d) => d.status === "dang_sua").length,
-  };
+  const roomStats = overview?.roomStats || {};
+  const deviceStats = overview?.deviceStats || {};
+  const incidentStats = overview?.incidentStats || {};
 
   const roomPieData = [
-    { name: "Đang trống", value: roomStats.trong, color: "#22c55e" },
-    { name: "Đang học", value: roomStats.dang_hoc, color: "#3b82f6" },
-    { name: "Bảo trì", value: roomStats.bao_tri, color: "#f59e0b" },
-    { name: "Sự cố", value: roomStats.su_co, color: "#ef4444" },
+    {
+      name: "Đang trống",
+      value: parseInt(roomStats.trong) || 0,
+      color: "#22c55e",
+    },
+    {
+      name: "Đang học",
+      value: parseInt(roomStats.dang_hoc) || 0,
+      color: "#3b82f6",
+    },
+    {
+      name: "Bảo trì",
+      value: parseInt(roomStats.bao_tri) || 0,
+      color: "#f59e0b",
+    },
+    { name: "Sự cố", value: parseInt(roomStats.su_co) || 0, color: "#ef4444" },
   ];
 
   const devicePieData = [
-    { name: "Hoạt động", value: deviceStats.hoat_dong, color: "#22c55e" },
-    { name: "Hỏng", value: deviceStats.hong, color: "#ef4444" },
-    { name: "Đang sửa", value: deviceStats.dang_sua, color: "#f59e0b" },
     {
-      name: "Đã tắt",
-      value:
-        deviceStats.total -
-        deviceStats.hoat_dong -
-        deviceStats.hong -
-        deviceStats.dang_sua,
-      color: "#6b7280",
+      name: "Hoạt động",
+      value: parseInt(deviceStats.hoat_dong) || 0,
+      color: "#22c55e",
+    },
+    { name: "Đã tắt", value: parseInt(deviceStats.tat) || 0, color: "#6b7280" },
+    { name: "Hỏng", value: parseInt(deviceStats.hong) || 0, color: "#ef4444" },
+    {
+      name: "Đang sửa",
+      value: parseInt(deviceStats.dang_sua) || 0,
+      color: "#f59e0b",
     },
   ];
 
@@ -152,33 +132,15 @@ export default function Statistics() {
             Thống kê & Phân tích
           </h1>
           <p className="text-sm text-gray-400 mt-0.5">
-            Tổng hợp dữ liệu hệ thống Smart Campus
+            Dữ liệu thật từ hệ thống Smart Campus
           </p>
         </div>
-        <div className="flex gap-1.5 bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100">
-          {[
-            { id: "week", label: "7 ngày" },
-            { id: "month", label: "30 ngày" },
-            { id: "year", label: "1 năm" },
-          ].map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setPeriod(p.id)}
-              className="px-4 py-2 rounded-xl text-sm font-bold transition-all"
-              style={{
-                background:
-                  period === p.id
-                    ? "linear-gradient(135deg, #1a56db, #3b82f6)"
-                    : "transparent",
-                color: period === p.id ? "white" : "#6b7280",
-                boxShadow:
-                  period === p.id ? "0 4px 12px rgba(26,86,219,0.3)" : "none",
-              }}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+        <button
+          onClick={fetchAll}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold border-2 border-blue-200 text-blue-600 hover:bg-blue-50 transition-all"
+        >
+          🔄 Làm mới
+        </button>
       </div>
 
       {/* KPI Cards */}
@@ -186,8 +148,8 @@ export default function Statistics() {
         {[
           {
             label: "Tổng phòng học",
-            value: roomStats.total,
-            sub: `${roomStats.trong} đang trống`,
+            value: roomStats.total || 0,
+            sub: `${roomStats.trong || 0} đang trống`,
             trend: "up",
             color: "#1a56db",
             bg: "#eff6ff",
@@ -195,8 +157,8 @@ export default function Statistics() {
           },
           {
             label: "Tổng thiết bị",
-            value: deviceStats.total,
-            sub: `${deviceStats.hoat_dong} hoạt động`,
+            value: deviceStats.total || 0,
+            sub: `${deviceStats.hoat_dong || 0} hoạt động`,
             trend: "up",
             color: "#22c55e",
             bg: "#f0fdf4",
@@ -204,9 +166,9 @@ export default function Statistics() {
           },
           {
             label: "Sự cố ghi nhận",
-            value: incidents.length,
-            sub: `${incidents.filter((i) => i.status === "dang_xay_ra").length} đang xảy ra`,
-            trend: incidents.length > 5 ? "down" : "up",
+            value: incidentStats.total || 0,
+            sub: `${incidentStats.dang_xay_ra || 0} đang xảy ra`,
+            trend: (incidentStats.total || 0) > 5 ? "down" : "up",
             color: "#ef4444",
             bg: "#fef2f2",
             icon: "⚠️",
@@ -214,7 +176,7 @@ export default function Statistics() {
           {
             label: "Tỷ lệ sử dụng",
             value: `${usageRate}%`,
-            sub: `${roomStats.dang_hoc}/${roomStats.total} phòng`,
+            sub: `${roomStats.dang_hoc || 0}/${roomStats.total || 0} phòng`,
             trend: "up",
             color: "#8b5cf6",
             bg: "#f5f3ff",
@@ -233,11 +195,7 @@ export default function Statistics() {
                 {s.icon}
               </div>
               <div
-                className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${
-                  s.trend === "up"
-                    ? "bg-green-50 text-green-600"
-                    : "bg-red-50 text-red-500"
-                }`}
+                className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${s.trend === "up" ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"}`}
               >
                 {s.trend === "up" ? (
                   <TrendingUp size={12} />
@@ -250,7 +208,7 @@ export default function Statistics() {
             <p className="text-3xl font-black" style={{ color: s.color }}>
               {s.value}
             </p>
-            <p className="text-xs text-gray-400 mt-1 font-medium">{s.label}</p>
+            <p className="text-xs font-bold text-gray-500 mt-1">{s.label}</p>
             <p className="text-xs text-gray-300 mt-0.5">{s.sub}</p>
           </div>
         ))}
@@ -258,23 +216,18 @@ export default function Statistics() {
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-3 gap-4">
-        {/* Room usage bar chart */}
+        {/* Room by building */}
         <div className="col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-sm font-black text-gray-800">
-                Tỷ lệ sử dụng phòng theo ngày
-              </p>
-              <p className="text-xs text-gray-400 mt-0.5">
-                So sánh Tòa A và Tòa B (%)
-              </p>
-            </div>
-            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-              <BarChart3 size={16} className="text-blue-600" />
-            </div>
+          <div className="mb-4">
+            <p className="text-sm font-black text-gray-800">
+              Phòng học theo tòa nhà
+            </p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              So sánh trạng thái 2 tòa
+            </p>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={roomUsageData} barGap={4}>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={buildingData} barGap={4}>
               <XAxis
                 dataKey="name"
                 tick={{ fontSize: 11, fontWeight: 600 }}
@@ -285,27 +238,32 @@ export default function Statistics() {
                 tick={{ fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
-                domain={[0, 100]}
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend />
               <Bar
-                dataKey="A"
-                name="Tòa A"
-                fill="#3b82f6"
+                dataKey="total"
+                name="Tổng"
+                fill="#1a56db"
                 radius={[6, 6, 0, 0]}
               />
               <Bar
-                dataKey="B"
-                name="Tòa B"
+                dataKey="trong"
+                name="Trống"
                 fill="#22c55e"
+                radius={[6, 6, 0, 0]}
+              />
+              <Bar
+                dataKey="dang_hoc"
+                name="Đang học"
+                fill="#3b82f6"
                 radius={[6, 6, 0, 0]}
               />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Room status pie */}
+        {/* Room pie */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <p className="text-sm font-black text-gray-800 mb-1">
             Trạng thái phòng học
@@ -362,69 +320,73 @@ export default function Statistics() {
       <div className="grid grid-cols-3 gap-4">
         {/* Incident area chart */}
         <div className="col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-sm font-black text-gray-800">
-                Sự cố theo thời gian
-              </p>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Phân loại sự cố trong tuần
-              </p>
-            </div>
+          <div className="mb-4">
+            <p className="text-sm font-black text-gray-800">
+              Sự cố 7 ngày gần nhất
+            </p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Phân loại sự cố theo ngày
+            </p>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={incidentData}>
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend />
-              <Area
-                type="monotone"
-                dataKey="chay"
-                name="Cháy"
-                stroke="#ef4444"
-                fill="#fecaca"
-                strokeWidth={2}
-                stackId="1"
-              />
-              <Area
-                type="monotone"
-                dataKey="mat_dien"
-                name="Mất điện"
-                stroke="#f59e0b"
-                fill="#fde68a"
-                strokeWidth={2}
-                stackId="1"
-              />
-              <Area
-                type="monotone"
-                dataKey="may_chieu"
-                name="Máy chiếu"
-                stroke="#8b5cf6"
-                fill="#ddd6fe"
-                strokeWidth={2}
-                stackId="1"
-              />
-              <Area
-                type="monotone"
-                dataKey="dieu_hoa"
-                name="Điều hòa"
-                stroke="#3b82f6"
-                fill="#bfdbfe"
-                strokeWidth={2}
-                stackId="1"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {incidentWeekly.length === 0 ? (
+            <div className="flex items-center justify-center h-48 text-gray-300">
+              <p className="text-sm">Không có sự cố trong 7 ngày qua</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={incidentWeekly}>
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend />
+                <Area
+                  type="monotone"
+                  dataKey="chay"
+                  name="Cháy"
+                  stroke="#ef4444"
+                  fill="#fecaca"
+                  strokeWidth={2}
+                  stackId="1"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="mat_dien"
+                  name="Mất điện"
+                  stroke="#f59e0b"
+                  fill="#fde68a"
+                  strokeWidth={2}
+                  stackId="1"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="may_chieu"
+                  name="Máy chiếu"
+                  stroke="#8b5cf6"
+                  fill="#ddd6fe"
+                  strokeWidth={2}
+                  stackId="1"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="dieu_hoa"
+                  name="Điều hòa"
+                  stroke="#3b82f6"
+                  fill="#bfdbfe"
+                  strokeWidth={2}
+                  stackId="1"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Device pie */}
@@ -433,7 +395,7 @@ export default function Statistics() {
             Trạng thái thiết bị
           </p>
           <p className="text-xs text-gray-400 mb-3">
-            Tổng {deviceStats.total} thiết bị
+            Tổng {deviceStats.total || 0} thiết bị
           </p>
           <div className="flex justify-center">
             <ResponsiveContainer width={160} height={160}>
@@ -480,7 +442,7 @@ export default function Statistics() {
 
       {/* Charts Row 3 */}
       <div className="grid grid-cols-2 gap-4">
-        {/* Maintenance line chart */}
+        {/* Maintenance */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <p className="text-sm font-black text-gray-800 mb-1">
             Lịch sử bảo trì thiết bị
@@ -488,122 +450,104 @@ export default function Statistics() {
           <p className="text-xs text-gray-400 mb-4">
             Số lần bảo trì theo tháng
           </p>
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={maintenanceData}>
-              <XAxis
-                dataKey="month"
-                tick={{ fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Line
-                type="monotone"
-                dataKey="count"
-                name="Số lần bảo trì"
-                stroke="#1a56db"
-                strokeWidth={3}
-                dot={{ fill: "#1a56db", r: 5, strokeWidth: 2, stroke: "white" }}
-                activeDot={{ r: 7 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          {maintenanceMonthly.length === 0 ? (
+            <div className="flex items-center justify-center h-40 text-gray-300">
+              <p className="text-sm">Chưa có dữ liệu bảo trì</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart data={maintenanceMonthly}>
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Line
+                  type="monotone"
+                  dataKey="count"
+                  name="Số lần bảo trì"
+                  stroke="#1a56db"
+                  strokeWidth={3}
+                  dot={{
+                    fill: "#1a56db",
+                    r: 5,
+                    strokeWidth: 2,
+                    stroke: "white",
+                  }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
-        {/* Energy bar chart */}
+        {/* Top rooms */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <p className="text-sm font-black text-gray-800 mb-1">
-            Điện năng tiêu thụ
+            Top phòng đặt nhiều nhất
           </p>
-          <p className="text-xs text-gray-400 mb-4">kWh theo ngày trong tuần</p>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={energyData}>
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar
-                dataKey="kwh"
-                name="kWh"
-                fill="#22c55e"
-                radius={[6, 6, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Top rooms */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <p className="text-sm font-black text-gray-800">
-              Phòng sử dụng nhiều nhất
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Top 5 phòng có tỷ lệ sử dụng cao nhất
-            </p>
-          </div>
-        </div>
-        <div className="grid grid-cols-5 gap-3">
-          {rooms.slice(0, 5).map((room, i) => {
-            const rate = Math.floor(Math.random() * 20 + 75);
-            return (
-              <div
-                key={room.id}
-                className="p-4 rounded-2xl border-2 border-gray-100 hover:border-blue-200 hover:shadow-md transition-all text-center"
-              >
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-xl font-black mx-auto mb-2"
-                  style={{
-                    background:
-                      i === 0 ? "#fef9c3" : i === 1 ? "#f1f5f9" : "#fff7ed",
-                    color:
-                      i === 0 ? "#ca8a04" : i === 1 ? "#475569" : "#c2410c",
-                  }}
-                >
-                  {i === 0
-                    ? "#1"
-                    : i === 1
-                      ? "#2"
-                      : i === 2
-                        ? "#3"
-                        : `#${i + 1}`}
-                </div>
-                <p className="text-lg font-black text-blue-600">{room.code}</p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {room.building_name}
-                </p>
-                <div className="mt-2">
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <p className="text-xs text-gray-400 mb-4">
+            Dựa trên lịch sử đặt phòng đã duyệt
+          </p>
+          {topRooms.length === 0 ? (
+            <div className="flex items-center justify-center h-40 text-gray-300">
+              <p className="text-sm">Chưa có dữ liệu đặt phòng</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {topRooms.map((room, i) => {
+                const maxCount = topRooms[0]?.booking_count || 1;
+                const pct = Math.round((room.booking_count / maxCount) * 100);
+                return (
+                  <div key={i} className="flex items-center gap-3">
                     <div
-                      className="h-full rounded-full"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black flex-shrink-0"
                       style={{
-                        width: `${rate}%`,
-                        background: "linear-gradient(135deg, #1a56db, #3b82f6)",
+                        background:
+                          i === 0 ? "#fef9c3" : i === 1 ? "#f1f5f9" : "#fff7ed",
+                        color:
+                          i === 0 ? "#ca8a04" : i === 1 ? "#475569" : "#c2410c",
                       }}
-                    />
+                    >
+                      {i === 0
+                        ? "🥇"
+                        : i === 1
+                          ? "🥈"
+                          : i === 2
+                            ? "🥉"
+                            : `#${i + 1}`}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-black text-blue-600">
+                          {room.code}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {room.booking_count} lần
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${pct}%`,
+                            background:
+                              "linear-gradient(135deg, #1a56db, #3b82f6)",
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-xs font-black text-blue-600 mt-1">
-                    {rate}%
-                  </p>
-                </div>
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

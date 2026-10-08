@@ -1,22 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import api from "../../services/api";
-import {
-  Send,
-  Bot,
-  User,
-  Zap,
-  Wrench,
-  Search,
-  Mic,
-  RefreshCw,
-} from "lucide-react";
+import { Send, Bot, User, Zap, Wrench, Search, RefreshCw } from "lucide-react";
 
 const QUICK_QUESTIONS = [
-  "📊 Có bao nhiêu phòng đang trống?",
-  "💡 Thiết bị nào đang hỏng?",
-  "⚠️ Sự cố nào đang xảy ra?",
-  "🔧 Đề xuất lịch bảo trì",
-  "🏫 Tìm phòng cho 40 người",
+  " Có bao nhiêu phòng đang trống?",
+  " Thiết bị nào đang hỏng?",
+  " Sự cố nào đang xảy ra?",
+  " Đề xuất lịch bảo trì",
+  " Tìm phòng cho 40 người",
 ];
 
 const INCIDENT_TYPES = {
@@ -28,15 +19,23 @@ const INCIDENT_TYPES = {
   qua_tai: "👥 Quá tải",
 };
 
+// ✅ Tin nhắn mặc định
+const INIT_MESSAGE = {
+  role: "assistant",
+  content:
+    "Xin chào! 👋 Tôi là AI Assistant của Smart Campus.\n\nTôi có thể giúp bạn:\n• Phân tích sự cố và đề xuất xử lý\n• Tìm phòng học phù hợp\n• Đề xuất lịch bảo trì thiết bị\n• Trả lời câu hỏi về hệ thống\n\nBạn cần hỗ trợ gì?",
+  time: new Date().toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }),
+};
+
 function MessageBubble({ msg }) {
   const isAI = msg.role === "assistant";
   return (
     <div className={`flex gap-3 ${isAI ? "" : "flex-row-reverse"}`}>
-      {/* Avatar */}
       <div
-        className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm ${
-          isAI ? "" : "bg-gray-100"
-        }`}
+        className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm ${isAI ? "" : "bg-gray-100"}`}
         style={
           isAI
             ? { background: "linear-gradient(135deg, #1a56db, #3b82f6)" }
@@ -49,12 +48,8 @@ function MessageBubble({ msg }) {
           <User size={16} className="text-gray-500" />
         )}
       </div>
-
-      {/* Bubble */}
       <div
-        className={`max-w-lg rounded-2xl px-4 py-3 text-sm shadow-sm ${
-          isAI ? "bg-white border border-gray-100 text-gray-700" : "text-white"
-        }`}
+        className={`max-w-lg rounded-2xl px-4 py-3 text-sm shadow-sm ${isAI ? "bg-white border border-gray-100 text-gray-700" : "text-white"}`}
         style={
           !isAI
             ? { background: "linear-gradient(135deg, #1a56db, #3b82f6)" }
@@ -91,17 +86,16 @@ function MessageBubble({ msg }) {
 }
 
 export default function AIAssistant() {
-  const [messages, setMessages] = useState([
-    {
-      role: "assistant",
-      content:
-        "Xin chào! 👋 Tôi là AI Assistant của Smart Campus.\n\nTôi có thể giúp bạn:\n• Phân tích sự cố và đề xuất xử lý\n• Tìm phòng học phù hợp\n• Đề xuất lịch bảo trì thiết bị\n• Trả lời câu hỏi về hệ thống\n\nBạn cần hỗ trợ gì?",
-      time: new Date().toLocaleTimeString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    },
-  ]);
+  // ✅ Load messages từ sessionStorage khi mở lại
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem("ai_messages");
+      return saved ? JSON.parse(saved) : [INIT_MESSAGE];
+    } catch {
+      return [INIT_MESSAGE];
+    }
+  });
+
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("chat");
@@ -132,6 +126,13 @@ export default function AIAssistant() {
   });
   const [roomResult, setRoomResult] = useState(null);
   const [roomLoading, setRoomLoading] = useState(false);
+
+  // ✅ Tự động lưu messages vào sessionStorage mỗi khi thay đổi
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("ai_messages", JSON.stringify(messages));
+    } catch {}
+  }, [messages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -183,6 +184,14 @@ export default function AIAssistant() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ✅ Xóa chat và sessionStorage
+  const handleClearChat = () => {
+    const initMsg = [INIT_MESSAGE];
+    setMessages(initMsg);
+    sessionStorage.setItem("ai_messages", JSON.stringify(initMsg));
+    setInput("");
   };
 
   const handleAnalyzeIncident = async (e) => {
@@ -362,16 +371,14 @@ export default function AIAssistant() {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSend()}
                   placeholder="Nhập câu hỏi của bạn..."
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50 focus:bg-white transition-all pr-10"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50 focus:bg-white transition-all"
                 />
               </div>
+              {/* ✅ Nút xóa chat đã sửa */}
               <button
-                onClick={() => {
-                  setMessages([messages[0]]);
-                  setInput("");
-                }}
+                onClick={handleClearChat}
                 className="p-3 rounded-xl text-gray-400 hover:bg-gray-100 transition-all"
-                title="Xóa lịch sử"
+                title="Xóa lịch sử chat"
               >
                 <RefreshCw size={16} />
               </button>
@@ -474,7 +481,6 @@ export default function AIAssistant() {
                   background: incidentLoading
                     ? "#fca5a5"
                     : "linear-gradient(135deg, #ef4444, #f97316)",
-                  boxShadow: "0 4px 12px rgba(239,68,68,0.35)",
                 }}
               >
                 {incidentLoading
@@ -483,7 +489,6 @@ export default function AIAssistant() {
               </button>
             </form>
           </div>
-
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-blue-50">
@@ -614,14 +619,12 @@ export default function AIAssistant() {
                   background: maintenanceLoading
                     ? "#fde68a"
                     : "linear-gradient(135deg, #f59e0b, #fbbf24)",
-                  boxShadow: "0 4px 12px rgba(245,158,11,0.35)",
                 }}
               >
                 {maintenanceLoading ? "🔧 Đang xử lý..." : "🔧 Đề xuất bảo trì"}
               </button>
             </form>
           </div>
-
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-blue-50">
@@ -734,14 +737,12 @@ export default function AIAssistant() {
                   background: roomLoading
                     ? "#86efac"
                     : "linear-gradient(135deg, #22c55e, #16a34a)",
-                  boxShadow: "0 4px 12px rgba(34,197,94,0.35)",
                 }}
               >
                 {roomLoading ? "🔍 Đang tìm..." : "🔍 Tìm phòng"}
               </button>
             </form>
           </div>
-
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-green-50">

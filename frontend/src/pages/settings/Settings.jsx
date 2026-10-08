@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import {
@@ -14,13 +14,11 @@ import {
 } from "lucide-react";
 
 export default function Settings() {
-  const { user, updateUser } = useAuth();
+  const { user, login } = useAuth();
   const [activeTab, setActiveTab] = useState("profile");
   const [saved, setSaved] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [pwError, setPwError] = useState("");
-  const [pwSuccess, setPwSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState({
     current: false,
     new: false,
@@ -30,8 +28,7 @@ export default function Settings() {
   const [profile, setProfile] = useState({
     full_name: user?.full_name || "",
     email: user?.email || "",
-    phone: "",
-    bio: "",
+    phone: user?.phone || "",
   });
 
   const [notifications, setNotifications] = useState({
@@ -58,45 +55,68 @@ export default function Settings() {
     confirm: "",
   });
 
-  const handleSave = async () => {
-    setError("");
-    setSaving(true);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
     try {
-      const res = await api.put("/users/me/profile", {
-        full_name: profile.full_name,
-        email: profile.email,
-        phone: profile.phone,
+      const res = await api.get("/auth/me");
+      setProfile({
+        full_name: res.data.full_name || "",
+        email: res.data.email || "",
+        phone: res.data.phone || "",
       });
-      // Cập nhật context + localStorage
-      updateUser(res.data.user);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
-    } catch (err) {
-      setError(err.response?.data?.message || "Lưu thất bại, thử lại!");
-    } finally {
-      setSaving(false);
+    } catch (error) {
+      console.error(error);
     }
   };
 
-  const handleChangePassword = async () => {
-    setPwError("");
-    setPwSuccess(false);
-    if (passwords.new !== passwords.confirm) {
-      return setPwError("Mật khẩu xác nhận không khớp!");
-    }
-    setSaving(true);
+  const handleSaveProfile = async () => {
+    setLoading(true);
+    setError("");
     try {
-      await api.put("/users/me/password", {
+      await api.put("/users/profile", profile);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (error) {
+      setError(error.response?.data?.message || "Có lỗi xảy ra!");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPasswordError("");
+    setPasswordSuccess("");
+
+    if (passwords.new !== passwords.confirm) {
+      setPasswordError("Mật khẩu xác nhận không khớp!");
+      return;
+    }
+    if (passwords.new.length < 6) {
+      setPasswordError("Mật khẩu mới phải có ít nhất 6 ký tự!");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await api.patch("/users/change-password", {
         current_password: passwords.current,
         new_password: passwords.new,
       });
-      setPwSuccess(true);
+      setPasswordSuccess("✅ Đổi mật khẩu thành công!");
       setPasswords({ current: "", new: "", confirm: "" });
-      setTimeout(() => setPwSuccess(false), 3000);
-    } catch (err) {
-      setPwError(err.response?.data?.message || "Đổi mật khẩu thất bại!");
+    } catch (error) {
+      setPasswordError(
+        error.response?.data?.message || "Mật khẩu hiện tại không đúng!",
+      );
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
 
@@ -117,7 +137,6 @@ export default function Settings() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-black text-gray-800">Cài đặt</h1>
         <p className="text-sm text-gray-400 mt-0.5">
@@ -128,7 +147,6 @@ export default function Settings() {
       <div className="flex gap-5">
         {/* Sidebar */}
         <div className="w-52 flex-shrink-0 space-y-2">
-          {/* User card */}
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 text-center mb-3">
             <div
               className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-black mx-auto mb-3 shadow-lg"
@@ -148,7 +166,6 @@ export default function Settings() {
             </span>
           </div>
 
-          {/* Nav tabs */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-2">
             {tabs.map((tab) => (
               <button
@@ -181,26 +198,25 @@ export default function Settings() {
             style={{ background: "linear-gradient(135deg, #f8fafc, #eff6ff)" }}
           >
             <div className="flex items-center gap-3">
-              {tabs.find((t) => t.id === activeTab) &&
-                (() => {
-                  const tab = tabs.find((t) => t.id === activeTab);
-                  return (
-                    <>
-                      <div
-                        className="w-9 h-9 rounded-xl flex items-center justify-center"
-                        style={{ background: tab.color + "18" }}
-                      >
-                        <tab.icon size={18} style={{ color: tab.color }} />
-                      </div>
-                      <div>
-                        <p className="font-black text-gray-800">{tab.label}</p>
-                        <p className="text-xs text-gray-400">
-                          Cấu hình {tab.label.toLowerCase()}
-                        </p>
-                      </div>
-                    </>
-                  );
-                })()}
+              {(() => {
+                const tab = tabs.find((t) => t.id === activeTab);
+                return tab ? (
+                  <>
+                    <div
+                      className="w-9 h-9 rounded-xl flex items-center justify-center"
+                      style={{ background: tab.color + "18" }}
+                    >
+                      <tab.icon size={18} style={{ color: tab.color }} />
+                    </div>
+                    <div>
+                      <p className="font-black text-gray-800">{tab.label}</p>
+                      <p className="text-xs text-gray-400">
+                        Cấu hình {tab.label.toLowerCase()}
+                      </p>
+                    </div>
+                  </>
+                ) : null;
+              })()}
             </div>
           </div>
 
@@ -208,7 +224,6 @@ export default function Settings() {
             {/* Profile Tab */}
             {activeTab === "profile" && (
               <div className="space-y-5">
-                {/* Avatar section */}
                 <div className="flex items-center gap-5 p-5 rounded-2xl border-2 border-gray-100 bg-gray-50">
                   <div
                     className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-3xl font-black shadow-lg flex-shrink-0"
@@ -216,13 +231,13 @@ export default function Settings() {
                       background: "linear-gradient(135deg, #1a56db, #3b82f6)",
                     }}
                   >
-                    {user?.full_name?.charAt(0) || "A"}
+                    {profile.full_name?.charAt(0) || "A"}
                   </div>
                   <div>
                     <p className="font-black text-gray-800 text-lg">
-                      {user?.full_name}
+                      {profile.full_name}
                     </p>
-                    <p className="text-sm text-gray-400">{user?.email}</p>
+                    <p className="text-sm text-gray-400">{profile.email}</p>
                     <span
                       className="inline-block mt-2 text-xs font-bold px-3 py-1 rounded-full"
                       style={{ background: "#eff6ff", color: "#1a56db" }}
@@ -231,6 +246,12 @@ export default function Settings() {
                     </span>
                   </div>
                 </div>
+
+                {error && (
+                  <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">
+                    {error}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -277,25 +298,10 @@ export default function Settings() {
                     <label className="block text-sm font-bold text-gray-700 mb-1.5">
                       Vai trò
                     </label>
-                    <div className="px-4 py-3 border-2 border-gray-100 rounded-xl text-sm bg-gray-50 text-gray-500 font-medium">
+                    <div className="px-4 py-3 border-2 border-gray-100 rounded-xl text-sm bg-gray-50 text-gray-400">
                       {roleLabel} (không thể thay đổi)
                     </div>
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                    Giới thiệu
-                  </label>
-                  <textarea
-                    value={profile.bio}
-                    onChange={(e) =>
-                      setProfile({ ...profile, bio: e.target.value })
-                    }
-                    rows={3}
-                    placeholder="Mô tả ngắn về bản thân..."
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50 focus:bg-white transition-all"
-                  />
                 </div>
               </div>
             )}
@@ -343,7 +349,7 @@ export default function Settings() {
                 ].map((item) => (
                   <div
                     key={item.key}
-                    className="flex items-center justify-between p-4 rounded-2xl border-2 transition-all hover:border-blue-200 hover:bg-blue-50/30"
+                    className="flex items-center justify-between p-4 rounded-2xl border-2 transition-all"
                     style={{
                       borderColor: notifications[item.key]
                         ? "#bfdbfe"
@@ -400,85 +406,67 @@ export default function Settings() {
             {activeTab === "appearance" && (
               <div className="space-y-5">
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                      Ngôn ngữ
-                    </label>
-                    <select
-                      value={appearance.language}
-                      onChange={(e) =>
-                        setAppearance({
-                          ...appearance,
-                          language: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50"
-                    >
-                      <option value="vi">🇻🇳 Tiếng Việt</option>
-                      <option value="en">🇺🇸 English</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                      Múi giờ
-                    </label>
-                    <select
-                      value={appearance.timezone}
-                      onChange={(e) =>
-                        setAppearance({
-                          ...appearance,
-                          timezone: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50"
-                    >
-                      <option value="Asia/Ho_Chi_Minh">
-                        GMT+7 (Hồ Chí Minh)
-                      </option>
-                      <option value="Asia/Bangkok">GMT+7 (Bangkok)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                      Định dạng ngày
-                    </label>
-                    <select
-                      value={appearance.dateFormat}
-                      onChange={(e) =>
-                        setAppearance({
-                          ...appearance,
-                          dateFormat: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50"
-                    >
-                      <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                      <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                      <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                      Tự động làm mới
-                    </label>
-                    <select
-                      value={appearance.refreshInterval}
-                      onChange={(e) =>
-                        setAppearance({
-                          ...appearance,
-                          refreshInterval: parseInt(e.target.value),
-                        })
-                      }
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50"
-                    >
-                      <option value={5}>5 giây</option>
-                      <option value={10}>10 giây</option>
-                      <option value={30}>30 giây</option>
-                      <option value={60}>1 phút</option>
-                    </select>
-                  </div>
+                  {[
+                    {
+                      label: "Ngôn ngữ",
+                      key: "language",
+                      options: [
+                        { value: "vi", label: "🇻🇳 Tiếng Việt" },
+                        { value: "en", label: "🇺🇸 English" },
+                      ],
+                    },
+                    {
+                      label: "Múi giờ",
+                      key: "timezone",
+                      options: [
+                        {
+                          value: "Asia/Ho_Chi_Minh",
+                          label: "GMT+7 (Hồ Chí Minh)",
+                        },
+                      ],
+                    },
+                    {
+                      label: "Định dạng ngày",
+                      key: "dateFormat",
+                      options: [
+                        { value: "DD/MM/YYYY", label: "DD/MM/YYYY" },
+                        { value: "MM/DD/YYYY", label: "MM/DD/YYYY" },
+                      ],
+                    },
+                    {
+                      label: "Tự động làm mới",
+                      key: "refreshInterval",
+                      options: [
+                        { value: 5, label: "5 giây" },
+                        { value: 10, label: "10 giây" },
+                        { value: 30, label: "30 giây" },
+                        { value: 60, label: "1 phút" },
+                      ],
+                    },
+                  ].map((field) => (
+                    <div key={field.key}>
+                      <label className="block text-sm font-bold text-gray-700 mb-1.5">
+                        {field.label}
+                      </label>
+                      <select
+                        value={appearance[field.key]}
+                        onChange={(e) =>
+                          setAppearance({
+                            ...appearance,
+                            [field.key]: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50"
+                      >
+                        {field.options.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
                 </div>
-
                 <div className="space-y-3">
                   {[
                     {
@@ -496,7 +484,7 @@ export default function Settings() {
                   ].map((item) => (
                     <div
                       key={item.key}
-                      className="flex items-center justify-between p-4 rounded-2xl border-2 border-gray-100 hover:border-purple-200 hover:bg-purple-50/30 transition-all"
+                      className="flex items-center justify-between p-4 rounded-2xl border-2 border-gray-100 transition-all"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-purple-50">
@@ -542,78 +530,91 @@ export default function Settings() {
             {activeTab === "security" && (
               <div className="space-y-5">
                 <div className="p-4 rounded-2xl bg-blue-50 border-2 border-blue-200">
-                  <div className="flex items-center gap-2 text-blue-700">
-                    <Shield size={16} />
-                    <p className="text-sm font-bold">Bảo mật tài khoản</p>
-                  </div>
+                  <p className="text-sm font-bold text-blue-700">
+                    🔐 Đổi mật khẩu
+                  </p>
                   <p className="text-xs text-blue-500 mt-1">
-                    Đổi mật khẩu thường xuyên để bảo vệ tài khoản của bạn
+                    Đổi mật khẩu thường xuyên để bảo vệ tài khoản
                   </p>
                 </div>
 
-                {[
-                  {
-                    key: "current",
-                    label: "Mật khẩu hiện tại",
-                    placeholder: "Nhập mật khẩu hiện tại",
-                  },
-                  {
-                    key: "new",
-                    label: "Mật khẩu mới",
-                    placeholder: "Nhập mật khẩu mới (tối thiểu 6 ký tự)",
-                  },
-                  {
-                    key: "confirm",
-                    label: "Xác nhận mật khẩu mới",
-                    placeholder: "Nhập lại mật khẩu mới",
-                  },
-                ].map((field) => (
-                  <div key={field.key}>
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                      {field.label}
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showPassword[field.key] ? "text" : "password"}
-                        value={passwords[field.key]}
-                        onChange={(e) =>
-                          setPasswords((prev) => ({
-                            ...prev,
-                            [field.key]: e.target.value,
-                          }))
-                        }
-                        placeholder={field.placeholder}
-                        className="w-full px-4 py-3 pr-11 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-400 bg-gray-50 focus:bg-white transition-all"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowPassword((prev) => ({
-                            ...prev,
-                            [field.key]: !prev[field.key],
-                          }))
-                        }
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      >
-                        {showPassword[field.key] ? (
-                          <Eye size={16} />
-                        ) : (
-                          <EyeOff size={16} />
-                        )}
-                      </button>
-                    </div>
+                {passwordError && (
+                  <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">
+                    {passwordError}
                   </div>
-                ))}
+                )}
+                {passwordSuccess && (
+                  <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-xl text-sm">
+                    {passwordSuccess}
+                  </div>
+                )}
 
-                <button
-                  className="w-full py-3 rounded-xl text-white font-bold text-sm transition-all"
-                  style={{
-                    background: "linear-gradient(135deg, #ef4444, #f97316)",
-                    boxShadow: "0 4px 15px rgba(239,68,68,0.35)",
-                  }}
-                >
-                  🔑 Đổi mật khẩu
-                </button>
+                <form onSubmit={handleChangePassword} className="space-y-4">
+                  {[
+                    {
+                      key: "current",
+                      label: "Mật khẩu hiện tại",
+                      placeholder: "Nhập mật khẩu hiện tại",
+                    },
+                    {
+                      key: "new",
+                      label: "Mật khẩu mới",
+                      placeholder: "Tối thiểu 6 ký tự",
+                    },
+                    {
+                      key: "confirm",
+                      label: "Xác nhận mật khẩu mới",
+                      placeholder: "Nhập lại mật khẩu mới",
+                    },
+                  ].map((field) => (
+                    <div key={field.key}>
+                      <label className="block text-sm font-bold text-gray-700 mb-1.5">
+                        {field.label}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPassword[field.key] ? "text" : "password"}
+                          value={passwords[field.key]}
+                          onChange={(e) =>
+                            setPasswords((prev) => ({
+                              ...prev,
+                              [field.key]: e.target.value,
+                            }))
+                          }
+                          placeholder={field.placeholder}
+                          className="w-full px-4 py-3 pr-11 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-400 bg-gray-50 focus:bg-white transition-all"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setShowPassword((prev) => ({
+                              ...prev,
+                              [field.key]: !prev[field.key],
+                            }))
+                          }
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showPassword[field.key] ? (
+                            <Eye size={16} />
+                          ) : (
+                            <EyeOff size={16} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3 rounded-xl text-white font-bold text-sm transition-all"
+                    style={{
+                      background: "linear-gradient(135deg, #ef4444, #f97316)",
+                      boxShadow: "0 4px 15px rgba(239,68,68,0.35)",
+                    }}
+                  >
+                    {loading ? "⏳ Đang xử lý..." : "🔑 Đổi mật khẩu"}
+                  </button>
+                </form>
               </div>
             )}
 
@@ -645,7 +646,7 @@ export default function Settings() {
                   ].map((item, i) => (
                     <div
                       key={i}
-                      className="flex items-center gap-3 p-4 rounded-2xl border-2 border-gray-100 hover:border-green-200 hover:bg-green-50/30 transition-all"
+                      className="flex items-center gap-3 p-4 rounded-2xl border-2 border-gray-100 hover:border-green-200 transition-all"
                     >
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-gray-50">
                         {item.icon}
@@ -661,8 +662,6 @@ export default function Settings() {
                     </div>
                   ))}
                 </div>
-
-                {/* System stats */}
                 <div className="p-4 rounded-2xl bg-green-50 border-2 border-green-200">
                   <p className="text-sm font-black text-green-700 mb-3 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -693,15 +692,20 @@ export default function Settings() {
             )}
 
             {/* Save button */}
-            {activeTab !== "system" && (
+            {(activeTab === "profile" ||
+              activeTab === "notifications" ||
+              activeTab === "appearance") && (
               <div className="mt-6 pt-5 border-t border-gray-100 flex items-center justify-between">
                 <p className="text-xs text-gray-400">
                   {saved
                     ? "✅ Đã lưu thay đổi thành công!"
-                    : 'Nhấn "Lưu thay đổi" để áp dụng'}
+                    : error
+                      ? `❌ ${error}`
+                      : 'Nhấn "Lưu thay đổi" để áp dụng'}
                 </p>
                 <button
-                  onClick={handleSave}
+                  onClick={handleSaveProfile}
+                  disabled={loading}
                   className="flex items-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-bold transition-all"
                   style={{
                     background: saved
@@ -710,10 +714,11 @@ export default function Settings() {
                     boxShadow: saved
                       ? "0 4px 15px rgba(34,197,94,0.35)"
                       : "0 4px 15px rgba(26,86,219,0.35)",
+                    opacity: loading ? 0.7 : 1,
                   }}
                 >
                   {saved ? <Check size={16} /> : <Save size={16} />}
-                  {saved ? "Đã lưu!" : "Lưu thay đổi"}
+                  {loading ? "Đang lưu..." : saved ? "Đã lưu!" : "Lưu thay đổi"}
                 </button>
               </div>
             )}

@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import api from "../services/api";
 import {
   LayoutDashboard,
   Building2,
@@ -50,13 +51,29 @@ export default function MainLayout() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [time, setTime] = useState(new Date());
-  const [notifications] = useState(3);
+  const [notifications, setNotifications] = useState(0);
   const role = user?.role;
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // ✅ Lấy số thông báo chưa đọc từ database
+  useEffect(() => {
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchUnreadCount = async () => {
+    try {
+      const res = await api.get("/notifications/unread-count");
+      setNotifications(res.data.count || 0);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -75,7 +92,6 @@ export default function MainLayout() {
       ky_thuat_vien: "Kỹ thuật viên",
     }[role] || role;
 
-  // Phân quyền sidebar theo vai trò
   const navGroups = [
     {
       items: [
@@ -123,7 +139,12 @@ export default function MainLayout() {
               { to: "/logs", icon: ClipboardList, label: "Nhật ký hoạt động" },
             ]
           : []),
-        { to: "/notifications", icon: Bell, label: "Thông báo", badge: 3 },
+        {
+          to: "/notifications",
+          icon: Bell,
+          label: "Thông báo",
+          badge: notifications,
+        },
         { to: "/ai", icon: Bot, label: "AI Assistant" },
         { to: "/settings", icon: Settings, label: "Cài đặt" },
       ],
@@ -182,9 +203,9 @@ export default function MainLayout() {
                   {!collapsed && (
                     <span className="flex-1 font-medium">{label}</span>
                   )}
-                  {!collapsed && badge && (
+                  {!collapsed && badge > 0 && (
                     <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                      {badge}
+                      {badge > 99 ? "99+" : badge}
                     </span>
                   )}
                 </NavLink>
@@ -269,15 +290,18 @@ export default function MainLayout() {
 
             <div className="w-px h-8 bg-gray-200" />
 
-            {/* Notification */}
+            {/* Notification bell */}
             <button
-              onClick={() => navigate("/notifications")}
+              onClick={() => {
+                navigate("/notifications");
+                fetchUnreadCount();
+              }}
               className="relative text-gray-500 hover:text-blue-600 transition-colors"
             >
               <Bell size={20} />
               {notifications > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
-                  {notifications}
+                  {notifications > 99 ? "99+" : notifications}
                 </span>
               )}
             </button>

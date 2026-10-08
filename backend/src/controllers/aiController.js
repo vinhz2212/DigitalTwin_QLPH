@@ -1,4 +1,4 @@
-const { model } = require("../config/gemini");
+const { generateContent } = require("../config/gemini");
 const db = require("../config/database");
 
 const aiController = {
@@ -10,7 +10,14 @@ const aiController = {
         return res.status(400).json({ message: "Vui lòng nhập câu hỏi" });
       }
 
-      // Lấy thông tin hệ thống
+      // Lọc bỏ tin nhắn lỗi trong history
+      const cleanedHistory = history.filter(
+        (h) =>
+          h.content &&
+          !h.content.includes("❌ Xin lỗi") &&
+          !h.content.includes("Cần cấu hình Gemini"),
+      );
+
       const [roomStats] = await db.query(`
         SELECT
           COUNT(*) as total,
@@ -42,35 +49,11 @@ Thông tin hiện tại của hệ thống:
 - Sự cố đang xảy ra: ${incidentStats[0].active}
       `;
 
-      // Lọc history hợp lệ
-      const validHistory = history
-        .filter((h) => h.role === "user" || h.role === "assistant")
-        .map((h) => ({
-          role: h.role === "assistant" ? "model" : "user",
-          parts: [{ text: h.content }],
-        }));
+      const fullMessage = systemContext + "\n\nCâu hỏi: " + message;
+      const response = await generateContent(fullMessage);
 
-      // Đảm bảo history bắt đầu bằng 'user'
-      const filteredHistory =
-        validHistory.length > 0 && validHistory[0].role === "model"
-          ? validHistory.slice(1)
-          : validHistory;
-
-      const chat = model.startChat({
-        history: filteredHistory,
-      });
-
-      const result = await chat.sendMessage(
-        systemContext + "\n\nCâu hỏi: " + message,
-      );
-      const response = result.response.text();
-
-      // Lưu vào database
       await db.query(
-        `
-        INSERT INTO AIAnalysis (user_id, prompt, response, type)
-        VALUES (?, ?, ?, 'chatbot')
-      `,
+        `INSERT INTO AIAnalysis (user_id, prompt, response, type) VALUES (?, ?, ?, 'chatbot')`,
         [req.user.id, message, response],
       );
 
@@ -97,19 +80,16 @@ Hãy đưa ra:
 4. Biện pháp phòng ngừa
       `;
 
-      const result = await model.generateContent(prompt);
-      const response = result.response.text();
+      const response = await generateContent(prompt);
 
       await db.query(
-        `
-        INSERT INTO AIAnalysis (user_id, prompt, response, type)
-        VALUES (?, ?, ?, 'phan_tich_su_co')
-      `,
+        `INSERT INTO AIAnalysis (user_id, prompt, response, type) VALUES (?, ?, ?, 'phan_tich_su_co')`,
         [req.user.id, prompt, response],
       );
 
       res.json({ response });
     } catch (error) {
+      console.error("Gemini error:", error);
       res.status(500).json({ message: "Lỗi AI", error: error.message });
     }
   },
@@ -132,19 +112,16 @@ Hãy đưa ra:
 4. Lịch bảo trì định kỳ đề xuất
       `;
 
-      const result = await model.generateContent(prompt);
-      const response = result.response.text();
+      const response = await generateContent(prompt);
 
       await db.query(
-        `
-        INSERT INTO AIAnalysis (user_id, prompt, response, type)
-        VALUES (?, ?, ?, 'de_xuat_bao_tri')
-      `,
+        `INSERT INTO AIAnalysis (user_id, prompt, response, type) VALUES (?, ?, ?, 'de_xuat_bao_tri')`,
         [req.user.id, prompt, response],
       );
 
       res.json({ response });
     } catch (error) {
+      console.error("Gemini error:", error);
       res.status(500).json({ message: "Lỗi AI", error: error.message });
     }
   },
@@ -164,7 +141,7 @@ Hãy đưa ra:
         ${type ? "AND r.type = ?" : ""}
         ORDER BY r.capacity ASC
         LIMIT 5
-      `,
+        `,
         type ? [capacity, type] : [capacity],
       );
 
@@ -181,11 +158,11 @@ ${availableRooms.map((r) => `- ${r.code} (${r.building_code}, Tầng ${r.floor_n
 Hãy đề xuất phòng phù hợp nhất và lý do.
       `;
 
-      const result = await model.generateContent(prompt);
-      const response = result.response.text();
+      const response = await generateContent(prompt);
 
       res.json({ response, rooms: availableRooms });
     } catch (error) {
+      console.error("Gemini error:", error);
       res.status(500).json({ message: "Lỗi AI", error: error.message });
     }
   },

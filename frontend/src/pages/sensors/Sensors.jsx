@@ -8,10 +8,10 @@ import {
   Activity,
   RefreshCw,
   AlertTriangle,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import {
-  LineChart,
-  Line,
   AreaChart,
   Area,
   XAxis,
@@ -30,7 +30,9 @@ const SENSOR_CONFIG = {
     min: 18,
     max: 35,
     normal: [20, 28],
-    gradient: ["#fef2f2", "#fecaca"],
+    gradient: ["#fef2f2", "#fee2e2"],
+    iconBg: "#fef2f2",
+    description: "Nhiệt độ không khí trong phòng",
   },
   do_am: {
     label: "Độ ẩm",
@@ -40,7 +42,9 @@ const SENSOR_CONFIG = {
     min: 0,
     max: 100,
     normal: [40, 70],
-    gradient: ["#eff6ff", "#bfdbfe"],
+    gradient: ["#eff6ff", "#dbeafe"],
+    iconBg: "#eff6ff",
+    description: "Độ ẩm tương đối trong phòng",
   },
   co2: {
     label: "CO₂",
@@ -50,7 +54,9 @@ const SENSOR_CONFIG = {
     min: 300,
     max: 2000,
     normal: [300, 1000],
-    gradient: ["#f5f3ff", "#ddd6fe"],
+    gradient: ["#f5f3ff", "#ede9fe"],
+    iconBg: "#f5f3ff",
+    description: "Nồng độ CO₂ trong không khí",
   },
   so_nguoi: {
     label: "Số người",
@@ -60,7 +66,9 @@ const SENSOR_CONFIG = {
     min: 0,
     max: 50,
     normal: [0, 40],
-    gradient: ["#fff7ed", "#fed7aa"],
+    gradient: ["#fff7ed", "#ffedd5"],
+    iconBg: "#fff7ed",
+    description: "Số người hiện có trong phòng",
   },
   anh_sang: {
     label: "Ánh sáng",
@@ -70,7 +78,9 @@ const SENSOR_CONFIG = {
     min: 0,
     max: 1000,
     normal: [300, 800],
-    gradient: ["#fefce8", "#fef08a"],
+    gradient: ["#fefce8", "#fef9c3"],
+    iconBg: "#fefce8",
+    description: "Cường độ ánh sáng trong phòng",
   },
   khoi: {
     label: "Khói",
@@ -80,27 +90,34 @@ const SENSOR_CONFIG = {
     min: 0,
     max: 100,
     normal: [0, 20],
-    gradient: ["#f9fafb", "#e5e7eb"],
+    gradient: ["#f9fafb", "#f3f4f6"],
+    iconBg: "#f9fafb",
+    description: "Nồng độ khói/bụi trong không khí",
   },
 };
 
-const generateData = (type, count = 12) => {
-  const config = SENSOR_CONFIG[type];
-  return Array.from({ length: count }, (_, i) => ({
+const generateValue = (config) => {
+  const range = config.normal[1] - config.normal[0];
+  return parseFloat(
+    (Math.random() * range * 1.3 + config.normal[0]).toFixed(1),
+  );
+};
+
+const generateHistory = (config, count = 12) =>
+  Array.from({ length: count }, (_, i) => ({
     time: `${String(i * 2).padStart(2, "0")}:00`,
     value: parseFloat(
       (
-        Math.random() * (config.normal[1] - config.normal[0]) * 1.3 +
+        Math.random() * (config.normal[1] - config.normal[0]) +
         config.normal[0]
       ).toFixed(1),
     ),
   }));
-};
 
-function SensorCard({ type, roomCode, value, isAlert, onClick, isSelected }) {
+function SensorCard({ type, value, isAlert, isSelected, onClick }) {
   const config = SENSOR_CONFIG[type];
   const Icon = config.icon;
-  const percentage = Math.min(
+  const pct = Math.min(
     ((value - config.min) / (config.max - config.min)) * 100,
     100,
   );
@@ -108,68 +125,78 @@ function SensorCard({ type, roomCode, value, isAlert, onClick, isSelected }) {
   return (
     <div
       onClick={onClick}
-      className={`rounded-2xl p-4 cursor-pointer transition-all hover:shadow-lg border-2 ${
-        isSelected ? "shadow-lg" : "shadow-sm"
-      }`}
+      className="rounded-2xl p-5 cursor-pointer transition-all hover:shadow-lg border-2"
       style={{
         background: isAlert
           ? `linear-gradient(135deg, ${config.gradient[0]}, ${config.gradient[1]})`
-          : "white",
+          : isSelected
+            ? `linear-gradient(135deg, white, ${config.gradient[0]})`
+            : "white",
         borderColor: isSelected
           ? config.color
           : isAlert
-            ? config.color + "50"
+            ? config.color + "60"
             : "#f1f5f9",
-        boxShadow: isSelected ? `0 8px 25px ${config.color}30` : undefined,
+        boxShadow: isSelected
+          ? `0 8px 25px ${config.color}25`
+          : isAlert
+            ? `0 4px 15px ${config.color}20`
+            : "none",
       }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
           <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center shadow-sm"
-            style={{ background: config.color + "18" }}
+            className="w-11 h-11 rounded-xl flex items-center justify-center shadow-sm"
+            style={{
+              background: isAlert ? config.color + "20" : config.iconBg,
+            }}
           >
-            <Icon size={17} style={{ color: config.color }} />
+            <Icon size={22} style={{ color: config.color }} />
           </div>
           <div>
-            <p className="text-xs font-black text-gray-700">{config.label}</p>
-            <p className="text-xs text-gray-400">{roomCode}</p>
+            <p className="font-black text-gray-800 text-sm">{config.label}</p>
+            <p className="text-xs text-gray-400">{config.description}</p>
           </div>
         </div>
         {isAlert && (
-          <div
-            className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold"
-            style={{ background: config.color, color: "white" }}
+          <span
+            className="flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-full text-white animate-pulse"
+            style={{ background: config.color }}
           >
-            <AlertTriangle size={10} />
-            Cảnh báo
-          </div>
+            <AlertTriangle size={11} /> Cảnh báo
+          </span>
         )}
       </div>
 
       {/* Value */}
-      <div className="flex items-end gap-1 mb-3">
-        <p className="text-3xl font-black" style={{ color: config.color }}>
+      <div className="flex items-end gap-1.5 mb-4">
+        <p
+          className="text-4xl font-black"
+          style={{ color: isAlert ? config.color : "#1e293b" }}
+        >
           {value}
         </p>
-        <p className="text-sm text-gray-400 mb-1 font-medium">{config.unit}</p>
+        <p className="text-lg text-gray-400 mb-1 font-semibold">
+          {config.unit}
+        </p>
       </div>
 
-      {/* Progress */}
-      <div className="space-y-1">
-        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+      {/* Progress bar */}
+      <div>
+        <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
           <div
-            className="h-full rounded-full transition-all duration-500"
+            className="h-full rounded-full transition-all duration-700"
             style={{
-              width: `${percentage}%`,
+              width: `${pct}%`,
               background: isAlert
-                ? `linear-gradient(90deg, ${config.color}, ${config.color}aa)`
-                : `linear-gradient(90deg, ${config.color}88, ${config.color})`,
+                ? `linear-gradient(90deg, ${config.color}, ${config.color}cc)`
+                : `linear-gradient(90deg, ${config.color}66, ${config.color})`,
             }}
           />
         </div>
-        <div className="flex justify-between text-xs text-gray-300 font-medium">
+        <div className="flex justify-between text-xs text-gray-300">
           <span>
             {config.min}
             {config.unit}
@@ -193,7 +220,7 @@ const CustomTooltip = ({ active, payload, label }) => {
     return (
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-3 text-xs">
         <p className="font-black text-gray-700 mb-1">{label}</p>
-        <p className="font-bold" style={{ color: payload[0]?.color }}>
+        <p className="font-bold" style={{ color: payload[0]?.stroke }}>
           {payload[0]?.value} {payload[0]?.name}
         </p>
       </div>
@@ -220,7 +247,7 @@ export default function Sensors() {
   useEffect(() => {
     if (autoRefresh) {
       intervalRef.current = setInterval(() => {
-        generateSensorData();
+        updateSensorData();
         setLastUpdate(new Date());
       }, 3000);
     } else {
@@ -233,7 +260,9 @@ export default function Sensors() {
     try {
       const res = await api.get("/rooms");
       setRooms(res.data);
-      if (res.data.length > 0) setSelectedRoom(res.data[0]);
+      if (res.data.length > 0) {
+        setSelectedRoom(res.data[0]);
+      }
       setLoading(false);
     } catch (error) {
       console.error(error);
@@ -241,30 +270,24 @@ export default function Sensors() {
     }
   };
 
-  const generateSensorData = () => {
+  const updateSensorData = () => {
     const newData = {};
     const newChart = {};
-    Object.keys(SENSOR_CONFIG).forEach((type) => {
-      const config = SENSOR_CONFIG[type];
-      const value = parseFloat(
-        (
-          Math.random() * (config.normal[1] - config.normal[0]) * 1.2 +
-          config.normal[0]
-        ).toFixed(1),
-      );
+    Object.entries(SENSOR_CONFIG).forEach(([type, config]) => {
+      const value = generateValue(config);
       newData[type] = {
         value,
         isAlert:
-          value > config.normal[1] * 1.1 || value < config.normal[0] * 0.9,
+          value > config.normal[1] * 1.1 || value < config.normal[0] * 0.8,
       };
-      newChart[type] = generateData(type);
+      newChart[type] = generateHistory(config);
     });
     setSensorData(newData);
     setChartData(newChart);
   };
 
   useEffect(() => {
-    if (selectedRoom) generateSensorData();
+    if (selectedRoom) updateSensorData();
   }, [selectedRoom]);
 
   const alerts = Object.entries(sensorData).filter(([_, d]) => d.isAlert);
@@ -281,11 +304,17 @@ export default function Sensors() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-gray-100 shadow-sm">
-            <div
-              className={`w-2 h-2 rounded-full ${autoRefresh ? "bg-green-500 animate-pulse" : "bg-gray-300"}`}
-            />
-            <span className="text-xs font-bold text-gray-500">
+          {/* Status */}
+          <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 shadow-sm">
+            {autoRefresh ? (
+              <Wifi size={15} className="text-green-500" />
+            ) : (
+              <WifiOff size={15} className="text-gray-400" />
+            )}
+            <span
+              className="text-xs font-bold"
+              style={{ color: autoRefresh ? "#22c55e" : "#9ca3af" }}
+            >
               {autoRefresh
                 ? `Cập nhật: ${lastUpdate.toLocaleTimeString("vi-VN")}`
                 : "Đã dừng"}
@@ -309,35 +338,35 @@ export default function Sensors() {
         </div>
       </div>
 
-      {/* Alerts */}
+      {/* Alerts banner */}
       {alerts.length > 0 && (
-        <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle size={18} className="text-red-500" />
-            <p className="text-sm font-black text-red-600">
-              Cảnh báo cảm biến ({alerts.length})
-            </p>
+        <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle size={20} className="text-red-500" />
           </div>
-          <div className="flex flex-wrap gap-2">
-            {alerts.map(([type, data]) => (
-              <span
-                key={type}
-                className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
-                style={{
-                  background: SENSOR_CONFIG[type].color,
-                  color: "white",
-                }}
-              >
-                {SENSOR_CONFIG[type].label}: {data.value}
-                {SENSOR_CONFIG[type].unit}
-              </span>
-            ))}
+          <div className="flex-1">
+            <p className="text-sm font-black text-red-700">
+              ⚠️ Phát hiện {alerts.length} cảm biến vượt ngưỡng tại phòng{" "}
+              {selectedRoom?.code}
+            </p>
+            <div className="flex flex-wrap gap-2 mt-1.5">
+              {alerts.map(([type, data]) => (
+                <span
+                  key={type}
+                  className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full text-white"
+                  style={{ background: SENSOR_CONFIG[type].color }}
+                >
+                  {SENSOR_CONFIG[type].label}: {data.value}
+                  {SENSOR_CONFIG[type].unit}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
       <div className="grid grid-cols-12 gap-5">
-        {/* LEFT: Room selector */}
+        {/* LEFT: Room list */}
         <div className="col-span-2">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div
@@ -355,12 +384,10 @@ export default function Sensors() {
                 <button
                   key={room.id}
                   onClick={() => setSelectedRoom(room)}
-                  className="w-full text-left px-3 py-2.5 rounded-xl text-sm transition-all"
+                  className="w-full text-left px-3 py-2.5 rounded-xl transition-all"
                   style={{
                     background:
-                      selectedRoom?.id === room.id
-                        ? "linear-gradient(135deg, #eff6ff, #dbeafe)"
-                        : "transparent",
+                      selectedRoom?.id === room.id ? "#eff6ff" : "transparent",
                     borderLeft:
                       selectedRoom?.id === room.id
                         ? "3px solid #1a56db"
@@ -381,61 +408,68 @@ export default function Sensors() {
           </div>
         </div>
 
-        {/* RIGHT: Sensors */}
+        {/* RIGHT: Main content */}
         <div className="col-span-10 space-y-5">
           {selectedRoom && (
             <>
-              {/* Room info */}
-              <div className="flex items-center justify-between bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+              {/* Room info bar */}
+              <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-blue-50">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-xl">
                     📡
                   </div>
                   <div>
                     <p className="font-black text-gray-800">
-                      Cảm biến phòng {selectedRoom.code}
+                      Phòng {selectedRoom.code}
                     </p>
                     <p className="text-xs text-gray-400">
                       {selectedRoom.building_name} / Tầng{" "}
                       {selectedRoom.floor_number} — {selectedRoom.capacity} chỗ
+                      ngồi
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-400">Cập nhật lúc</p>
-                  <p className="text-sm font-black text-gray-700 font-mono">
-                    {lastUpdate.toLocaleTimeString("vi-VN")}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-2.5 h-2.5 rounded-full ${autoRefresh ? "bg-green-500 animate-pulse" : "bg-gray-300"}`}
+                  />
+                  <div className="text-right">
+                    <p className="text-xs text-gray-400">Cập nhật lúc</p>
+                    <p className="text-sm font-black text-gray-700 font-mono">
+                      {lastUpdate.toLocaleTimeString("vi-VN")}
+                    </p>
+                  </div>
                 </div>
               </div>
 
               {/* Sensor cards grid */}
               <div className="grid grid-cols-3 gap-4">
-                {Object.entries(SENSOR_CONFIG).map(([type, config]) => (
+                {Object.entries(SENSOR_CONFIG).map(([type]) => (
                   <SensorCard
                     key={type}
                     type={type}
-                    roomCode={selectedRoom.code}
-                    value={sensorData[type]?.value || config.normal[0]}
-                    isAlert={sensorData[type]?.isAlert || false}
-                    onClick={() => setSelectedSensor(type)}
+                    value={
+                      sensorData[type]?.value ?? SENSOR_CONFIG[type].normal[0]
+                    }
+                    isAlert={sensorData[type]?.isAlert ?? false}
                     isSelected={selectedSensor === type}
+                    onClick={() => setSelectedSensor(type)}
                   />
                 ))}
               </div>
 
-              {/* Chart area */}
+              {/* Charts */}
               <div className="grid grid-cols-2 gap-4">
-                {/* Main selected sensor chart */}
+                {/* Detail chart */}
                 <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between mb-5">
+                    <div className="flex items-center gap-3">
                       <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center"
-                        style={{ background: selectedConfig.color + "18" }}
+                        className="w-9 h-9 rounded-xl flex items-center justify-center"
+                        style={{ background: selectedConfig.iconBg }}
                       >
                         <selectedConfig.icon
-                          size={16}
+                          size={18}
                           style={{ color: selectedConfig.color }}
                         />
                       </div>
@@ -444,22 +478,24 @@ export default function Sensors() {
                           {selectedConfig.label}
                         </p>
                         <p className="text-xs text-gray-400">
-                          Theo thời gian ({selectedConfig.unit})
+                          Biểu đồ theo thời gian
                         </p>
                       </div>
                     </div>
-                    <span
-                      className="text-2xl font-black"
-                      style={{ color: selectedConfig.color }}
-                    >
-                      {sensorData[selectedSensor]?.value ||
-                        selectedConfig.normal[0]}
-                      <span className="text-sm font-medium text-gray-400 ml-1">
-                        {selectedConfig.unit}
-                      </span>
-                    </span>
+                    <div className="text-right">
+                      <p
+                        className="text-2xl font-black"
+                        style={{ color: selectedConfig.color }}
+                      >
+                        {sensorData[selectedSensor]?.value ??
+                          selectedConfig.normal[0]}
+                        <span className="text-sm font-medium text-gray-400 ml-1">
+                          {selectedConfig.unit}
+                        </span>
+                      </p>
+                    </div>
                   </div>
-                  <ResponsiveContainer width="100%" height={160}>
+                  <ResponsiveContainer width="100%" height={180}>
                     <AreaChart data={chartData[selectedSensor] || []}>
                       <XAxis
                         dataKey="time"
@@ -485,14 +521,14 @@ export default function Sensors() {
                   </ResponsiveContainer>
                 </div>
 
-                {/* All sensors mini charts */}
+                {/* Overview */}
                 <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
                   <p className="text-sm font-black text-gray-800 mb-4">
                     Tổng quan tất cả cảm biến
                   </p>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {Object.entries(SENSOR_CONFIG).map(([type, config]) => {
-                      const val = sensorData[type]?.value || config.normal[0];
+                      const val = sensorData[type]?.value ?? config.normal[0];
                       const pct = Math.min(
                         ((val - config.min) / (config.max - config.min)) * 100,
                         100,
@@ -501,18 +537,28 @@ export default function Sensors() {
                       return (
                         <div
                           key={type}
-                          className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-1.5 rounded-xl transition-all"
+                          className="flex items-center gap-3 p-2 rounded-xl cursor-pointer hover:bg-gray-50 transition-all"
                           onClick={() => setSelectedSensor(type)}
+                          style={{
+                            background:
+                              selectedSensor === type
+                                ? config.iconBg
+                                : "transparent",
+                          }}
                         >
-                          <config.icon
-                            size={14}
-                            style={{ color: config.color }}
-                            className="flex-shrink-0"
-                          />
-                          <span className="text-xs text-gray-500 w-20 font-medium">
+                          <div
+                            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                            style={{ background: config.iconBg }}
+                          >
+                            <config.icon
+                              size={15}
+                              style={{ color: config.color }}
+                            />
+                          </div>
+                          <span className="text-xs font-bold text-gray-600 w-20 flex-shrink-0">
                             {config.label}
                           </span>
-                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                             <div
                               className="h-full rounded-full transition-all duration-500"
                               style={{
@@ -522,20 +568,15 @@ export default function Sensors() {
                             />
                           </div>
                           <span
-                            className="text-xs font-black w-16 text-right"
+                            className="text-xs font-black w-20 text-right flex-shrink-0"
                             style={{
                               color: isAlert ? config.color : "#6b7280",
                             }}
                           >
                             {val}
                             {config.unit}
+                            {isAlert && " ⚠️"}
                           </span>
-                          {isAlert && (
-                            <span
-                              className="w-2 h-2 rounded-full flex-shrink-0"
-                              style={{ background: config.color }}
-                            />
-                          )}
                         </div>
                       );
                     })}

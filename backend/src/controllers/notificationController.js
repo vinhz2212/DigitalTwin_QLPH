@@ -1,7 +1,7 @@
 const NotificationModel = require("../models/notificationModel");
 
 const notificationController = {
-  // Lấy tất cả thông báo của người dùng hiện tại
+  // Lấy tất cả thông báo
   getAll: async (req, res) => {
     try {
       const userId = req.user.id;
@@ -9,6 +9,18 @@ const notificationController = {
       res.json(notifications);
     } catch (error) {
       console.error("Lỗi lấy thông báo:", error);
+      res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+  },
+
+  // ✅ Lấy số thông báo chưa đọc
+  getUnreadCount: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const count = await NotificationModel.getUnreadCount(userId);
+      res.json({ count });
+    } catch (error) {
+      console.error("Lỗi lấy số thông báo:", error);
       res.status(500).json({ message: "Lỗi server", error: error.message });
     }
   },

@@ -21,6 +21,7 @@ const bookingRoutes = require("./src/routes/bookingRoutes");
 const sensorRoutes = require("./src/routes/sensorRoutes");
 const energyRoutes = require("./src/routes/energyRoutes");
 const notificationRoutes = require("./src/routes/notificationRoutes");
+const statisticsRoutes = require("./src/routes/statisticsRoutes");
 
 const app = express();
 const server = http.createServer(app);
@@ -47,6 +48,7 @@ app.use("/api/bookings", bookingRoutes);
 app.use("/api/sensors", sensorRoutes);
 app.use("/api/energy", energyRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/statistics", statisticsRoutes);
 
 // Test route
 app.get("/", (req, res) => {
