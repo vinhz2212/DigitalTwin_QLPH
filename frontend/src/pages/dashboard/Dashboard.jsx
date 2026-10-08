@@ -1,29 +1,49 @@
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, Text, RoundedBox } from "@react-three/drei";
-import api from "../../services/api";
-import useSocket from "../../hooks/useSocket";
 import {
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-  BarChart,
+  ContactShadows,
+  Edges,
+  OrbitControls,
+  RoundedBox,
+  Text,
+} from "@react-three/drei";
+import {
+  AlertTriangle,
+  CheckCircle,
+  ChevronRight,
+  Thermometer,
+  Zap,
+} from "lucide-react";
+import {
   Bar,
+  BarChart,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  ResponsiveContainer,
 } from "recharts";
-import { AlertTriangle, Info, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+
+import api from "../../services/api";
+import useSocket from "../../hooks/useSocket";
 
 const STATUS_COLORS = {
   trong: "#22c55e",
   dang_hoc: "#3b82f6",
   bao_tri: "#f59e0b",
   su_co: "#ef4444",
+};
+
+const STATUS_SURFACE = {
+  trong: "#e9f8ee",
+  dang_hoc: "#eaf2ff",
+  bao_tri: "#fff4df",
+  su_co: "#ffeded",
 };
 
 const STATUS_LABELS = {
@@ -33,105 +53,197 @@ const STATUS_LABELS = {
   su_co: "Sự cố",
 };
 
-// 3D Room Box
-function RoomBox({ position, room, onClick, isSelected }) {
-  const meshRef = useRef();
-  const [hovered, setHovered] = useState(false);
-  const color = STATUS_COLORS[room.status] || "#9ca3af";
+const FLOOR_HEIGHT = 0.86;
 
-  useFrame(({ clock }) => {
-    if (meshRef.current && room.status === "su_co") {
-      meshRef.current.material.emissiveIntensity =
-        0.4 + Math.sin(clock.elapsedTime * 4) * 0.3;
-    }
-  });
+const tempData = [
+  { time: "00:00", temp: 24 },
+  { time: "06:00", temp: 23 },
+  { time: "12:00", temp: 26.5 },
+  { time: "18:00", temp: 28 },
+  { time: "24:00", temp: 25 },
+];
 
+const energyData = [
+  { date: "23/05", kwh: 80 },
+  { date: "24/05", kwh: 120 },
+  { date: "25/05", kwh: 95 },
+  { date: "26/05", kwh: 140 },
+  { date: "27/05", kwh: 110 },
+  { date: "28/05", kwh: 160 },
+  { date: "29/05", kwh: 420 },
+];
+
+function Tree({ position, scale = 1 }) {
   return (
-    <group position={position}>
-      {/* Main box */}
-      <mesh
-        ref={meshRef}
-        onClick={(e) => {
-          e.stopPropagation();
-          onClick(room);
-        }}
-        onPointerOver={() => {
-          setHovered(true);
-          document.body.style.cursor = "pointer";
-        }}
-        onPointerOut={() => {
-          setHovered(false);
-          document.body.style.cursor = "default";
-        }}
-        scale={hovered ? [1.08, 1.08, 1.08] : [1, 1, 1]}
-      >
-        <boxGeometry args={[0.82, 0.38, 0.82]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={color}
-          emissiveIntensity={
-            room.status === "su_co" ? 0.4 : isSelected ? 0.35 : 0.08
-          }
-          metalness={0.15}
-          roughness={0.45}
-        />
+    <group position={position} scale={scale}>
+      <mesh position={[0, 0.36, 0]} castShadow>
+        <cylinderGeometry args={[0.075, 0.12, 0.72, 10]} />
+        <meshStandardMaterial color="#806247" roughness={0.92} />
       </mesh>
 
-      {/* Top cap */}
-      <mesh position={[0, 0.22, 0]}>
-        <boxGeometry args={[0.84, 0.06, 0.84]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={color}
-          emissiveIntensity={0.2}
-          metalness={0.3}
-          roughness={0.3}
-        />
+      <mesh position={[0, 0.92, 0]} castShadow>
+        <sphereGeometry args={[0.39, 16, 14]} />
+        <meshStandardMaterial color="#67a875" roughness={0.9} />
       </mesh>
 
-      {/* Windows front */}
-      <mesh position={[0, 0.02, 0.42]}>
-        <boxGeometry args={[0.55, 0.18, 0.02]} />
-        <meshStandardMaterial
-          color="#bfdbfe"
-          emissive="#93c5fd"
-          emissiveIntensity={0.6}
-          transparent
-          opacity={0.85}
-        />
+      <mesh position={[-0.22, 0.82, 0.08]} castShadow>
+        <sphereGeometry args={[0.27, 14, 12]} />
+        <meshStandardMaterial color="#82b987" roughness={0.9} />
       </mesh>
 
-      {/* Selection ring */}
-      {isSelected && (
-        <mesh>
-          <boxGeometry args={[0.9, 0.44, 0.9]} />
-          <meshStandardMaterial
-            color="white"
-            wireframe
-            transparent
-            opacity={0.6}
-          />
-        </mesh>
-      )}
-
-      {/* Room label */}
-      <Text
-        position={[0, 0.27, 0]}
-        fontSize={0.09}
-        color="white"
-        anchorX="center"
-        anchorY="middle"
-        fontWeight="bold"
-        outlineWidth={0.005}
-        outlineColor="#00000055"
-      >
-        {room.code}
-      </Text>
+      <mesh position={[0.23, 0.83, -0.06]} castShadow>
+        <sphereGeometry args={[0.28, 14, 12]} />
+        <meshStandardMaterial color="#559767" roughness={0.9} />
+      </mesh>
     </group>
   );
 }
 
-// 3D Floor
+function RoomBox({ position, room, onClick, isSelected }) {
+  const [hovered, setHovered] = useState(false);
+  const pulseRef = useRef();
+
+  const statusColor = STATUS_COLORS[room.status] || "#94a3b8";
+  const surfaceColor = STATUS_SURFACE[room.status] || "#f1f5f9";
+
+  useFrame(({ clock }) => {
+    if (pulseRef.current && room.status === "su_co") {
+      const pulse = 0.85 + Math.sin(clock.elapsedTime * 4) * 0.2;
+      pulseRef.current.scale.setScalar(pulse);
+    }
+  });
+
+  return (
+    <group
+      position={position}
+      scale={hovered ? 1.045 : 1}
+      onPointerOver={() => {
+        setHovered(true);
+        document.body.style.cursor = "pointer";
+      }}
+      onPointerOut={() => {
+        setHovered(false);
+        document.body.style.cursor = "default";
+      }}
+    >
+      {/* Khối phòng nổi nhẹ khỏi mặt tiền */}
+      <RoundedBox
+        args={[1.04, 0.62, 0.24]}
+        radius={0.045}
+        smoothness={4}
+        castShadow
+        receiveShadow
+        onClick={(event) => {
+          event.stopPropagation();
+          onClick(room);
+        }}
+      >
+        <meshPhysicalMaterial
+          color="#f9fcfe"
+          roughness={0.4}
+          metalness={0.04}
+          clearcoat={0.35}
+        />
+        {isSelected && <Edges color="#1768e8" threshold={15} />}
+      </RoundedBox>
+
+      {/* Khung kính lớn phía trước */}
+      <RoundedBox
+        args={[0.88, 0.3, 0.025]}
+        radius={0.018}
+        smoothness={3}
+        position={[0, 0.075, 0.132]}
+      >
+        <meshPhysicalMaterial
+          color={surfaceColor}
+          roughness={0.22}
+          metalness={0.08}
+          clearcoat={0.8}
+        />
+      </RoundedBox>
+
+      {/* Thanh ngang cửa kính */}
+      <mesh position={[0, 0.075, 0.15]}>
+        <boxGeometry args={[0.88, 0.018, 0.012]} />
+        <meshStandardMaterial
+          color="#9bbac8"
+          metalness={0.25}
+          roughness={0.4}
+        />
+      </mesh>
+
+      {/* Thanh dọc cửa kính */}
+      <mesh position={[0, 0.075, 0.15]}>
+        <boxGeometry args={[0.018, 0.3, 0.012]} />
+        <meshStandardMaterial
+          color="#9bbac8"
+          metalness={0.25}
+          roughness={0.4}
+        />
+      </mesh>
+
+      {/* Bảng tên phòng */}
+      <RoundedBox
+        args={[0.67, 0.17, 0.025]}
+        radius={0.025}
+        smoothness={3}
+        position={[0, -0.19, 0.143]}
+      >
+        <meshStandardMaterial color="#ffffff" roughness={0.5} />
+      </RoundedBox>
+
+      <Text
+        position={[0, -0.19, 0.16]}
+        fontSize={0.125}
+        color="#263d50"
+        anchorX="center"
+        anchorY="middle"
+        fontWeight="bold"
+        outlineWidth={0.002}
+        outlineColor="#ffffff"
+      >
+        {room.code}
+      </Text>
+
+      {/* Dải trạng thái và đèn báo */}
+      <mesh position={[0, -0.285, 0.14]}>
+        <boxGeometry args={[0.88, 0.045, 0.025]} />
+        <meshStandardMaterial
+          color={statusColor}
+          emissive={room.status === "su_co" ? statusColor : "#000000"}
+          emissiveIntensity={room.status === "su_co" ? 0.45 : 0}
+          roughness={0.35}
+        />
+      </mesh>
+
+      <mesh ref={pulseRef} position={[0.39, 0.22, 0.15]}>
+        <sphereGeometry args={[0.035, 12, 12]} />
+        <meshStandardMaterial
+          color={statusColor}
+          emissive={statusColor}
+          emissiveIntensity={room.status === "su_co" ? 1.2 : 0.15}
+        />
+      </mesh>
+
+      {isSelected && (
+        <RoundedBox
+          args={[1.13, 0.7, 0.28]}
+          radius={0.06}
+          smoothness={3}
+          position={[0, 0, 0.01]}
+        >
+          <meshBasicMaterial
+            color="#1768e8"
+            wireframe
+            transparent
+            opacity={0.28}
+          />
+        </RoundedBox>
+      )}
+    </group>
+  );
+}
+
 function FloorGroup({
   floorNumber,
   rooms,
@@ -140,44 +252,69 @@ function FloorGroup({
   selectedRoom,
   isActive,
 }) {
-  const y = (floorNumber - 1) * 0.72;
+  const floorRooms = rooms.slice(0, 4);
+  const floorY = (floorNumber - 1) * FLOOR_HEIGHT;
+
   return (
-    <group position={[buildingOffset, y, 0]}>
-      {/* Floor slab */}
-      <mesh position={[1.5, -0.24, 1.5]}>
-        <boxGeometry args={[3.9, 0.06, 3.9]} />
+    <group position={[buildingOffset, floorY, 0]}>
+      {/* Sàn bê tông */}
+      <mesh position={[2.5, -0.08, 1.55]} receiveShadow castShadow>
+        <boxGeometry args={[5.18, 0.13, 3.35]} />
         <meshStandardMaterial
-          color={isActive ? "#dbeafe" : "#e5e7eb"}
-          transparent
-          opacity={isActive ? 0.7 : 0.35}
+          color={isActive ? "#dcecff" : "#dce5e9"}
+          roughness={0.62}
+          metalness={0.06}
         />
       </mesh>
-      {/* Floor label */}
-      <Text
-        position={[-0.4, 0, 1.5]}
-        fontSize={0.13}
-        color={isActive ? "#3b82f6" : "#9ca3af"}
-        anchorX="center"
-        rotation={[0, Math.PI / 2, 0]}
-        fontWeight={isActive ? "bold" : "normal"}
-      >
-        T{floorNumber}
-      </Text>
-      {/* Rooms */}
-      {rooms.map((room, i) => (
+
+      {/* Viền màu tầng đang chọn */}
+      <mesh position={[2.5, -0.045, 3.24]}>
+        <boxGeometry args={[5.06, 0.045, 0.045]} />
+        <meshStandardMaterial
+          color={isActive ? "#2878ed" : "#a9c1cc"}
+          emissive={isActive ? "#2878ed" : "#000000"}
+          emissiveIntensity={isActive ? 0.2 : 0}
+        />
+      </mesh>
+
+      {/* Bốn phòng thành một hàng trên mặt tiền */}
+      {floorRooms.map((room, index) => (
         <RoomBox
           key={room.id}
-          position={[(i % 2) * 1.05 + 0.55, 0, Math.floor(i / 2) * 1.05 + 0.55]}
+          position={[0.56 + index * 1.15, 0.38, 2.98]}
           room={room}
           onClick={onRoomClick}
           isSelected={selectedRoom?.id === room.id}
         />
       ))}
+
+      {/* Nhãn tầng ở cạnh tòa nhà */}
+      <RoundedBox
+        args={[0.38, 0.34, 0.13]}
+        radius={0.045}
+        smoothness={3}
+        position={[-0.25, 0.38, 2.98]}
+      >
+        <meshStandardMaterial
+          color={isActive ? "#1768e8" : "#edf3f6"}
+          roughness={0.45}
+        />
+      </RoundedBox>
+
+      <Text
+        position={[-0.25, 0.38, 3.06]}
+        fontSize={0.11}
+        color={isActive ? "white" : "#587080"}
+        anchorX="center"
+        anchorY="middle"
+        fontWeight="bold"
+      >
+        {floorNumber}F
+      </Text>
     </group>
   );
 }
 
-// 3D Building
 function Building3D({
   code,
   rooms,
@@ -188,37 +325,120 @@ function Building3D({
 }) {
   return (
     <group>
-      {/* Building label */}
-      <Text
-        position={[offset + 1.5, 4.8, 1.5]}
-        fontSize={0.32}
-        color="#1a56db"
-        fontWeight="bold"
-        anchorX="center"
-        outlineWidth={0.01}
-        outlineColor="#ffffff55"
+      {/* Mặt sau sáng, giúp nhìn xuyên qua mô hình */}
+      <mesh position={[offset + 2.5, 2.1, 0.12]} receiveShadow>
+        <boxGeometry args={[4.95, 4.25, 0.16]} />
+        <meshStandardMaterial
+          color="#d8e8ef"
+          transparent
+          opacity={0.42}
+          depthWrite={false}
+          roughness={0.38}
+        />
+      </mesh>
+
+      {/* Mặt kính bên hông tạo chiều sâu */}
+      <mesh position={[offset + 4.98, 2.1, 1.62]} receiveShadow>
+        <boxGeometry args={[0.16, 4.25, 3.12]} />
+        <meshPhysicalMaterial
+          color="#a7cddd"
+          transparent
+          opacity={0.38}
+          depthWrite={false}
+          roughness={0.28}
+          metalness={0.08}
+          clearcoat={0.5}
+        />
+      </mesh>
+
+      {/* Các thanh đứng ở mặt tiền */}
+      {[0.03, 4.97].map((x) => (
+        <RoundedBox
+          key={`front-column-${x}`}
+          args={[0.14, 4.34, 0.18]}
+          radius={0.035}
+          smoothness={3}
+          position={[offset + x, 2.1, 3.18]}
+          castShadow
+        >
+          <meshStandardMaterial
+            color="#f7fafb"
+            metalness={0.1}
+            roughness={0.42}
+          />
+        </RoundedBox>
+      ))}
+
+      {/* Bệ móng */}
+      <mesh position={[offset + 2.5, -0.16, 1.55]} castShadow receiveShadow>
+        <boxGeometry args={[5.32, 0.24, 3.52]} />
+        <meshStandardMaterial color="#a9bbc3" roughness={0.7} />
+      </mesh>
+
+      {/* Mái và nẹp xanh */}
+      <RoundedBox
+        args={[5.26, 0.2, 3.5]}
+        radius={0.06}
+        smoothness={4}
+        position={[offset + 2.5, 4.28, 1.55]}
+        castShadow
       >
-        TÒA {code}
+        <meshStandardMaterial
+          color="#f3f8fa"
+          metalness={0.08}
+          roughness={0.38}
+        />
+      </RoundedBox>
+
+      <mesh position={[offset + 2.5, 4.4, 1.55]}>
+        <boxGeometry args={[5.32, 0.055, 3.55]} />
+        <meshStandardMaterial
+          color="#4b9dcc"
+          metalness={0.22}
+          roughness={0.34}
+        />
+      </mesh>
+
+      {/* Bảng tên trên mái */}
+      <RoundedBox
+        args={[1.4, 0.35, 0.12]}
+        radius={0.06}
+        smoothness={4}
+        position={[offset + 2.5, 4.68, 1.55]}
+      >
+        <meshStandardMaterial color="#1768e8" roughness={0.4} />
+      </RoundedBox>
+
+      <Text
+        position={[offset + 2.5, 4.68, 1.62]}
+        fontSize={0.19}
+        color="white"
+        anchorX="center"
+        anchorY="middle"
+        fontWeight="bold"
+      >
+        {`TÒA ${code}`}
       </Text>
-      {/* Floors */}
-      {[1, 2, 3, 4, 5].map((f) => (
+
+      {[1, 2, 3, 4, 5].map((floorNumber) => (
         <FloorGroup
-          key={f}
-          floorNumber={f}
+          key={floorNumber}
+          floorNumber={floorNumber}
           rooms={rooms.filter(
-            (r) => r.building_code === code && r.floor_number === f,
+            (room) =>
+              room.building_code === code &&
+              Number(room.floor_number) === floorNumber,
           )}
           buildingOffset={offset}
           onRoomClick={onRoomClick}
           selectedRoom={selectedRoom}
-          isActive={activeFloor === f}
+          isActive={activeFloor === floorNumber}
         />
       ))}
     </group>
   );
 }
 
-// Main Scene
 function Scene({
   rooms,
   onRoomClick,
@@ -228,236 +448,290 @@ function Scene({
 }) {
   return (
     <>
-      <ambientLight intensity={0.65} />
-      <directionalLight position={[8, 12, 8]} intensity={0.9} castShadow />
+      <color attach="background" args={["#dcecf7"]} />
+
+      <hemisphereLight args={["#f5fbff", "#829b80", 1.2]} />
+
       <directionalLight
-        position={[-5, 8, -5]}
-        intensity={0.3}
-        color="#bfdbfe"
+        position={[7, 12, 9]}
+        intensity={2}
+        castShadow
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-camera-left={-14}
+        shadow-camera-right={14}
+        shadow-camera-top={12}
+        shadow-camera-bottom={-10}
       />
-      <pointLight position={[0, 8, 5]} intensity={0.4} color="#93c5fd" />
+
+      <directionalLight
+        position={[-8, 7, -5]}
+        intensity={0.55}
+        color="#c5e5ff"
+      />
 
       <Building3D
         code="A"
         rooms={rooms}
-        offset={-5.2}
+        offset={-5.8}
         onRoomClick={onRoomClick}
         selectedRoom={selectedRoom}
         activeFloor={activeBuilding === "A" ? activeFloor : null}
       />
+
       <Building3D
         code="B"
         rooms={rooms}
-        offset={1.2}
+        offset={0.8}
         onRoomClick={onRoomClick}
         selectedRoom={selectedRoom}
         activeFloor={activeBuilding === "B" ? activeFloor : null}
       />
 
-      {/* Ground */}
-      <mesh position={[-2, -0.52, 2]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[22, 12]} />
-        <meshStandardMaterial color="#f1f5f9" />
+      {/* Nền sân cỏ */}
+      <mesh
+        position={[0, -0.29, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+      >
+        <planeGeometry args={[36, 23]} />
+        <meshStandardMaterial color="#b7d5b0" roughness={0.96} />
       </mesh>
 
-      {/* Grid lines */}
-      <gridHelper
-        args={[22, 22, "#cbd5e1", "#e2e8f0"]}
-        position={[-2, -0.51, 2]}
+      {/* Lối đi giữa hai tòa */}
+      <mesh
+        position={[0, -0.27, 1.5]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+      >
+        <planeGeometry args={[1.45, 12]} />
+        <meshStandardMaterial color="#d8e0df" roughness={0.88} />
+      </mesh>
+
+      {/* Sân phía trước */}
+      <mesh
+        position={[0, -0.265, 4.35]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+      >
+        <planeGeometry args={[13, 1.15]} />
+        <meshStandardMaterial color="#e6ece8" roughness={0.9} />
+      </mesh>
+
+      {/* Cây cảnh trong khuôn viên */}
+      <Tree position={[-6.45, -0.27, 3.95]} scale={1.05} />
+      <Tree position={[-5.9, -0.27, -0.75]} scale={0.9} />
+      <Tree position={[-1.25, -0.27, 4.25]} scale={0.82} />
+      <Tree position={[1.25, -0.27, 4.25]} scale={0.82} />
+      <Tree position={[5.9, -0.27, -0.75]} scale={0.9} />
+      <Tree position={[6.45, -0.27, 3.95]} scale={1.05} />
+
+      <ContactShadows
+        position={[0, -0.275, 1.4]}
+        opacity={0.28}
+        scale={18}
+        blur={2.5}
+        far={5}
+        resolution={256}
       />
 
       <OrbitControls
         enablePan
         enableZoom
         enableRotate
-        minDistance={5}
-        maxDistance={22}
-        target={[-2, 2, 1.5]}
-        minPolarAngle={Math.PI / 6}
-        maxPolarAngle={Math.PI / 2.2}
+        minDistance={12}
+        maxDistance={23}
+        target={[0, 2.1, 1.45]}
+        minPolarAngle={Math.PI / 5}
+        maxPolarAngle={Math.PI / 2.15}
       />
     </>
   );
 }
 
-// Sample data
-const tempData = [
-  { time: "00:00", temp: 24 },
-  { time: "06:00", temp: 23 },
-  { time: "12:00", temp: 26.5 },
-  { time: "18:00", temp: 28 },
-  { time: "24:00", temp: 25 },
-];
-const energyData = [
-  { date: "23/05", kwh: 80 },
-  { date: "24/05", kwh: 120 },
-  { date: "25/05", kwh: 95 },
-  { date: "26/05", kwh: 140 },
-  { date: "27/05", kwh: 110 },
-  { date: "28/05", kwh: 160 },
-  { date: "29/05", kwh: 420 },
-];
-const controls = [
-  { label: "Điều hòa", icon: "🖥️", on: true },
-  { label: "Chiếu sáng", icon: "💡", on: true },
-  { label: "Quạt thông gió", icon: "🌀", on: true },
-  { label: "Thiết bị điện", icon: "⚡", on: true },
-  { label: "Camera", icon: "📷", on: true },
-  { label: "Báo cháy", icon: "🔥", on: true, status: "Bình thường" },
-  { label: "Cửa", icon: "🚪", on: true, status: "Mở" },
-];
-
 export default function Dashboard() {
   const [rooms, setRooms] = useState([]);
+  const [devices, setDevices] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [selectedBuilding, setSelectedBuilding] = useState("A");
   const [selectedFloor, setSelectedFloor] = useState(5);
   const [viewMode, setViewMode] = useState("3d");
   const [loading, setLoading] = useState(true);
-  const [controlStates, setControlStates] = useState(controls.map((c) => c.on));
+
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchRooms();
-    const interval = setInterval(fetchRooms, 15000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchRooms = async () => {
+  const fetchAll = useCallback(async () => {
     try {
-      const res = await api.get("/rooms");
-      setRooms(res.data);
+      const [roomsRes, devicesRes, notificationsRes] = await Promise.all([
+        api.get("/rooms"),
+        api.get("/devices"),
+        api.get("/notifications"),
+      ]);
+
+      setRooms(roomsRes.data);
+      setDevices(devicesRes.data);
+      setNotifications(notificationsRes.data);
     } catch (error) {
-      console.error(error);
+      console.error("Không thể tải dữ liệu tổng quan:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchAll();
+
+    const interval = setInterval(fetchAll, 15000);
+    return () => clearInterval(interval);
+  }, [fetchAll]);
 
   useSocket({
-    incident_simulated: () => fetchRooms(),
-    incident_resolved: () => fetchRooms(),
-    room_status_changed: () => fetchRooms(),
-    device_status_changed: () => fetchRooms(),
+    incident_simulated: fetchAll,
+    incident_resolved: fetchAll,
+    room_status_changed: fetchAll,
+    device_status_changed: fetchAll,
   });
 
   const floorRooms = rooms.filter(
-    (r) =>
-      r.building_code === selectedBuilding && r.floor_number === selectedFloor,
+    (room) =>
+      room.building_code === selectedBuilding &&
+      Number(room.floor_number) === selectedFloor,
   );
 
-  const stats = {
+  const roomStats = {
     total: rooms.length,
-    trong: rooms.filter((r) => r.status === "trong").length,
-    dang_hoc: rooms.filter((r) => r.status === "dang_hoc").length,
-    bao_tri: rooms.filter((r) => r.status === "bao_tri").length,
-    su_co: rooms.filter((r) => r.status === "su_co").length,
+    trong: rooms.filter((room) => room.status === "trong").length,
+    dang_hoc: rooms.filter((room) => room.status === "dang_hoc").length,
+    bao_tri: rooms.filter((room) => room.status === "bao_tri").length,
+    su_co: rooms.filter((room) => room.status === "su_co").length,
+  };
+
+  const deviceStats = {
+    total: devices.length,
+    hoat_dong: devices.filter((device) => device.status === "hoat_dong").length,
+    tat: devices.filter((device) => device.status === "tat").length,
+    hong: devices.filter((device) => device.status === "hong").length,
+    dang_sua: devices.filter((device) => device.status === "dang_sua").length,
   };
 
   const pieData = [
-    { name: "Đang trống", value: stats.trong, color: "#22c55e" },
-    { name: "Đang sử dụng", value: stats.dang_hoc, color: "#3b82f6" },
-    { name: "Đang bảo trì", value: stats.bao_tri, color: "#f59e0b" },
-    { name: "Sự cố", value: stats.su_co, color: "#ef4444" },
+    { name: "Đang trống", value: roomStats.trong, color: "#22c55e" },
+    { name: "Đang sử dụng", value: roomStats.dang_hoc, color: "#3b82f6" },
+    { name: "Đang bảo trì", value: roomStats.bao_tri, color: "#f59e0b" },
+    { name: "Sự cố", value: roomStats.su_co, color: "#ef4444" },
   ];
+
+  const alerts = notifications
+    .filter(
+      (notification) =>
+        !notification.is_read &&
+        ["error", "warning"].includes(notification.severity),
+    )
+    .slice(0, 3);
+
+  const handleRoomClick = (room) => {
+    setSelectedRoom(room);
+
+    if (room.building_code) {
+      setSelectedBuilding(room.building_code);
+    }
+
+    if (room.floor_number != null) {
+      setSelectedFloor(Number(room.floor_number));
+    }
+  };
 
   return (
     <div className="space-y-4 text-sm">
-      {/* Top: 3 columns */}
       <div className="grid grid-cols-12 gap-4">
-        {/* LEFT: Building + Floor selector */}
-        <div className="col-span-2 space-y-3">
-          {/* Chọn tòa */}
-          <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-100">
-            <p className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">
-              Chọn tòa nhà
-            </p>
+        {/* Bộ chọn tòa nhà và tầng */}
+        <aside className="col-span-2 space-y-3">
+          <div className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
+            <p className="mb-2 text-xs font-bold text-gray-500">Chọn tòa nhà</p>
+
             <div className="flex gap-2">
-              {["A", "B"].map((b) => (
+              {["A", "B"].map((building) => (
                 <button
-                  key={b}
+                  key={building}
+                  type="button"
                   onClick={() => {
-                    setSelectedBuilding(b);
+                    setSelectedBuilding(building);
                     setSelectedRoom(null);
                   }}
-                  className="flex-1 py-2 rounded-lg text-sm font-bold transition-all"
+                  className="flex-1 rounded-lg py-2 text-sm font-bold transition-all"
                   style={{
-                    background: selectedBuilding === b ? "#1a56db" : "#f3f4f6",
-                    color: selectedBuilding === b ? "white" : "#6b7280",
+                    background:
+                      selectedBuilding === building ? "#1a56db" : "#f3f4f6",
+                    color: selectedBuilding === building ? "white" : "#6b7280",
                     boxShadow:
-                      selectedBuilding === b
-                        ? "0 4px 12px rgba(26,86,219,0.3)"
+                      selectedBuilding === building
+                        ? "0 4px 12px rgba(26,86,219,0.24)"
                         : "none",
                   }}
                 >
-                  🏢Tòa {b}
+                  Tòa {building}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Chọn tầng */}
-          <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-100">
-            <p className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">
-              Chọn tầng
-            </p>
+          <div className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
+            <p className="mb-2 text-xs font-bold text-gray-500">Chọn tầng</p>
+
             <div className="space-y-1.5">
-              {[5, 4, 3, 2, 1].map((f) => {
-                const flRooms = rooms.filter(
-                  (r) =>
-                    r.building_code === selectedBuilding &&
-                    r.floor_number === f,
+              {[5, 4, 3, 2, 1].map((floor) => {
+                const roomsOnFloor = rooms.filter(
+                  (room) =>
+                    room.building_code === selectedBuilding &&
+                    Number(room.floor_number) === floor,
                 );
-                const hasIncident = flRooms.some((r) => r.status === "su_co");
+
+                const hasIncident = roomsOnFloor.some(
+                  (room) => room.status === "su_co",
+                );
+
                 return (
                   <button
-                    key={f}
+                    key={floor}
+                    type="button"
                     onClick={() => {
-                      setSelectedFloor(f);
+                      setSelectedFloor(floor);
                       setSelectedRoom(null);
                     }}
-                    className="w-full py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-between px-3"
+                    className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm font-bold transition-all"
                     style={{
-                      background: selectedFloor === f ? "#1a56db" : "#f8fafc",
-                      color: selectedFloor === f ? "white" : "#374151",
-                      boxShadow:
-                        selectedFloor === f
-                          ? "0 4px 12px rgba(26,86,219,0.3)"
-                          : "none",
-                      border:
-                        selectedFloor === f ? "none" : "1px solid #e5e7eb",
+                      background:
+                        selectedFloor === floor ? "#1a56db" : "#f8fafc",
+                      color: selectedFloor === floor ? "white" : "#374151",
+                      borderColor:
+                        selectedFloor === floor ? "#1a56db" : "#e5e7eb",
                     }}
                   >
-                    <span>Tầng {f}</span>
+                    <span>Tầng {floor}</span>
                     {hasIncident && (
-                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
                     )}
                   </button>
                 );
               })}
-              <button
-                className="w-full py-2 rounded-lg text-sm font-medium transition-all px-3 text-gray-400"
-                style={{ background: "#f8fafc", border: "1px solid #e5e7eb" }}
-              >
-                T (Trệt)
-              </button>
             </div>
           </div>
-        </div>
+        </aside>
 
-        {/* CENTER: 3D View */}
-        <div className="col-span-7">
+        {/* Mô hình 3D hoặc sơ đồ 2D */}
+        <section className="col-span-7">
           <div
-            className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden relative"
-            style={{ height: "460px" }}
+            className="relative overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm"
+            style={{ height: 460 }}
           >
-            {/* Mode toggle */}
-            <div className="absolute top-3 left-3 z-10 flex gap-1.5 bg-white rounded-lg p-1 shadow-md border border-gray-100">
+            <div className="absolute left-3 top-3 z-10 flex gap-1 rounded-lg border border-gray-100 bg-white p-1 shadow-md">
               {["2D", "3D"].map((mode) => (
                 <button
                   key={mode}
+                  type="button"
                   onClick={() => setViewMode(mode.toLowerCase())}
-                  className="px-3 py-1 rounded-md text-xs font-bold transition-all"
+                  className="rounded-md px-3 py-1 text-xs font-bold transition-all"
                   style={{
                     background:
                       viewMode === mode.toLowerCase()
@@ -473,48 +747,65 @@ export default function Dashboard() {
             </div>
 
             {viewMode === "3d" ? (
-              <Canvas camera={{ position: [6, 7, 12], fov: 48 }} shadows>
+              <Canvas
+                camera={{
+                  position: [9, 7, 17],
+                  fov: 38,
+                  near: 0.1,
+                  far: 100,
+                }}
+                shadows
+                dpr={[1, 1.75]}
+                gl={{ antialias: true, alpha: false }}
+              >
                 <Scene
                   rooms={rooms}
-                  onRoomClick={setSelectedRoom}
+                  onRoomClick={handleRoomClick}
                   selectedRoom={selectedRoom}
                   activeBuilding={selectedBuilding}
                   activeFloor={selectedFloor}
                 />
               </Canvas>
             ) : (
-              <div className="p-6 h-full overflow-auto flex items-center justify-center">
+              <div className="flex h-full items-center justify-center overflow-auto p-6">
                 <div className="flex gap-10">
                   {["A", "B"].map((building) => (
                     <div key={building}>
-                      <h3 className="text-center font-bold text-blue-600 mb-4 text-base">
+                      <h3 className="mb-4 text-center text-base font-bold text-blue-600">
                         Tòa {building}
                       </h3>
+
                       <div className="space-y-2">
                         {[5, 4, 3, 2, 1].map((floor) => (
-                          <div key={floor} className="flex items-center gap-2">
-                            <span className="text-xs text-gray-400 w-6 font-medium">
+                          <div
+                            key={`${building}-${floor}`}
+                            className="flex items-center gap-2"
+                          >
+                            <span className="w-6 text-xs font-medium text-gray-400">
                               T{floor}
                             </span>
+
                             <div className="flex gap-1">
                               {rooms
                                 .filter(
-                                  (r) =>
-                                    r.building_code === building &&
-                                    r.floor_number === floor,
+                                  (room) =>
+                                    room.building_code === building &&
+                                    Number(room.floor_number) === floor,
                                 )
                                 .map((room) => (
                                   <button
                                     key={room.id}
-                                    onClick={() => setSelectedRoom(room)}
-                                    className="w-14 h-9 rounded-lg text-xs font-bold text-white transition-all hover:scale-105 shadow-sm"
+                                    type="button"
+                                    onClick={() => handleRoomClick(room)}
+                                    className="h-9 w-14 rounded-lg text-xs font-bold text-white shadow-sm transition-transform hover:scale-105"
                                     style={{
-                                      background: STATUS_COLORS[room.status],
+                                      background:
+                                        STATUS_COLORS[room.status] || "#94a3b8",
                                       outline:
                                         selectedRoom?.id === room.id
                                           ? "3px solid #1a56db"
                                           : "none",
-                                      outlineOffset: "2px",
+                                      outlineOffset: 2,
                                     }}
                                   >
                                     {room.code}
@@ -530,96 +821,109 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* Legend */}
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-4 bg-white bg-opacity-95 px-4 py-2 rounded-full shadow-md border border-gray-100 text-xs">
-              {Object.entries(STATUS_COLORS).map(([k, v]) => (
-                <div key={k} className="flex items-center gap-1.5">
-                  <div
-                    className="w-2.5 h-2.5 rounded-full"
-                    style={{ background: v }}
+            <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-4 rounded-full border border-gray-100 bg-white/95 px-4 py-2 text-xs shadow-md">
+              {Object.entries(STATUS_COLORS).map(([key, color]) => (
+                <div key={key} className="flex items-center gap-1.5">
+                  <span
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{ background: color }}
                   />
-                  <span className="text-gray-600 font-medium">
-                    {STATUS_LABELS[k]}
+                  <span className="whitespace-nowrap font-medium text-gray-600">
+                    {STATUS_LABELS[key]}
                   </span>
                 </div>
               ))}
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* RIGHT: Room list */}
-        <div className="col-span-3">
+        {/* Danh sách phòng */}
+        <aside className="col-span-3">
           <div
-            className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col"
-            style={{ height: "460px" }}
+            className="flex flex-col rounded-xl border border-gray-100 bg-white shadow-sm"
+            style={{ height: 460 }}
           >
-            <div className="px-4 py-3 border-b border-gray-100">
-              <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+            <div className="border-b border-gray-100 px-4 py-3">
+              <p className="text-xs font-bold text-gray-700">
                 Danh sách phòng — Tầng {selectedFloor} (Tòa {selectedBuilding})
               </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            <div className="flex-1 space-y-2 overflow-y-auto p-3">
               {floorRooms.length === 0 ? (
-                <div className="text-center text-gray-300 py-8 text-xs">
-                  Không có phòng
+                <div className="py-8 text-center text-xs text-gray-400">
+                  {loading ? "Đang tải phòng..." : "Không có phòng ở tầng này"}
                 </div>
               ) : (
-                floorRooms.map((room) => (
-                  <div
-                    key={room.id}
-                    onClick={() => setSelectedRoom(room)}
-                    className="p-3 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md"
-                    style={{
-                      borderColor:
-                        selectedRoom?.id === room.id ? "#1a56db" : "#f3f4f6",
-                      background:
-                        selectedRoom?.id === room.id ? "#eff6ff" : "white",
-                    }}
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-bold text-gray-800 text-sm">
-                        {room.code}
+                floorRooms.map((room) => {
+                  const color = STATUS_COLORS[room.status] || "#94a3b8";
+
+                  return (
+                    <button
+                      key={room.id}
+                      type="button"
+                      onClick={() => handleRoomClick(room)}
+                      className="w-full rounded-xl border-2 p-3 text-left transition-all hover:shadow-md"
+                      style={{
+                        borderColor:
+                          selectedRoom?.id === room.id ? "#1a56db" : "#f3f4f6",
+                        background:
+                          selectedRoom?.id === room.id ? "#eff6ff" : "white",
+                      }}
+                    >
+                      <span className="mb-1.5 flex items-center justify-between gap-2">
+                        <span className="text-sm font-bold text-gray-800">
+                          {room.code}
+                        </span>
+
+                        <span
+                          className="rounded-full px-2 py-0.5 text-xs font-bold"
+                          style={{
+                            color,
+                            background: `${color}18`,
+                          }}
+                        >
+                          {STATUS_LABELS[room.status] || "Chưa rõ"}
+                        </span>
                       </span>
-                      <span
-                        className="text-xs font-bold px-2 py-0.5 rounded-full"
-                        style={{
-                          color: STATUS_COLORS[room.status],
-                          background: STATUS_COLORS[room.status] + "18",
-                        }}
-                      >
-                        {STATUS_LABELS[room.status]}
+
+                      <span className="flex items-center gap-3 text-xs text-gray-500">
+                        <span>👥 {room.capacity} chỗ</span>
+                        <span>
+                          <Thermometer className="mr-0.5 inline" size={12} />
+                          25°C
+                        </span>
+                        <span>
+                          <CheckCircle className="mr-0.5 inline" size={12} />
+                          Tốt
+                        </span>
                       </span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-gray-400">
-                      <span>👥 {room.capacity} chỗ</span>
-                      <span>🌡️ 25°C</span>
-                      <span>✅ Tốt</span>
-                    </div>
-                  </div>
-                ))
+                    </button>
+                  );
+                })
               )}
             </div>
 
-            <div className="p-3 border-t border-gray-100">
+            <div className="border-t border-gray-100 p-3">
               <button
+                type="button"
                 onClick={() => navigate("/rooms")}
-                className="w-full py-2 rounded-xl text-xs font-bold border-2 border-blue-200 text-blue-600 hover:bg-blue-50 transition-all flex items-center justify-center gap-1"
+                className="flex w-full items-center justify-center gap-1 rounded-xl border-2 border-blue-200 py-2 text-xs font-bold text-blue-600 transition-colors hover:bg-blue-50"
               >
                 Xem tất cả phòng <ChevronRight size={13} />
               </button>
             </div>
           </div>
-        </div>
+        </aside>
       </div>
 
-      {/* MIDDLE: Charts */}
+      {/* Thống kê */}
       <div className="grid grid-cols-5 gap-4">
-        {/* Tổng quan phòng */}
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <p className="text-xs font-bold text-gray-600 mb-3 uppercase tracking-wider">
+        <section className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+          <p className="mb-3 text-xs font-bold text-gray-600">
             Tổng quan phòng
           </p>
+
           <div className="flex justify-center">
             <ResponsiveContainer width={130} height={130}>
               <PieChart>
@@ -632,77 +936,94 @@ export default function Dashboard() {
                   dataKey="value"
                   strokeWidth={2}
                 >
-                  {pieData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
+                  {pieData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
                   ))}
                 </Pie>
+                <Tooltip />
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="space-y-1.5 mt-2">
-            {pieData.map((d, i) => (
+
+          <div className="mt-2 space-y-1.5">
+            {pieData.map((item) => (
               <div
-                key={i}
+                key={item.name}
                 className="flex items-center justify-between text-xs"
               >
-                <div className="flex items-center gap-1.5">
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ background: d.color }}
+                <span className="flex items-center gap-1.5 text-gray-500">
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ background: item.color }}
                   />
-                  <span className="text-gray-500">{d.name}</span>
-                </div>
-                <span className="font-bold" style={{ color: d.color }}>
-                  {d.value}
+                  {item.name}
+                </span>
+                <span className="font-bold" style={{ color: item.color }}>
+                  {item.value}
                 </span>
               </div>
             ))}
           </div>
-        </div>
+        </section>
 
-        {/* Thiết bị */}
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <p className="text-xs font-bold text-gray-600 mb-3 uppercase tracking-wider">
-            Thiết bị
-          </p>
-          <div className="space-y-3 mt-2">
+        <section className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+          <p className="mb-3 text-xs font-bold text-gray-600">Thiết bị</p>
+
+          <div className="mt-2 space-y-3">
             {[
               {
                 label: "Tổng thiết bị",
-                value: 240,
+                value: deviceStats.total,
                 color: "#1a56db",
                 icon: "🖥️",
               },
               {
-                label: "Hoạt động tốt",
-                value: 198,
+                label: "Hoạt động",
+                value: deviceStats.hoat_dong,
                 color: "#22c55e",
                 icon: "✅",
               },
-              { label: "Cảnh báo", value: 28, color: "#f59e0b", icon: "⚠️" },
-              { label: "Hỏng", value: 14, color: "#ef4444", icon: "❌" },
-            ].map((d, i) => (
+              {
+                label: "Đã tắt",
+                value: deviceStats.tat,
+                color: "#6b7280",
+                icon: "⭕",
+              },
+              {
+                label: "Hỏng",
+                value: deviceStats.hong,
+                color: "#ef4444",
+                icon: "❌",
+              },
+              {
+                label: "Đang sửa",
+                value: deviceStats.dang_sua,
+                color: "#f59e0b",
+                icon: "🔧",
+              },
+            ].map((item) => (
               <div
-                key={i}
+                key={item.label}
                 className="flex items-center justify-between text-xs"
               >
-                <div className="flex items-center gap-1.5">
-                  <span>{d.icon}</span>
-                  <span className="text-gray-500">{d.label}</span>
-                </div>
-                <span className="font-bold" style={{ color: d.color }}>
-                  {d.value}
+                <span className="flex items-center gap-1.5 text-gray-500">
+                  <span>{item.icon}</span>
+                  {item.label}
+                </span>
+                <span className="font-bold" style={{ color: item.color }}>
+                  {item.value}
                 </span>
               </div>
             ))}
           </div>
-        </div>
+        </section>
 
-        {/* Nhiệt độ */}
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <p className="text-xs font-bold text-gray-600 mb-2 uppercase tracking-wider">
-            Nhiệt độ TB
-          </p>
+        <section className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-bold text-gray-600">Nhiệt độ TB</p>
+            <span className="text-xs italic text-gray-400">Mô phỏng</span>
+          </div>
+
           <ResponsiveContainer width="100%" height={100}>
             <LineChart data={tempData}>
               <XAxis dataKey="time" tick={{ fontSize: 9 }} />
@@ -717,16 +1038,18 @@ export default function Dashboard() {
               />
             </LineChart>
           </ResponsiveContainer>
-          <p className="text-center text-2xl font-black text-blue-600 mt-1">
+
+          <p className="mt-1 text-center text-2xl font-black text-blue-600">
             26.5°C
           </p>
-        </div>
+        </section>
 
-        {/* Điện năng */}
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <p className="text-xs font-bold text-gray-600 mb-2 uppercase tracking-wider">
-            Điện năng
-          </p>
+        <section className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-bold text-gray-600">Điện năng</p>
+            <span className="text-xs italic text-gray-400">Mô phỏng</span>
+          </div>
+
           <ResponsiveContainer width="100%" height={100}>
             <BarChart data={energyData}>
               <XAxis dataKey="date" tick={{ fontSize: 8 }} />
@@ -735,112 +1058,72 @@ export default function Dashboard() {
               <Bar dataKey="kwh" fill="#22c55e" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-          <p className="text-center text-2xl font-black text-green-600 mt-1">
+
+          <p className="mt-1 text-center text-2xl font-black text-green-600">
+            <Zap className="mr-1 inline" size={18} />
             420 kWh
           </p>
-        </div>
+        </section>
 
-        {/* Cảnh báo */}
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-bold text-gray-600 uppercase tracking-wider">
-              Cảnh báo
-            </p>
+        <section className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-bold text-gray-600">Cảnh báo</p>
             <button
+              type="button"
               onClick={() => navigate("/notifications")}
-              className="text-xs text-blue-600 hover:underline font-medium"
+              className="text-xs font-medium text-blue-600 hover:underline"
             >
               Xem tất cả
             </button>
           </div>
-          <div className="space-y-2">
-            {[
-              {
-                icon: AlertTriangle,
-                color: "#ef4444",
-                bg: "#fef2f2",
-                title: "Máy chiếu B302 lỗi",
-                time: "09:30",
-              },
-              {
-                icon: AlertTriangle,
-                color: "#f59e0b",
-                bg: "#fffbeb",
-                title: "Nhiệt độ cao A403",
-                time: "09:10",
-              },
-              {
-                icon: Info,
-                color: "#3b82f6",
-                bg: "#eff6ff",
-                title: "Phòng B201 đã đặt",
-                time: "08:45",
-              },
-            ].map((a, i) => (
-              <div
-                key={i}
-                className="flex items-start gap-2 p-2 rounded-lg"
-                style={{ background: a.bg }}
-              >
-                <a.icon
-                  size={12}
-                  style={{ color: a.color }}
-                  className="mt-0.5 flex-shrink-0"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-gray-700 truncate">
-                    {a.title}
-                  </p>
-                  <p className="text-xs text-gray-400">{a.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
 
-      {/* BOTTOM: Controls */}
-      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-        <p className="text-xs font-bold text-gray-600 mb-3 uppercase tracking-wider">
-          Điều khiển hệ thống tòa nhà
-        </p>
-        <div className="grid grid-cols-7 gap-3">
-          {controls.map((c, i) => (
-            <div
-              key={i}
-              className="flex flex-col items-center p-3 bg-gray-50 rounded-xl hover:bg-blue-50 transition-all"
-            >
-              <span className="text-2xl mb-1.5">{c.icon}</span>
-              <p className="text-xs font-semibold text-gray-700 text-center mb-1">
-                {c.label}
+          {alerts.length === 0 ? (
+            <div className="flex h-24 flex-col items-center justify-center text-gray-400">
+              <CheckCircle size={28} className="mb-1 text-green-400" />
+              <p className="text-xs">
+                {loading ? "Đang tải..." : "Không có cảnh báo"}
               </p>
-              <p
-                className="text-xs font-bold mb-2"
-                style={{ color: controlStates[i] ? "#22c55e" : "#6b7280" }}
-              >
-                {c.status || (controlStates[i] ? "Bật" : "Tắt")}
-              </p>
-              <div
-                className="w-10 h-5 rounded-full flex items-center px-0.5 cursor-pointer transition-all"
-                style={{ background: controlStates[i] ? "#22c55e" : "#d1d5db" }}
-                onClick={() => {
-                  const s = [...controlStates];
-                  s[i] = !s[i];
-                  setControlStates(s);
-                }}
-              >
-                <div
-                  className="w-4 h-4 bg-white rounded-full shadow transition-all"
-                  style={{
-                    transform: controlStates[i]
-                      ? "translateX(20px)"
-                      : "translateX(0)",
-                  }}
-                />
-              </div>
             </div>
-          ))}
-        </div>
+          ) : (
+            <div className="space-y-2">
+              {alerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className="flex items-start gap-2 rounded-lg p-2"
+                  style={{
+                    background:
+                      alert.severity === "error" ? "#fef2f2" : "#fffbeb",
+                  }}
+                >
+                  <AlertTriangle
+                    size={13}
+                    className="mt-0.5 shrink-0"
+                    style={{
+                      color: alert.severity === "error" ? "#ef4444" : "#f59e0b",
+                    }}
+                  />
+
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-gray-700">
+                      {alert.content}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {alert.created_at
+                        ? new Date(alert.created_at).toLocaleTimeString(
+                            "vi-VN",
+                            {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            },
+                          )
+                        : ""}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
