@@ -1,526 +1,827 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../../services/api";
 import {
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  Clock3,
+  DoorOpen,
+  LoaderCircle,
   Plus,
-  Trash2,
-  CheckCircle,
-  XCircle,
-  Clock,
   Search,
-  Calendar,
+  Trash2,
+  Users,
+  X,
+  XCircle,
 } from "lucide-react";
 
 const STATUS_MAP = {
   cho_duyet: {
     label: "Chờ duyệt",
-    color: "#f59e0b",
-    bg: "#fffbeb",
-    icon: "⏳",
+    color: "#b45309",
+    background: "#fffbeb",
+    border: "#fde68a",
+    icon: Clock3,
   },
-  da_duyet: { label: "Đã duyệt", color: "#22c55e", bg: "#f0fdf4", icon: "✅" },
-  tu_choi: { label: "Từ chối", color: "#ef4444", bg: "#fef2f2", icon: "❌" },
-  da_huy: { label: "Đã hủy", color: "#6b7280", bg: "#f9fafb", icon: "🚫" },
+  da_duyet: {
+    label: "Đã duyệt",
+    color: "#15803d",
+    background: "#f0fdf4",
+    border: "#bbf7d0",
+    icon: CheckCircle2,
+  },
+  tu_choi: {
+    label: "Từ chối",
+    color: "#b91c1c",
+    background: "#fef2f2",
+    border: "#fecaca",
+    icon: XCircle,
+  },
+  da_huy: {
+    label: "Đã hủy",
+    color: "#475569",
+    background: "#f8fafc",
+    border: "#e2e8f0",
+    icon: X,
+  },
 };
+
+const INITIAL_FORM = {
+  room_id: "",
+  date: "",
+  start_time: "",
+  end_time: "",
+  purpose: "",
+  note: "",
+};
+
+function getLocalDateValue() {
+  const now = new Date();
+  const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
+}
+
+function formatDate(value) {
+  if (!value) return "—";
+
+  // Tránh lệch ngày khi API trả ngày dạng YYYY-MM-DD.
+  const dateOnly = String(value).slice(0, 10);
+  const parts = dateOnly.split("-");
+
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? "—"
+    : parsed.toLocaleDateString("vi-VN");
+}
+
+function formatTime(value) {
+  return value ? String(value).slice(0, 5) : "—";
+}
 
 export default function Bookings() {
   const [bookings, setBookings] = useState([]);
   const [rooms, setRooms] = useState([]);
+  const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState("");
   const [search, setSearch] = useState("");
-  const [stats, setStats] = useState({});
-  const [form, setForm] = useState({
-    room_id: "",
-    date: "",
-    start_time: "",
-    end_time: "",
-    purpose: "",
-    note: "",
-  });
+  const [form, setForm] = useState(INITIAL_FORM);
+  const [saving, setSaving] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+  const [formError, setFormError] = useState("");
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
-
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
+      setLoadError("");
+
       const [bookingsRes, roomsRes, statsRes] = await Promise.all([
         api.get("/bookings"),
         api.get("/rooms"),
         api.get("/bookings/stats"),
       ]);
-      setBookings(bookingsRes.data);
-      setRooms(roomsRes.data);
-      setStats(statsRes.data);
+
+      setBookings(Array.isArray(bookingsRes.data) ? bookingsRes.data : []);
+      setRooms(Array.isArray(roomsRes.data) ? roomsRes.data : []);
+      setStats(statsRes.data || {});
     } catch (error) {
-      console.error(error);
+      console.error("Không thể tải dữ liệu đặt phòng:", error);
+      setLoadError(
+        error.response?.data?.message ||
+          "Không thể tải dữ liệu. Vui lòng thử lại.",
+      );
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  const filteredBookings = useMemo(() => {
+    const keyword = search.trim().toLocaleLowerCase("vi");
+
+    return bookings.filter((booking) => {
+      const matchesStatus = !filterStatus || booking.status === filterStatus;
+      const searchableText = [
+        booking.room_code,
+        booking.user_name,
+        booking.user_email,
+        booking.purpose,
+        booking.building_name,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase("vi");
+
+      return matchesStatus && (!keyword || searchableText.includes(keyword));
+    });
+  }, [bookings, filterStatus, search]);
+
+  const updateForm = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const closeModal = () => {
+    if (saving) return;
+    setShowModal(false);
+    setForm(INITIAL_FORM);
+    setFormError("");
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setFormError("");
+
+    if (form.start_time >= form.end_time) {
+      setFormError("Giờ kết thúc phải sau giờ bắt đầu.");
+      return;
+    }
+
     try {
-      await api.post("/bookings", form);
-      setShowModal(false);
-      setForm({
-        room_id: "",
-        date: "",
-        start_time: "",
-        end_time: "",
-        purpose: "",
-        note: "",
+      setSaving(true);
+      await api.post("/bookings", {
+        ...form,
+        room_id: Number(form.room_id),
       });
-      fetchAll();
+
+      setShowModal(false);
+      setForm(INITIAL_FORM);
+      await fetchAll();
     } catch (error) {
-      alert(error.response?.data?.message || "Có lỗi xảy ra!");
+      setFormError(
+        error.response?.data?.message ||
+          "Không thể tạo yêu cầu đặt phòng. Vui lòng thử lại.",
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleStatus = async (id, status) => {
     try {
+      setBusyId(id);
       await api.patch(`/bookings/${id}/status`, { status });
-      fetchAll();
+      await fetchAll();
     } catch (error) {
-      console.error(error);
+      window.alert(
+        error.response?.data?.message || "Không thể cập nhật trạng thái.",
+      );
+    } finally {
+      setBusyId(null);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Xóa đặt phòng này?")) return;
-    await api.delete(`/bookings/${id}`);
-    fetchAll();
+    const confirmed = window.confirm("Bạn có chắc muốn xóa yêu cầu này?");
+    if (!confirmed) return;
+
+    try {
+      setBusyId(id);
+      await api.delete(`/bookings/${id}`);
+      await fetchAll();
+    } catch (error) {
+      window.alert(error.response?.data?.message || "Không thể xóa yêu cầu.");
+    } finally {
+      setBusyId(null);
+    }
   };
 
-  const filtered = bookings.filter((b) => {
-    const matchStatus = filterStatus ? b.status === filterStatus : true;
-    const matchSearch = search
-      ? b.room_code?.toLowerCase().includes(search.toLowerCase()) ||
-        b.user_name?.toLowerCase().includes(search.toLowerCase()) ||
-        b.purpose?.toLowerCase().includes(search.toLowerCase())
-      : true;
-    return matchStatus && matchSearch;
-  });
+  const statsCards = [
+    {
+      label: "Tổng yêu cầu",
+      value: stats.total ?? bookings.length,
+      icon: CalendarDays,
+      color: "#2563eb",
+      background: "#eff6ff",
+      filter: "",
+    },
+    {
+      label: "Chờ duyệt",
+      value: stats.pending ?? 0,
+      icon: Clock3,
+      color: "#d97706",
+      background: "#fffbeb",
+      filter: "cho_duyet",
+    },
+    {
+      label: "Đã duyệt",
+      value: stats.approved ?? 0,
+      icon: CheckCircle2,
+      color: "#16a34a",
+      background: "#f0fdf4",
+      filter: "da_duyet",
+    },
+    {
+      label: "Từ chối",
+      value: stats.rejected ?? 0,
+      icon: XCircle,
+      color: "#dc2626",
+      background: "#fef2f2",
+      filter: "tu_choi",
+    },
+  ];
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="min-h-screen space-y-6 bg-slate-50/70 p-4 md:p-6">
+      {/* Tiêu đề */}
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-black text-gray-800">
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-600">
+            <CalendarDays size={16} />
+            <span>Quản lý phòng học</span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
             Lịch sử đặt phòng
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">
-            Quản lý các yêu cầu đặt phòng học
+          <p className="mt-1 text-sm text-slate-500">
+            Theo dõi và xử lý các yêu cầu sử dụng phòng học.
           </p>
         </div>
+
         <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-bold shadow-lg transition-all hover:opacity-90"
-          style={{
-            background: "linear-gradient(135deg, #1a56db, #3b82f6)",
-            boxShadow: "0 4px 15px rgba(26,86,219,0.35)",
+          type="button"
+          onClick={() => {
+            setFormError("");
+            setShowModal(true);
           }}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
         >
-          <Plus size={16} /> Đặt phòng
+          <Plus size={18} />
+          Đặt phòng mới
         </button>
-      </div>
+      </header>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-3">
-        {[
-          {
-            label: "Tổng đặt phòng",
-            value: stats.total || 0,
-            color: "#1a56db",
-            bg: "#eff6ff",
-            icon: "📋",
-          },
-          {
-            label: "Chờ duyệt",
-            value: stats.pending || 0,
-            color: "#f59e0b",
-            bg: "#fffbeb",
-            icon: "⏳",
-          },
-          {
-            label: "Đã duyệt",
-            value: stats.approved || 0,
-            color: "#22c55e",
-            bg: "#f0fdf4",
-            icon: "✅",
-          },
-          {
-            label: "Từ chối",
-            value: stats.rejected || 0,
-            color: "#ef4444",
-            bg: "#fef2f2",
-            icon: "❌",
-          },
-        ].map((s, i) => (
-          <div
-            key={i}
-            className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-3 hover:shadow-md transition-all cursor-pointer"
-            onClick={() =>
-              setFilterStatus(i === 0 ? "" : Object.keys(STATUS_MAP)[i - 1])
-            }
-          >
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-              style={{ background: s.bg }}
+      {/* Thống kê */}
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {statsCards.map((item) => {
+          const Icon = item.icon;
+          const selected = filterStatus === item.filter;
+
+          return (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => setFilterStatus(item.filter)}
+              className={`rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                selected
+                  ? "border-blue-300 ring-2 ring-blue-100"
+                  : "border-slate-200"
+              }`}
             >
-              {s.icon}
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 font-medium">{s.label}</p>
-              <p className="text-2xl font-black" style={{ color: s.color }}>
-                {s.value}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium text-slate-500 sm:text-sm">
+                    {item.label}
+                  </p>
+                  <p className="mt-2 text-2xl font-bold text-slate-900">
+                    {item.value}
+                  </p>
+                </div>
+                <span
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                  style={{
+                    color: item.color,
+                    backgroundColor: item.background,
+                  }}
+                >
+                  <Icon size={20} />
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </section>
 
-      {/* Filter */}
-      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="relative flex-1 min-w-48">
+      {/* Bộ lọc */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <label className="relative block flex-1">
             <Search
-              size={15}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              size={18}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
             />
             <input
-              type="text"
-              placeholder="Tìm kiếm phòng, người đặt, mục đích..."
+              type="search"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 border-2 border-gray-100 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50 focus:bg-white transition-all"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Tìm theo phòng, người đặt hoặc mục đích..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+            />
+          </label>
+
+          <div className="relative w-full lg:w-52">
+            <select
+              value={filterStatus}
+              onChange={(event) => setFilterStatus(event.target.value)}
+              className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3 pr-10 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+              aria-label="Lọc theo trạng thái"
+            >
+              <option value="">Tất cả trạng thái</option>
+              {Object.entries(STATUS_MAP).map(([key, status]) => (
+                <option key={key} value={key}>
+                  {status.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={16}
+              className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400"
             />
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setFilterStatus("")}
-              className="px-3 py-2.5 rounded-xl text-xs font-bold transition-all border-2"
-              style={{
-                background: filterStatus === "" ? "#eff6ff" : "white",
-                color: filterStatus === "" ? "#1a56db" : "#6b7280",
-                borderColor: filterStatus === "" ? "#1a56db" : "#e5e7eb",
-              }}
-            >
-              Tất cả
-            </button>
-            {Object.entries(STATUS_MAP).map(([k, v]) => (
-              <button
-                key={k}
-                onClick={() => setFilterStatus(k)}
-                className="px-3 py-2.5 rounded-xl text-xs font-bold transition-all border-2"
-                style={{
-                  background: filterStatus === k ? v.bg : "white",
-                  color: filterStatus === k ? v.color : "#6b7280",
-                  borderColor: filterStatus === k ? v.color : "#e5e7eb",
-                }}
-              >
-                {v.icon} {v.label}
-              </button>
-            ))}
-          </div>
         </div>
-      </div>
+      </section>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      {/* Danh sách */}
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-1 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-semibold text-slate-900">Danh sách yêu cầu</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Hiển thị {filteredBookings.length} / {bookings.length} yêu cầu
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={fetchAll}
+            className="self-start rounded-lg px-3 py-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-50 sm:self-auto"
+          >
+            Tải lại
+          </button>
+        </div>
+
         {loading ? (
-          <div className="flex items-center justify-center h-48">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm text-gray-400">Đang tải...</p>
-            </div>
+          <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-slate-500">
+            <LoaderCircle size={28} className="animate-spin text-blue-600" />
+            <p className="text-sm">Đang tải danh sách...</p>
+          </div>
+        ) : loadError ? (
+          <div className="flex min-h-64 flex-col items-center justify-center px-5 text-center">
+            <p className="font-semibold text-slate-800">{loadError}</p>
+            <button
+              type="button"
+              onClick={fetchAll}
+              className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              Thử lại
+            </button>
+          </div>
+        ) : filteredBookings.length === 0 ? (
+          <div className="flex min-h-64 flex-col items-center justify-center px-5 text-center">
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+              <CalendarDays size={26} />
+            </span>
+            <p className="mt-4 font-semibold text-slate-700">
+              {search || filterStatus
+                ? "Không tìm thấy yêu cầu phù hợp"
+                : "Chưa có yêu cầu đặt phòng"}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Thử thay đổi bộ lọc hoặc tạo yêu cầu đặt phòng mới.
+            </p>
           </div>
         ) : (
-          <table className="w-full">
-            <thead>
-              <tr
-                style={{
-                  background: "linear-gradient(135deg, #f8fafc, #eff6ff)",
-                }}
-              >
-                {[
-                  "Phòng",
-                  "Người đặt",
-                  "Ngày & Giờ",
-                  "Mục đích",
-                  "Trạng thái",
-                  "Thao tác",
-                ].map((h) => (
-                  <th
-                    key={h}
-                    className="text-left px-4 py-3.5 text-xs font-black text-gray-500 uppercase tracking-wider border-b border-gray-100"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtered.map((b) => {
-                const status = STATUS_MAP[b.status];
-                return (
-                  <tr
-                    key={b.id}
-                    className="hover:bg-blue-50/20 transition-colors group"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <div
-                          className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0 shadow-sm"
-                          style={{
-                            background:
-                              "linear-gradient(135deg, #1a56db, #3b82f6)",
-                          }}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px]">
+              <thead className="bg-slate-50">
+                <tr>
+                  {[
+                    "Phòng học",
+                    "Người đặt",
+                    "Thời gian",
+                    "Mục đích",
+                    "Trạng thái",
+                    "Thao tác",
+                  ].map((title) => (
+                    <th
+                      key={title}
+                      className="whitespace-nowrap px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                    >
+                      {title}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100">
+                {filteredBookings.map((booking) => {
+                  const status = STATUS_MAP[booking.status];
+                  const StatusIcon = status?.icon;
+                  const isBusy = busyId === booking.id;
+
+                  return (
+                    <tr
+                      key={booking.id}
+                      className="transition hover:bg-slate-50/80"
+                    >
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                            <DoorOpen size={18} />
+                          </span>
+                          <div>
+                            <p className="font-semibold text-slate-900">
+                              {booking.room_code || "Chưa rõ phòng"}
+                            </p>
+                            <p className="mt-0.5 text-xs text-slate-500">
+                              {booking.building_name || "Tòa nhà"} · Tầng{" "}
+                              {booking.floor_number ?? "—"}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <p className="font-medium text-slate-800">
+                          {booking.user_name || "Không rõ"}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          {booking.user_email || ""}
+                        </p>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <div className="flex items-start gap-2.5">
+                          <CalendarDays
+                            size={16}
+                            className="mt-0.5 shrink-0 text-slate-400"
+                          />
+                          <div>
+                            <p className="font-medium text-slate-800">
+                              {formatDate(booking.date)}
+                            </p>
+                            <p className="mt-0.5 text-xs text-slate-500">
+                              {formatTime(booking.start_time)} –{" "}
+                              {formatTime(booking.end_time)}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="max-w-56 px-5 py-4">
+                        <p
+                          className="truncate text-sm text-slate-600"
+                          title={booking.purpose || ""}
                         >
-                          {b.room_code?.slice(0, 2)}
-                        </div>
-                        <div>
-                          <p className="text-sm font-black text-blue-600">
-                            {b.room_code}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            {b.building_name} / T{b.floor_number}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-sm font-bold text-gray-700">
-                        {b.user_name}
-                      </p>
-                      <p className="text-xs text-gray-400">{b.user_email}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Calendar size={13} className="text-gray-400" />
-                        <div>
-                          <p className="text-sm font-bold text-gray-700">
-                            {new Date(b.date).toLocaleDateString("vi-VN")}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            {b.start_time?.slice(0, 5)} —{" "}
-                            {b.end_time?.slice(0, 5)}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-sm text-gray-500 max-w-32 truncate">
-                        {b.purpose || "--"}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
-                        style={{ color: status?.color, background: status?.bg }}
-                      >
-                        {status?.icon} {status?.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        {b.status === "cho_duyet" && (
-                          <>
-                            <button
-                              onClick={() => handleStatus(b.id, "da_duyet")}
-                              className="p-2 rounded-lg text-green-500 hover:bg-green-100 transition-all"
-                              title="Duyệt"
-                            >
-                              <CheckCircle size={15} />
-                            </button>
-                            <button
-                              onClick={() => handleStatus(b.id, "tu_choi")}
-                              className="p-2 rounded-lg text-red-500 hover:bg-red-100 transition-all"
-                              title="Từ chối"
-                            >
-                              <XCircle size={15} />
-                            </button>
-                          </>
-                        )}
-                        {b.status === "da_duyet" && (
-                          <button
-                            onClick={() => handleStatus(b.id, "da_huy")}
-                            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-all"
-                            title="Hủy"
+                          {booking.purpose || "—"}
+                        </p>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        {status ? (
+                          <span
+                            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold"
+                            style={{
+                              color: status.color,
+                              backgroundColor: status.background,
+                              borderColor: status.border,
+                            }}
                           >
-                            <Clock size={15} />
-                          </button>
+                            <StatusIcon size={13} />
+                            {status.label}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-500">
+                            Không xác định
+                          </span>
                         )}
-                        <button
-                          onClick={() => handleDelete(b.id)}
-                          className="p-2 rounded-lg text-red-400 hover:bg-red-100 transition-all"
-                          title="Xóa"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-        {!loading && filtered.length === 0 && (
-          <div className="text-center py-16 text-gray-200">
-            <Calendar size={56} className="mx-auto mb-4" />
-            <p className="text-base font-bold text-gray-300">
-              Chưa có đặt phòng nào
-            </p>
-            <p className="text-sm text-gray-200 mt-1">
-              Click "Đặt phòng" để tạo yêu cầu mới
-            </p>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-1">
+                          {isBusy ? (
+                            <LoaderCircle
+                              size={18}
+                              className="animate-spin text-blue-600"
+                            />
+                          ) : (
+                            <>
+                              {booking.status === "cho_duyet" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleStatus(booking.id, "da_duyet")
+                                    }
+                                    className="rounded-lg p-2 text-green-700 transition hover:bg-green-50"
+                                    title="Duyệt yêu cầu"
+                                    aria-label="Duyệt yêu cầu"
+                                  >
+                                    <Check size={17} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleStatus(booking.id, "tu_choi")
+                                    }
+                                    className="rounded-lg p-2 text-red-600 transition hover:bg-red-50"
+                                    title="Từ chối yêu cầu"
+                                    aria-label="Từ chối yêu cầu"
+                                  >
+                                    <X size={17} />
+                                  </button>
+                                </>
+                              )}
+
+                              {booking.status === "da_duyet" && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleStatus(booking.id, "da_huy")
+                                  }
+                                  className="rounded-lg p-2 text-amber-700 transition hover:bg-amber-50"
+                                  title="Hủy đặt phòng"
+                                  aria-label="Hủy đặt phòng"
+                                >
+                                  <XCircle size={17} />
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(booking.id)}
+                                className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                                title="Xóa yêu cầu"
+                                aria-label="Xóa yêu cầu"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-      </div>
+      </section>
 
-      {/* Modal */}
+      {/* Hộp thoại tạo yêu cầu */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-            <div
-              className="px-6 py-4 border-b border-gray-100 flex items-center justify-between"
-              style={{
-                background: "linear-gradient(135deg, #f8fafc, #eff6ff)",
-              }}
-            >
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeModal();
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="booking-modal-title"
+            className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
+          >
+            <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
               <div>
-                <h2 className="text-lg font-black text-gray-800">
-                  📅 Đặt phòng mới
-                </h2>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Điền đầy đủ thông tin bên dưới
+                <p className="text-sm font-semibold text-blue-600">
+                  Yêu cầu sử dụng phòng
                 </p>
+                <h2
+                  id="booking-modal-title"
+                  className="mt-1 text-xl font-bold text-slate-900"
+                >
+                  Đặt phòng mới
+                </h2>
               </div>
               <button
-                onClick={() => setShowModal(false)}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 transition-all"
+                type="button"
+                onClick={closeModal}
+                disabled={saving}
+                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+                aria-label="Đóng"
               >
-                ✕
+                <X size={20} />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+
+            <form onSubmit={handleSubmit} className="space-y-5 p-6">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">
+                <label
+                  htmlFor="booking-room"
+                  className="mb-2 block text-sm font-semibold text-slate-700"
+                >
                   Phòng học
                 </label>
-                <select
-                  value={form.room_id}
-                  onChange={(e) =>
-                    setForm({ ...form, room_id: e.target.value })
-                  }
-                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50"
-                  required
-                >
-                  <option value="">Chọn phòng</option>
-                  {rooms
-                    .filter((r) => r.status === "trong")
-                    .map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.code} — {r.name} ({r.capacity} chỗ)
-                      </option>
-                    ))}
-                </select>
+                <div className="relative">
+                  <DoorOpen
+                    size={17}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <select
+                    id="booking-room"
+                    value={form.room_id}
+                    onChange={(event) =>
+                      updateForm("room_id", event.target.value)
+                    }
+                    required
+                    className="w-full appearance-none rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-10 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  >
+                    <option value="">Chọn phòng học</option>
+                    {rooms
+                      .filter((room) => room.status === "trong")
+                      .map((room) => (
+                        <option key={room.id} value={room.id}>
+                          {room.code} — {room.name || "Phòng học"} (
+                          {room.capacity ?? "?"} chỗ)
+                        </option>
+                      ))}
+                  </select>
+                  <ChevronDown
+                    size={16}
+                    className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                </div>
+                {rooms.filter((room) => room.status === "trong").length ===
+                  0 && (
+                  <p className="mt-2 text-xs text-amber-700">
+                    Hiện không có phòng trống để đặt.
+                  </p>
+                )}
               </div>
+
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                  Ngày đặt
+                <label
+                  htmlFor="booking-date"
+                  className="mb-2 block text-sm font-semibold text-slate-700"
+                >
+                  Ngày sử dụng
                 </label>
-                <input
-                  type="date"
-                  value={form.date}
-                  onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50"
-                  required
-                  min={new Date().toISOString().split("T")[0]}
-                />
+                <div className="relative">
+                  <CalendarDays
+                    size={17}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    id="booking-date"
+                    type="date"
+                    min={getLocalDateValue()}
+                    value={form.date}
+                    onChange={(event) => updateForm("date", event.target.value)}
+                    required
+                    className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-3 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">
+                  <label
+                    htmlFor="booking-start"
+                    className="mb-2 block text-sm font-semibold text-slate-700"
+                  >
                     Giờ bắt đầu
                   </label>
-                  <input
-                    type="time"
-                    value={form.start_time}
-                    onChange={(e) =>
-                      setForm({ ...form, start_time: e.target.value })
-                    }
-                    className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50"
-                    required
-                  />
+                  <div className="relative">
+                    <Clock3
+                      size={17}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
+                    <input
+                      id="booking-start"
+                      type="time"
+                      value={form.start_time}
+                      onChange={(event) =>
+                        updateForm("start_time", event.target.value)
+                      }
+                      required
+                      className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-3 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">
+                  <label
+                    htmlFor="booking-end"
+                    className="mb-2 block text-sm font-semibold text-slate-700"
+                  >
                     Giờ kết thúc
                   </label>
-                  <input
-                    type="time"
-                    value={form.end_time}
-                    onChange={(e) =>
-                      setForm({ ...form, end_time: e.target.value })
-                    }
-                    className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50"
-                    required
-                  />
+                  <div className="relative">
+                    <Clock3
+                      size={17}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
+                    <input
+                      id="booking-end"
+                      type="time"
+                      value={form.end_time}
+                      onChange={(event) =>
+                        updateForm("end_time", event.target.value)
+                      }
+                      required
+                      className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-3 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                    />
+                  </div>
                 </div>
               </div>
+
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                  Mục đích
+                <label
+                  htmlFor="booking-purpose"
+                  className="mb-2 block text-sm font-semibold text-slate-700"
+                >
+                  Mục đích sử dụng
                 </label>
                 <input
+                  id="booking-purpose"
                   type="text"
                   value={form.purpose}
-                  onChange={(e) =>
-                    setForm({ ...form, purpose: e.target.value })
+                  onChange={(event) =>
+                    updateForm("purpose", event.target.value)
                   }
-                  placeholder="VD: Họp nhóm, Giảng dạy, Seminar..."
-                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50"
+                  placeholder="Ví dụ: Họp nhóm, giảng dạy, seminar..."
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
                 />
               </div>
+
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">
+                <label
+                  htmlFor="booking-note"
+                  className="mb-2 block text-sm font-semibold text-slate-700"
+                >
                   Ghi chú
+                  <span className="ml-1 font-normal text-slate-400">
+                    (không bắt buộc)
+                  </span>
                 </label>
                 <textarea
+                  id="booking-note"
                   value={form.note}
-                  onChange={(e) => setForm({ ...form, note: e.target.value })}
-                  rows={2}
-                  placeholder="Ghi chú thêm nếu có..."
-                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50"
+                  onChange={(event) => updateForm("note", event.target.value)}
+                  rows={3}
+                  placeholder="Thông tin bổ sung cho yêu cầu..."
+                  className="w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
                 />
               </div>
-              <div className="flex gap-3 pt-2">
+
+              {formError && (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                >
+                  {formError}
+                </div>
+              )}
+
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all"
+                  onClick={closeModal}
+                  disabled={saving}
+                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-3 rounded-xl text-white text-sm font-bold transition-all"
-                  style={{
-                    background: "linear-gradient(135deg, #1a56db, #3b82f6)",
-                    boxShadow: "0 4px 15px rgba(26,86,219,0.35)",
-                  }}
+                  disabled={saving}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  📅 Đặt phòng
+                  {saving ? (
+                    <>
+                      <LoaderCircle size={17} className="animate-spin" />
+                      Đang gửi...
+                    </>
+                  ) : (
+                    <>
+                      <Users size={17} />
+                      Gửi yêu cầu
+                    </>
+                  )}
                 </button>
               </div>
             </form>
-          </div>
+          </section>
         </div>
       )}
     </div>

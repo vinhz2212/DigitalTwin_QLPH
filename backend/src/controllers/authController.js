@@ -7,23 +7,33 @@ const login = async (req, res) => {
   try {
     const { username, password } = req.body;
 
+    if (!username || !password) {
+      return res
+        .status(400)
+        .json({ message: "Vui lòng nhập tên đăng nhập và mật khẩu!" });
+    }
+
     const [users] = await pool.query(
-      `SELECT u.*, r.name as role_name 
-       FROM Users u 
-       JOIN Roles r ON u.role_id = r.id 
+      `SELECT u.*, r.name AS role_name
+       FROM Users u
+       JOIN Roles r ON u.role_id = r.id
        WHERE u.username = ? AND u.is_active = 1`,
-      [username],
+      [username.trim()],
     );
 
     if (users.length === 0) {
-      return res.status(401).json({ message: "Tên đăng nhập không tồn tại!" });
+      return res
+        .status(401)
+        .json({ message: "Tên đăng nhập hoặc mật khẩu không đúng!" });
     }
 
     const user = users[0];
     const isMatch = await bcrypt.compare(password, user.password_hash);
 
     if (!isMatch) {
-      return res.status(401).json({ message: "Mật khẩu không đúng!" });
+      return res
+        .status(401)
+        .json({ message: "Tên đăng nhập hoặc mật khẩu không đúng!" });
     }
 
     const token = jwt.sign(
@@ -32,13 +42,12 @@ const login = async (req, res) => {
       { expiresIn: "7d" },
     );
 
-    // Ghi log
     await pool.query(
       "INSERT INTO ActivityLogs (user_id, action, entity_type) VALUES (?, ?, ?)",
       [user.id, "USER_LOGIN", "User"],
     );
 
-    res.json({
+    return res.json({
       token,
       user: {
         id: user.id,
@@ -50,18 +59,28 @@ const login = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Lỗi server!" });
+    console.error("Lỗi đăng nhập:", error);
+    return res.status(500).json({ message: "Lỗi server!" });
   }
 };
 
 // Đăng ký
 const register = async (req, res) => {
   try {
-    const { full_name, username, email, password, phone, role_id } = req.body;
+    // Không lấy role_id từ request để người đăng ký
+    // không thể tự cấp cho mình quyền quản trị.
+    const { full_name, username, email, password, phone } = req.body;
 
-    // Validate
-    if (!full_name || !username || !email || !password) {
+    if (
+      typeof full_name !== "string" ||
+      typeof username !== "string" ||
+      typeof email !== "string" ||
+      typeof password !== "string" ||
+      !full_name.trim() ||
+      !username.trim() ||
+      !email.trim() ||
+      !password
+    ) {
       return res
         .status(400)
         .json({ message: "Vui lòng điền đầy đủ thông tin!" });
@@ -73,46 +92,60 @@ const register = async (req, res) => {
         .json({ message: "Mật khẩu phải có ít nhất 6 ký tự!" });
     }
 
-    // Kiểm tra username đã tồn tại
+    const cleanFullName = full_name.trim();
+    const cleanUsername = username.trim();
+    const cleanEmail = email.trim();
+    const cleanPhone =
+      typeof phone === "string" && phone.trim() ? phone.trim() : null;
+
     const [existingUsername] = await pool.query(
       "SELECT id FROM Users WHERE username = ?",
-      [username],
+      [cleanUsername],
     );
+
     if (existingUsername.length > 0) {
       return res.status(400).json({ message: "Username đã được sử dụng!" });
     }
 
-    // Kiểm tra email đã tồn tại
     const [existingEmail] = await pool.query(
       "SELECT id FROM Users WHERE email = ?",
-      [email],
+      [cleanEmail],
     );
+
     if (existingEmail.length > 0) {
       return res.status(400).json({ message: "Email đã được sử dụng!" });
     }
 
-    // Hash password
-    const password_hash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 10);
 
-    // Tạo user mới (mặc định role_id = 2 là Giảng viên)
+    // 2 là vai trò Giảng viên theo Roles trong database.
     const [result] = await pool.query(
-      `INSERT INTO Users (role_id, username, email, password_hash, full_name, phone) 
+      `INSERT INTO Users
+        (role_id, username, email, password_hash, full_name, phone)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [role_id || 2, username, email, password_hash, full_name, phone || null],
+      [2, cleanUsername, cleanEmail, passwordHash, cleanFullName, cleanPhone],
     );
 
-    // Ghi log
     await pool.query(
-      "INSERT INTO ActivityLogs (user_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?)",
+      `INSERT INTO ActivityLogs
+        (user_id, action, entity_type, entity_id)
+       VALUES (?, ?, ?, ?)`,
       [result.insertId, "USER_REGISTER", "User", result.insertId],
     );
 
-    res
+    return res
       .status(201)
       .json({ message: "Đăng ký thành công! Vui lòng đăng nhập." });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Lỗi server!" });
+    console.error("Lỗi đăng ký:", error);
+
+    if (error.code === "ER_DUP_ENTRY") {
+      return res
+        .status(400)
+        .json({ message: "Username hoặc email đã được sử dụng!" });
+    }
+
+    return res.status(500).json({ message: "Lỗi server!" });
   }
 };
 
@@ -120,19 +153,22 @@ const register = async (req, res) => {
 const getMe = async (req, res) => {
   try {
     const [users] = await pool.query(
-      `SELECT u.id, u.username, u.full_name, u.email, u.phone, r.name as role_name
+      `SELECT u.id, u.username, u.full_name, u.email, u.phone,
+              u.role_id, r.name AS role_name
        FROM Users u
        JOIN Roles r ON u.role_id = r.id
-       WHERE u.id = ?`,
+       WHERE u.id = ? AND u.is_active = 1`,
       [req.user.id],
     );
+
     if (users.length === 0) {
       return res.status(404).json({ message: "Không tìm thấy user!" });
     }
-    res.json(users[0]);
+
+    return res.json(users[0]);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Lỗi server!" });
+    console.error("Lỗi lấy thông tin user:", error);
+    return res.status(500).json({ message: "Lỗi server!" });
   }
 };
 

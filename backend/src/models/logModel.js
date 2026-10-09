@@ -9,20 +9,23 @@ const LogModel = {
       LEFT JOIN Users u ON l.user_id = u.id
       ORDER BY l.created_at DESC
       LIMIT ?
-    `,
+      `,
       [limit],
     );
+
     return rows;
   },
 
   create: async (data) => {
     const { user_id, action, entity_type, entity_id, details, ip_address } =
       data;
+
     await db.query(
       `
-      INSERT INTO ActivityLogs (user_id, action, entity_type, entity_id, details, ip_address)
+      INSERT INTO ActivityLogs
+        (user_id, action, entity_type, entity_id, details, ip_address)
       VALUES (?, ?, ?, ?, ?, ?)
-    `,
+      `,
       [
         user_id,
         action,
@@ -32,6 +35,14 @@ const LogModel = {
         ip_address,
       ],
     );
+  },
+
+  removeById: async (id) => {
+    const [result] = await db.query("DELETE FROM ActivityLogs WHERE id = ?", [
+      id,
+    ]);
+
+    return result.affectedRows > 0;
   },
 };
 

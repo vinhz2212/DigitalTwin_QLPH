@@ -1,41 +1,115 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
+import api from "../../services/api";
 import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  AreaChart,
   Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
 } from "recharts";
 import {
-  Zap,
-  TrendingUp,
-  TrendingDown,
-  AlertTriangle,
   Activity,
+  AlertTriangle,
+  LoaderCircle,
+  RefreshCw,
+  TrendingDown,
+  TrendingUp,
+  Zap,
 } from "lucide-react";
-import api from "../../services/api";
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-3 text-xs">
-        <p className="font-black text-gray-700 mb-1">{label}</p>
-        {payload.map((p, i) => (
-          <p key={i} style={{ color: p.color }} className="font-semibold">
-            {p.name}: {p.value} {p.name === "cost" ? "k₫" : "kWh"}
-          </p>
-        ))}
-      </div>
-    );
+const PERIODS = [
+  { id: "day", label: "Ngày" },
+  { id: "week", label: "Tuần" },
+  { id: "month", label: "Tháng" },
+];
+
+const formatCost = (value) => {
+  const amount = Number(value) || 0;
+
+  if (amount >= 1_000_000) {
+    return `${(amount / 1_000_000).toFixed(1)} triệu ₫`;
   }
-  return null;
+
+  if (amount >= 1_000) {
+    return `${Math.round(amount / 1_000)} nghìn ₫`;
+  }
+
+  return `${amount} ₫`;
 };
+
+function EnergyTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-lg">
+      <p className="mb-1 text-xs font-semibold text-slate-700">{label}</p>
+      {payload.map((item, index) => {
+        const isCost = item.dataKey === "cost";
+
+        return (
+          <p
+            key={`${item.dataKey}-${index}`}
+            className="text-xs font-semibold"
+            style={{ color: item.color || "#334155" }}
+          >
+            {item.name}: {isCost ? `${item.value} k₫` : `${item.value} kWh`}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+function KpiCard({ label, value, description, icon: Icon, color, background }) {
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-slate-500">{label}</p>
+          <p className="mt-3 break-words text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+            {value}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">{description}</p>
+        </div>
+        <span
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+          style={{ color, backgroundColor: background }}
+        >
+          <Icon size={20} />
+        </span>
+      </div>
+    </article>
+  );
+}
+
+function Panel({ title, subtitle, children, className = "" }) {
+  return (
+    <section
+      className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${className}`}
+    >
+      <div className="mb-4">
+        <h2 className="font-semibold text-slate-900">{title}</h2>
+        {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function EmptyState({ message }) {
+  return (
+    <div className="flex h-56 items-center justify-center rounded-xl bg-slate-50 px-4 text-center text-sm text-slate-400">
+      {message}
+    </div>
+  );
+}
 
 export default function Energy() {
   const [period, setPeriod] = useState("day");
@@ -44,286 +118,275 @@ export default function Energy() {
   const [deviceData, setDeviceData] = useState([]);
   const [topRooms, setTopRooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [chartLoading, setChartLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  useEffect(() => {
-    fetchSummary();
-    fetchDeviceBreakdown();
-    fetchTopRooms();
-  }, []);
+  const fetchData = useCallback(
+    async (isRefresh = false) => {
+      try {
+        if (isRefresh) setRefreshing(true);
+        else setLoading(true);
 
-  useEffect(() => {
-    fetchChartData();
-  }, [period]);
+        setErrorMessage("");
 
-  const fetchSummary = async () => {
-    try {
-      const res = await api.get("/energy/summary");
-      setSummary(res.data);
-    } catch (error) {
-      // Fallback data
-      setSummary({
-        today_kwh: 420,
-        today_cost: 840000,
-        weekly_kwh: 2845,
-        alerts_count: 3,
-        active_devices: 240,
-      });
-    }
-  };
+        const [summaryResult, chartResult, devicesResult, roomsResult] =
+          await Promise.allSettled([
+            api.get("/energy/summary"),
+            api.get(`/energy/chart?period=${period}`),
+            api.get("/energy/devices"),
+            api.get("/energy/top-rooms"),
+          ]);
 
-  const fetchChartData = async () => {
-    setLoading(true);
-    try {
-      const res = await api.get(`/energy/chart?period=${period}`);
-      setChartData(res.data);
-    } catch (error) {
-      // Fallback hardcoded
-      if (period === "week") {
-        setChartData([
-          { date: "T2", toaA: 180, toaB: 150 },
-          { date: "T3", toaA: 220, toaB: 180 },
-          { date: "T4", toaA: 195, toaB: 160 },
-          { date: "T5", toaA: 240, toaB: 200 },
-          { date: "T6", toaA: 210, toaB: 175 },
-          { date: "T7", toaA: 120, toaB: 90 },
-          { date: "CN", toaA: 80, toaB: 60 },
-        ]);
-      } else if (period === "month") {
-        setChartData([
-          { month: "T1", kwh: 3200, cost: 6400 },
-          { month: "T2", kwh: 2800, cost: 5600 },
-          { month: "T3", kwh: 3500, cost: 7000 },
-          { month: "T4", kwh: 3100, cost: 6200 },
-          { month: "T5", kwh: 3800, cost: 7600 },
-          { month: "T6", kwh: 4200, cost: 8400 },
-          { month: "T7", kwh: 3900, cost: 7800 },
-          { month: "T8", kwh: 4100, cost: 8200 },
-        ]);
-      } else {
-        setChartData([
-          { time: "00:00", kwh: 12, cost: 24 },
-          { time: "02:00", kwh: 8, cost: 16 },
-          { time: "04:00", kwh: 6, cost: 12 },
-          { time: "06:00", kwh: 15, cost: 30 },
-          { time: "08:00", kwh: 45, cost: 90 },
-          { time: "10:00", kwh: 68, cost: 136 },
-          { time: "12:00", kwh: 72, cost: 144 },
-          { time: "14:00", kwh: 80, cost: 160 },
-          { time: "16:00", kwh: 75, cost: 150 },
-          { time: "18:00", kwh: 55, cost: 110 },
-          { time: "20:00", kwh: 35, cost: 70 },
-          { time: "22:00", kwh: 20, cost: 40 },
-        ]);
+        const failures = [];
+
+        if (summaryResult.status === "fulfilled") {
+          setSummary(summaryResult.value.data || null);
+        } else {
+          setSummary(null);
+          failures.push("tổng quan");
+        }
+
+        if (chartResult.status === "fulfilled") {
+          setChartData(
+            Array.isArray(chartResult.value.data) ? chartResult.value.data : [],
+          );
+        } else {
+          setChartData([]);
+          failures.push("biểu đồ");
+        }
+
+        if (devicesResult.status === "fulfilled") {
+          setDeviceData(
+            Array.isArray(devicesResult.value.data)
+              ? devicesResult.value.data
+              : [],
+          );
+        } else {
+          setDeviceData([]);
+          failures.push("phân bổ thiết bị");
+        }
+
+        if (roomsResult.status === "fulfilled") {
+          setTopRooms(
+            Array.isArray(roomsResult.value.data) ? roomsResult.value.data : [],
+          );
+        } else {
+          setTopRooms([]);
+          failures.push("danh sách phòng");
+        }
+
+        if (failures.length) {
+          setErrorMessage(
+            `Không tải được dữ liệu: ${failures.join(", ")}. Hãy kiểm tra kết nối rồi thử lại.`,
+          );
+        }
+      } catch (error) {
+        console.error("Không thể tải dữ liệu điện năng:", error);
+        setErrorMessage(
+          error.response?.data?.message ||
+            "Không thể tải dữ liệu điện năng. Vui lòng thử lại.",
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+        setChartLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [period],
+  );
 
-  const fetchDeviceBreakdown = async () => {
-    try {
-      const res = await api.get("/energy/devices");
-      setDeviceData(res.data);
-    } catch (error) {
-      setDeviceData([
-        { name: "Điều hòa", value: 45, kwh: 189, color: "#3b82f6" },
-        { name: "Chiếu sáng", value: 20, kwh: 84, color: "#eab308" },
-        { name: "Máy chiếu", value: 15, kwh: 63, color: "#8b5cf6" },
-        { name: "Máy tính", value: 12, kwh: 50.4, color: "#22c55e" },
-        { name: "Quạt", value: 5, kwh: 21, color: "#06b6d4" },
-        { name: "Khác", value: 3, kwh: 12.6, color: "#6b7280" },
-      ]);
-    }
-  };
+  useEffect(() => {
+    setChartLoading(true);
+    fetchData();
+  }, [fetchData]);
 
-  const fetchTopRooms = async () => {
-    try {
-      const res = await api.get("/energy/top-rooms");
-      setTopRooms(res.data);
-    } catch (error) {
-      setTopRooms([
-        { room: "A301", kwh: 45.2, trend: "up" },
-        { room: "B204", kwh: 42.8, trend: "down" },
-        { room: "A502", kwh: 40.1, trend: "up" },
-        { room: "B103", kwh: 38.5, trend: "down" },
-        { room: "A401", kwh: 36.9, trend: "up" },
-      ]);
-    }
-  };
+  const todayKwh = Number(summary?.today_kwh) || 0;
+  const weeklyKwh = Number(summary?.weekly_kwh) || 0;
+  const activeDevices = Number(summary?.active_devices) || 0;
+  const alertsCount = Number(summary?.alerts_count) || 0;
 
-  const formatCost = (cost) => {
-    if (!cost) return "0₫";
-    if (cost >= 1000000) return `${(cost / 1000000).toFixed(1)}M₫`;
-    if (cost >= 1000) return `${Math.round(cost / 1000)}k₫`;
-    return `${cost}₫`;
-  };
+  const kpis = [
+    {
+      label: "Điện năng hôm nay",
+      value: `${todayKwh.toLocaleString("vi-VN")} kWh`,
+      description: `${activeDevices} thiết bị đang hoạt động`,
+      icon: Zap,
+      color: "#2563eb",
+      background: "#eff6ff",
+    },
+    {
+      label: "Chi phí hôm nay",
+      value: formatCost(summary?.today_cost),
+      description: "Chi phí ước tính",
+      icon: Activity,
+      color: "#d97706",
+      background: "#fffbeb",
+    },
+    {
+      label: "Điện năng tuần này",
+      value: `${weeklyKwh.toLocaleString("vi-VN")} kWh`,
+      description: "Tổng trong 7 ngày gần nhất",
+      icon: TrendingDown,
+      color: "#16a34a",
+      background: "#f0fdf4",
+    },
+    {
+      label: "Cảnh báo tiêu thụ",
+      value: alertsCount,
+      description: "Thiết bị cần kiểm tra",
+      icon: AlertTriangle,
+      color: "#dc2626",
+      background: "#fef2f2",
+    },
+  ];
 
-  const kpiData = summary
-    ? [
-        {
-          label: "Hôm nay",
-          value: `${summary.today_kwh} kWh`,
-          sub: `${summary.active_devices || 0} thiết bị hoạt động`,
-          trend: "up",
-          color: "#1a56db",
-          bg: "#eff6ff",
-          icon: Zap,
-        },
-        {
-          label: "Chi phí hôm nay",
-          value: formatCost(summary.today_cost),
-          sub: "Ước tính điện phí",
-          trend: "up",
-          color: "#f59e0b",
-          bg: "#fffbeb",
-          icon: Activity,
-        },
-        {
-          label: "Tuần này",
-          value: `${summary.weekly_kwh} kWh`,
-          sub: "Tổng 7 ngày qua",
-          trend: "down",
-          color: "#22c55e",
-          bg: "#f0fdf4",
-          icon: TrendingDown,
-        },
-        {
-          label: "Cảnh báo",
-          value: `${summary.alerts_count}`,
-          sub: "Thiết bị tiêu thụ cao",
-          trend: "warn",
-          color: "#ef4444",
-          bg: "#fef2f2",
-          icon: AlertTriangle,
-        },
-      ]
-    : [];
+  const chartTitle =
+    period === "day"
+      ? "Điện năng tiêu thụ trong ngày"
+      : period === "week"
+        ? "So sánh điện năng hai tòa nhà"
+        : "Điện năng tiêu thụ theo tháng";
+
+  const chartSubtitle =
+    period === "day"
+      ? "Theo giờ · kWh và chi phí ước tính"
+      : period === "week"
+        ? "Theo ngày · kWh"
+        : "Theo tháng · kWh và chi phí ước tính";
+
+  if (loading) {
+    return (
+      <div className="flex min-h-72 flex-col items-center justify-center gap-3 text-slate-500">
+        <LoaderCircle size={30} className="animate-spin text-blue-600" />
+        <p className="text-sm">Đang tải dữ liệu điện năng...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="min-h-screen space-y-6 bg-slate-50/70 p-4 md:p-6">
+      <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="text-2xl font-black text-gray-800">
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-600">
+            <Zap size={16} />
+            <span>Giám sát tiêu thụ</span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
             Điện năng tiêu thụ
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">
-            Theo dõi và phân tích điện năng toàn khuôn viên (mô phỏng)
+          <p className="mt-1 text-sm text-slate-500">
+            Theo dõi điện năng và chi phí ước tính của hệ thống.
           </p>
         </div>
-        <div className="flex gap-1.5 bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100">
-          {[
-            { id: "day", label: "Ngày" },
-            { id: "week", label: "Tuần" },
-            { id: "month", label: "Tháng" },
-          ].map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setPeriod(p.id)}
-              className="px-4 py-2 rounded-xl text-sm font-bold transition-all"
-              style={{
-                background:
-                  period === p.id
-                    ? "linear-gradient(135deg, #1a56db, #3b82f6)"
-                    : "transparent",
-                color: period === p.id ? "white" : "#6b7280",
-                boxShadow:
-                  period === p.id ? "0 4px 12px rgba(26,86,219,0.3)" : "none",
-              }}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        {kpiData.map((s, i) => (
-          <div
-            key={i}
-            className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center"
-                style={{ background: s.bg }}
-              >
-                <s.icon size={20} style={{ color: s.color }} />
-              </div>
-              <div
-                className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${
-                  s.trend === "up"
-                    ? "bg-red-50 text-red-500"
-                    : s.trend === "down"
-                      ? "bg-green-50 text-green-600"
-                      : "bg-orange-50 text-orange-500"
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+            {PERIODS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setPeriod(item.id)}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                  period === item.id
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
                 }`}
               >
-                {s.trend === "up" ? (
-                  <TrendingUp size={11} />
-                ) : s.trend === "down" ? (
-                  <TrendingDown size={11} />
-                ) : (
-                  <AlertTriangle size={11} />
-                )}
-                {s.trend === "down"
-                  ? "Tiết kiệm"
-                  : s.trend === "warn"
-                    ? "Cảnh báo"
-                    : "Tăng"}
-              </div>
-            </div>
-            <p className="text-2xl font-black" style={{ color: s.color }}>
-              {s.value}
-            </p>
-            <p className="text-xs font-bold text-gray-600 mt-1">{s.label}</p>
-            <p className="text-xs text-gray-300 mt-0.5">{s.sub}</p>
+                {item.label}
+              </button>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* Main Chart */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <p className="text-sm font-black text-gray-800">
-              {period === "day"
-                ? "Điện năng tiêu thụ trong ngày"
-                : period === "week"
-                  ? "So sánh điện năng 2 tòa trong tuần"
-                  : "Điện năng tiêu thụ theo tháng"}
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {period === "day"
-                ? "Theo giờ (kWh & chi phí)"
-                : period === "week"
-                  ? "Tòa A vs Tòa B (kWh)"
-                  : "Tổng tiêu thụ & chi phí (kWh)"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50">
-            <Zap size={14} className="text-blue-600" />
-            <span className="text-xs font-black text-blue-600">
-              {summary
-                ? period === "day"
-                  ? `Hôm nay: ${summary.today_kwh} kWh`
-                  : period === "week"
-                    ? `Tuần này: ${summary.weekly_kwh} kWh`
-                    : "Xem theo tháng"
-                : "Đang tải..."}
-            </span>
-          </div>
+          <button
+            type="button"
+            onClick={() => fetchData(true)}
+            disabled={refreshing}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+            Làm mới
+          </button>
+        </div>
+      </header>
+
+      {errorMessage && (
+        <div
+          role="alert"
+          className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span>{errorMessage}</span>
+          <button
+            type="button"
+            onClick={() => fetchData(true)}
+            className="self-start rounded-lg bg-white px-3 py-2 font-semibold text-amber-800 shadow-sm hover:bg-amber-100 sm:self-auto"
+          >
+            Thử lại
+          </button>
+        </div>
+      )}
+
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+        {kpis.map((item) => (
+          <KpiCard key={item.label} {...item} />
+        ))}
+      </section>
+
+      <Panel
+        title={chartTitle}
+        subtitle={chartSubtitle}
+        className="overflow-hidden"
+      >
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-slate-500">
+            {period === "day"
+              ? `Hôm nay: ${todayKwh.toLocaleString("vi-VN")} kWh`
+              : period === "week"
+                ? `Tuần này: ${weeklyKwh.toLocaleString("vi-VN")} kWh`
+                : "Dữ liệu theo tháng"}
+          </p>
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+            {PERIODS.find((item) => item.id === period)?.label}
+          </span>
         </div>
 
-        {loading ? (
-          <div className="h-64 flex items-center justify-center">
-            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        {chartLoading ? (
+          <div className="flex h-64 items-center justify-center">
+            <LoaderCircle size={26} className="animate-spin text-blue-600" />
           </div>
+        ) : chartData.length === 0 ? (
+          <EmptyState message="Chưa có dữ liệu biểu đồ cho khoảng thời gian này." />
         ) : (
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={300}>
             {period === "day" ? (
               <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient
+                    id="energyKwhFill"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop offset="0%" stopColor="#2563eb" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient
+                    id="energyCostFill"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop offset="0%" stopColor="#16a34a" stopOpacity={0.18} />
+                    <stop offset="95%" stopColor="#16a34a" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  stroke="#e2e8f0"
+                  strokeDasharray="3 3"
+                  vertical={false}
+                />
                 <XAxis
                   dataKey="time"
                   tick={{ fontSize: 11 }}
@@ -335,27 +398,32 @@ export default function Energy() {
                   axisLine={false}
                   tickLine={false}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<EnergyTooltip />} />
                 <Legend />
                 <Area
                   type="monotone"
                   dataKey="kwh"
-                  name="kWh"
-                  stroke="#1a56db"
-                  fill="#bfdbfe"
+                  name="Điện năng"
+                  stroke="#2563eb"
+                  fill="url(#energyKwhFill)"
                   strokeWidth={2.5}
                 />
                 <Area
                   type="monotone"
                   dataKey="cost"
-                  name="cost"
-                  stroke="#22c55e"
-                  fill="#bbf7d0"
+                  name="Chi phí"
+                  stroke="#16a34a"
+                  fill="url(#energyCostFill)"
                   strokeWidth={2.5}
                 />
               </AreaChart>
             ) : period === "week" ? (
-              <BarChart data={chartData} barGap={4}>
+              <BarChart data={chartData} barGap={8}>
+                <CartesianGrid
+                  stroke="#e2e8f0"
+                  strokeDasharray="3 3"
+                  vertical={false}
+                />
                 <XAxis
                   dataKey="date"
                   tick={{ fontSize: 11 }}
@@ -367,23 +435,28 @@ export default function Energy() {
                   axisLine={false}
                   tickLine={false}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<EnergyTooltip />} />
                 <Legend />
                 <Bar
                   dataKey="toaA"
                   name="Tòa A"
-                  fill="#3b82f6"
+                  fill="#2563eb"
                   radius={[6, 6, 0, 0]}
                 />
                 <Bar
                   dataKey="toaB"
                   name="Tòa B"
-                  fill="#22c55e"
+                  fill="#16a34a"
                   radius={[6, 6, 0, 0]}
                 />
               </BarChart>
             ) : (
               <LineChart data={chartData}>
+                <CartesianGrid
+                  stroke="#e2e8f0"
+                  strokeDasharray="3 3"
+                  vertical={false}
+                />
                 <XAxis
                   dataKey="month"
                   tick={{ fontSize: 11 }}
@@ -395,139 +468,148 @@ export default function Energy() {
                   axisLine={false}
                   tickLine={false}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<EnergyTooltip />} />
                 <Legend />
                 <Line
                   type="monotone"
                   dataKey="kwh"
-                  name="kWh"
-                  stroke="#1a56db"
-                  strokeWidth={3}
-                  dot={{ fill: "#1a56db", r: 5, strokeWidth: 2, stroke: "white" }}
+                  name="Điện năng"
+                  stroke="#2563eb"
+                  strokeWidth={2.5}
+                  dot={{ r: 3 }}
                 />
                 <Line
                   type="monotone"
                   dataKey="cost"
-                  name="cost"
-                  stroke="#22c55e"
-                  strokeWidth={3}
-                  dot={{ fill: "#22c55e", r: 5, strokeWidth: 2, stroke: "white" }}
+                  name="Chi phí"
+                  stroke="#16a34a"
+                  strokeWidth={2.5}
+                  dot={{ r: 3 }}
                 />
               </LineChart>
             )}
           </ResponsiveContainer>
         )}
-      </div>
+      </Panel>
 
-      {/* Bottom section */}
-      <div className="grid grid-cols-3 gap-4">
-        {/* Device breakdown */}
-        <div className="col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <p className="text-sm font-black text-gray-800 mb-1">
-            Phân bổ điện năng theo thiết bị
-          </p>
-          <p className="text-xs text-gray-400 mb-4">
-            Tổng tiêu thụ hôm nay: {summary?.today_kwh || 0} kWh
-          </p>
-          <div className="space-y-4">
-            {deviceData.map((d, i) => (
-              <div key={i} className="flex items-center gap-4">
-                <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black flex-shrink-0"
-                  style={{ background: (d.color || "#6b7280") + "18", color: d.color || "#6b7280" }}
-                >
-                  {i + 1}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-sm font-bold text-gray-700">
-                      {d.name}
+      <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
+        <Panel
+          title="Phân bổ điện năng theo thiết bị"
+          subtitle={`Tổng tiêu thụ hôm nay: ${todayKwh.toLocaleString("vi-VN")} kWh`}
+        >
+          {deviceData.length === 0 ? (
+            <EmptyState message="Chưa có dữ liệu phân bổ theo thiết bị." />
+          ) : (
+            <div className="space-y-4">
+              {deviceData.map((device, index) => {
+                const percent = Math.max(
+                  0,
+                  Math.min(Number(device.value) || 0, 100),
+                );
+                const color = device.color || "#64748b";
+
+                return (
+                  <div
+                    key={device.code || device.name || index}
+                    className="flex items-center gap-3"
+                  >
+                    <span
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+                      style={{
+                        color,
+                        backgroundColor: `${color}16`,
+                      }}
+                    >
+                      {index + 1}
                     </span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-gray-400">{d.kwh} kWh</span>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1.5 flex items-center justify-between gap-3">
+                        <span className="truncate text-sm font-semibold text-slate-700">
+                          {device.name || "Thiết bị"}
+                        </span>
+                        <span className="shrink-0 text-xs text-slate-500">
+                          {device.kwh ?? 0} kWh · {percent}%
+                        </span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${percent}%`,
+                            backgroundColor: color,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Panel>
+
+        <Panel
+          title="Phòng tiêu thụ cao"
+          subtitle="Ước tính điện năng theo phòng trong ngày"
+        >
+          {topRooms.length === 0 ? (
+            <EmptyState message="Chưa có dữ liệu phòng tiêu thụ." />
+          ) : (
+            <div className="space-y-3">
+              {topRooms.map((room, index) => {
+                const rising = room.trend === "up";
+
+                return (
+                  <div
+                    key={room.room || index}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 p-3 transition hover:border-blue-200 hover:bg-blue-50/30"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-blue-700">
+                          {room.room || "Phòng"}
+                        </p>
+                        <p className="truncate text-xs text-slate-500">
+                          {room.room_name || "Phòng học"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="text-sm font-semibold text-slate-700">
+                        {room.kwh ?? 0} kWh
+                      </span>
                       <span
-                        className="text-xs font-black"
-                        style={{ color: d.color || "#6b7280" }}
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${
+                          rising
+                            ? "bg-red-50 text-red-600"
+                            : "bg-green-50 text-green-700"
+                        }`}
                       >
-                        {d.value}%
+                        {rising ? (
+                          <TrendingUp size={13} />
+                        ) : (
+                          <TrendingDown size={13} />
+                        )}
+                        {rising ? "Tăng" : "Giảm"}
                       </span>
                     </div>
                   </div>
-                  <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-700"
-                      style={{
-                        width: `${d.value}%`,
-                        background: `linear-gradient(90deg, ${(d.color || "#6b7280")}88, ${d.color || "#6b7280"})`,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Top rooms */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <p className="text-sm font-black text-gray-800 mb-1">
-            Top phòng tiêu thụ cao
-          </p>
-          <p className="text-xs text-gray-400 mb-4">Hôm nay</p>
-          <div className="space-y-3">
-            {topRooms.map((r, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/30 transition-all"
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black"
-                    style={{
-                      background:
-                        i === 0
-                          ? "#fef9c3"
-                          : i === 1
-                            ? "#f1f5f9"
-                            : i === 2
-                              ? "#fff7ed"
-                              : "#f9fafb",
-                      color:
-                        i === 0
-                          ? "#ca8a04"
-                          : i === 1
-                            ? "#475569"
-                            : i === 2
-                              ? "#c2410c"
-                              : "#6b7280",
-                    }}
-                  >
-                    #{i + 1}
-                  </div>
-                  <div>
-                    <p className="text-sm font-black text-blue-600">{r.room}</p>
-                    <p className="text-xs text-gray-400">{r.kwh} kWh</p>
-                  </div>
-                </div>
-                <div
-                  className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${
-                    r.trend === "up"
-                      ? "bg-red-50 text-red-500"
-                      : "bg-green-50 text-green-600"
-                  }`}
-                >
-                  {r.trend === "up" ? (
-                    <TrendingUp size={11} />
-                  ) : (
-                    <TrendingDown size={11} />
-                  )}
-                  {r.trend === "up" ? "Tăng" : "Giảm"}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+                );
+              })}
+            </div>
+          )}
+        </Panel>
       </div>
+
+      <p className="text-xs text-slate-400">
+        Lưu ý: một số chỉ số và biểu đồ được backend mô phỏng; số liệu này chưa
+        phải dữ liệu công tơ điện thực tế.
+      </p>
     </div>
   );
 }

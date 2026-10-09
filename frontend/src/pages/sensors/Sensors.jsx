@@ -1,233 +1,238 @@
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import api from "../../services/api";
 import {
-  Thermometer,
-  Droplets,
-  Wind,
-  Users,
-  Sun,
   Activity,
-  RefreshCw,
   AlertTriangle,
+  Droplets,
+  LoaderCircle,
+  RefreshCw,
+  Sun,
+  Thermometer,
+  Users,
   Wifi,
   WifiOff,
+  Wind,
 } from "lucide-react";
 import {
-  AreaChart,
   Area,
+  AreaChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  ResponsiveContainer,
 } from "recharts";
-import api from "../../services/api";
 
 const SENSOR_CONFIG = {
   nhiet_do: {
     label: "Nhiệt độ",
     icon: Thermometer,
-    color: "#ef4444",
+    color: "#dc2626",
     unit: "°C",
     min: 18,
     max: 35,
     normal: [20, 28],
-    gradient: ["#fef2f2", "#fee2e2"],
-    iconBg: "#fef2f2",
     description: "Nhiệt độ không khí trong phòng",
   },
   do_am: {
     label: "Độ ẩm",
     icon: Droplets,
-    color: "#3b82f6",
+    color: "#2563eb",
     unit: "%",
     min: 0,
     max: 100,
     normal: [40, 70],
-    gradient: ["#eff6ff", "#dbeafe"],
-    iconBg: "#eff6ff",
     description: "Độ ẩm tương đối trong phòng",
   },
   co2: {
     label: "CO₂",
     icon: Wind,
-    color: "#8b5cf6",
+    color: "#7c3aed",
     unit: "ppm",
     min: 300,
     max: 2000,
     normal: [300, 1000],
-    gradient: ["#f5f3ff", "#ede9fe"],
-    iconBg: "#f5f3ff",
     description: "Nồng độ CO₂ trong không khí",
   },
   so_nguoi: {
     label: "Số người",
     icon: Users,
-    color: "#f97316",
+    color: "#ea580c",
     unit: "người",
     min: 0,
     max: 50,
     normal: [0, 40],
-    gradient: ["#fff7ed", "#ffedd5"],
-    iconBg: "#fff7ed",
     description: "Số người hiện có trong phòng",
   },
   anh_sang: {
     label: "Ánh sáng",
     icon: Sun,
-    color: "#eab308",
+    color: "#ca8a04",
     unit: "lux",
     min: 0,
     max: 1000,
     normal: [300, 800],
-    gradient: ["#fefce8", "#fef9c3"],
-    iconBg: "#fefce8",
     description: "Cường độ ánh sáng trong phòng",
   },
   khoi: {
     label: "Khói",
     icon: Activity,
-    color: "#6b7280",
+    color: "#475569",
     unit: "ppm",
     min: 0,
     max: 100,
     normal: [0, 20],
-    gradient: ["#f9fafb", "#f3f4f6"],
-    iconBg: "#f9fafb",
     description: "Nồng độ khói/bụi trong không khí",
   },
 };
 
-const generateValue = (config) => {
-  const range = config.normal[1] - config.normal[0];
-  return parseFloat(
-    (Math.random() * range * 1.3 + config.normal[0]).toFixed(1),
-  );
-};
+const SENSOR_KEYS = Object.keys(SENSOR_CONFIG);
 
-const generateHistory = (config, count = 12) =>
-  Array.from({ length: count }, (_, i) => ({
-    time: `${String(i * 2).padStart(2, "0")}:00`,
-    value: parseFloat(
-      (
-        Math.random() * (config.normal[1] - config.normal[0]) +
-        config.normal[0]
-      ).toFixed(1),
-    ),
-  }));
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(value, max));
+}
 
-function SensorCard({ type, value, isAlert, isSelected, onClick }) {
-  const config = SENSOR_CONFIG[type];
-  const Icon = config.icon;
-  const pct = Math.min(
-    ((value - config.min) / (config.max - config.min)) * 100,
-    100,
-  );
+function createReading(config) {
+  const [normalMin, normalMax] = config.normal;
+  const range = normalMax - normalMin;
+  const value = Number((normalMin + Math.random() * range * 1.3).toFixed(1));
+
+  return {
+    value,
+    isAlert: value > normalMax * 1.1 || value < normalMin * 0.8,
+  };
+}
+
+function createHistory(config, currentValue, count = 12) {
+  const [normalMin, normalMax] = config.normal;
+  const range = normalMax - normalMin;
+
+  return Array.from({ length: count }, (_, index) => {
+    const value =
+      index === count - 1
+        ? currentValue
+        : Number(
+            (
+              normalMin +
+              Math.random() * range +
+              (Math.random() - 0.5) * range * 0.2
+            ).toFixed(1),
+          );
+
+    return {
+      time: `${String(index * 2).padStart(2, "0")}:00`,
+      value,
+    };
+  });
+}
+
+function getSensorSnapshot() {
+  const readings = {};
+  const histories = {};
+
+  SENSOR_KEYS.forEach((key) => {
+    const config = SENSOR_CONFIG[key];
+    const reading = createReading(config);
+
+    readings[key] = reading;
+    histories[key] = createHistory(config, reading.value);
+  });
+
+  return { readings, histories };
+}
+
+function formatTime(date) {
+  return date.toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function SensorTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
 
   return (
-    <div
-      onClick={onClick}
-      className="rounded-2xl p-5 cursor-pointer transition-all hover:shadow-lg border-2"
-      style={{
-        background: isAlert
-          ? `linear-gradient(135deg, ${config.gradient[0]}, ${config.gradient[1]})`
-          : isSelected
-            ? `linear-gradient(135deg, white, ${config.gradient[0]})`
-            : "white",
-        borderColor: isSelected
-          ? config.color
-          : isAlert
-            ? config.color + "60"
-            : "#f1f5f9",
-        boxShadow: isSelected
-          ? `0 8px 25px ${config.color}25`
-          : isAlert
-            ? `0 4px 15px ${config.color}20`
-            : "none",
-      }}
-    >
-      {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-11 h-11 rounded-xl flex items-center justify-center shadow-sm"
-            style={{
-              background: isAlert ? config.color + "20" : config.iconBg,
-            }}
-          >
-            <Icon size={22} style={{ color: config.color }} />
-          </div>
-          <div>
-            <p className="font-black text-gray-800 text-sm">{config.label}</p>
-            <p className="text-xs text-gray-400">{config.description}</p>
-          </div>
-        </div>
-        {isAlert && (
-          <span
-            className="flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-full text-white animate-pulse"
-            style={{ background: config.color }}
-          >
-            <AlertTriangle size={11} /> Cảnh báo
-          </span>
-        )}
-      </div>
-
-      {/* Value */}
-      <div className="flex items-end gap-1.5 mb-4">
-        <p
-          className="text-4xl font-black"
-          style={{ color: isAlert ? config.color : "#1e293b" }}
-        >
-          {value}
-        </p>
-        <p className="text-lg text-gray-400 mb-1 font-semibold">
-          {config.unit}
-        </p>
-      </div>
-
-      {/* Progress bar */}
-      <div>
-        <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
-          <div
-            className="h-full rounded-full transition-all duration-700"
-            style={{
-              width: `${pct}%`,
-              background: isAlert
-                ? `linear-gradient(90deg, ${config.color}, ${config.color}cc)`
-                : `linear-gradient(90deg, ${config.color}66, ${config.color})`,
-            }}
-          />
-        </div>
-        <div className="flex justify-between text-xs text-gray-300">
-          <span>
-            {config.min}
-            {config.unit}
-          </span>
-          <span className="text-gray-400">
-            Ngưỡng: {config.normal[0]}-{config.normal[1]}
-            {config.unit}
-          </span>
-          <span>
-            {config.max}
-            {config.unit}
-          </span>
-        </div>
-      </div>
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-lg">
+      <p className="mb-1 text-xs font-semibold text-slate-700">{label}</p>
+      <p
+        className="text-xs font-bold"
+        style={{ color: payload[0]?.stroke || "#2563eb" }}
+      >
+        {payload[0]?.value} {payload[0]?.name}
+      </p>
     </div>
   );
 }
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-3 text-xs">
-        <p className="font-black text-gray-700 mb-1">{label}</p>
-        <p className="font-bold" style={{ color: payload[0]?.stroke }}>
-          {payload[0]?.value} {payload[0]?.name}
-        </p>
+function SensorCard({ type, reading, selected, onClick }) {
+  const config = SENSOR_CONFIG[type];
+  const Icon = config.icon;
+  const value = reading?.value ?? config.normal[0];
+  const progress = clamp(
+    ((value - config.min) / (config.max - config.min)) * 100,
+    0,
+    100,
+  );
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-2xl border bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md sm:p-5 ${
+        selected ? "ring-2" : ""
+      }`}
+      style={{
+        borderColor: selected || reading?.isAlert ? config.color : "#e2e8f0",
+        ringColor: config.color,
+        boxShadow: reading?.isAlert
+          ? `0 4px 18px ${config.color}20`
+          : undefined,
+      }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span
+          className="flex h-10 w-10 items-center justify-center rounded-xl"
+          style={{ color: config.color, backgroundColor: `${config.color}12` }}
+        >
+          <Icon size={20} />
+        </span>
+        {reading?.isAlert && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-[10px] font-bold text-red-700">
+            <AlertTriangle size={12} />
+            Cảnh báo
+          </span>
+        )}
       </div>
-    );
-  }
-  return null;
-};
+
+      <p className="mt-4 text-sm font-semibold text-slate-700">
+        {config.label}
+      </p>
+      <p className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
+        {value}
+        <span className="ml-1 text-sm font-medium text-slate-400">
+          {config.unit}
+        </span>
+      </p>
+
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{
+            width: `${progress}%`,
+            backgroundColor: config.color,
+          }}
+        />
+      </div>
+      <div className="mt-2 flex justify-between text-[10px] text-slate-400">
+        <span>{config.min}</span>
+        <span>
+          Bình thường: {config.normal[0]}–{config.normal[1]} {config.unit}
+        </span>
+        <span>{config.max}</span>
+      </div>
+    </button>
+  );
+}
 
 export default function Sensors() {
   const [rooms, setRooms] = useState([]);
@@ -235,358 +240,418 @@ export default function Sensors() {
   const [selectedSensor, setSelectedSensor] = useState("nhiet_do");
   const [sensorData, setSensorData] = useState({});
   const [chartData, setChartData] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [loadingRooms, setLoadingRooms] = useState(true);
+  const [roomsError, setRoomsError] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
-  const intervalRef = useRef(null);
 
-  useEffect(() => {
-    fetchRooms();
+  const fetchRooms = useCallback(async () => {
+    try {
+      setLoadingRooms(true);
+      setRoomsError("");
+
+      const response = await api.get("/rooms");
+      const roomList = Array.isArray(response.data) ? response.data : [];
+
+      setRooms(roomList);
+      setSelectedRoom((current) => {
+        if (!current) return roomList[0] || null;
+        return (
+          roomList.find((room) => room.id === current.id) || roomList[0] || null
+        );
+      });
+    } catch (error) {
+      console.error("Không thể tải danh sách phòng:", error);
+      setRoomsError(
+        error.response?.data?.message || "Không thể tải danh sách phòng.",
+      );
+      setRooms([]);
+      setSelectedRoom(null);
+    } finally {
+      setLoadingRooms(false);
+    }
+  }, []);
+
+  const updateSensorData = useCallback(() => {
+    const snapshot = getSensorSnapshot();
+    setSensorData(snapshot.readings);
+    setChartData(snapshot.histories);
+    setLastUpdate(new Date());
   }, []);
 
   useEffect(() => {
-    if (autoRefresh) {
-      intervalRef.current = setInterval(() => {
-        updateSensorData();
-        setLastUpdate(new Date());
-      }, 3000);
-    } else {
-      clearInterval(intervalRef.current);
-    }
-    return () => clearInterval(intervalRef.current);
-  }, [autoRefresh, selectedRoom]);
-
-  const fetchRooms = async () => {
-    try {
-      const res = await api.get("/rooms");
-      setRooms(res.data);
-      if (res.data.length > 0) {
-        setSelectedRoom(res.data[0]);
-      }
-      setLoading(false);
-    } catch (error) {
-      console.error(error);
-      setLoading(false);
-    }
-  };
-
-  const updateSensorData = () => {
-    const newData = {};
-    const newChart = {};
-    Object.entries(SENSOR_CONFIG).forEach(([type, config]) => {
-      const value = generateValue(config);
-      newData[type] = {
-        value,
-        isAlert:
-          value > config.normal[1] * 1.1 || value < config.normal[0] * 0.8,
-      };
-      newChart[type] = generateHistory(config);
-    });
-    setSensorData(newData);
-    setChartData(newChart);
-  };
+    fetchRooms();
+  }, [fetchRooms]);
 
   useEffect(() => {
-    if (selectedRoom) updateSensorData();
-  }, [selectedRoom]);
+    if (!selectedRoom) return;
 
-  const alerts = Object.entries(sensorData).filter(([_, d]) => d.isAlert);
+    updateSensorData();
+
+    if (!autoRefresh) return undefined;
+
+    const intervalId = window.setInterval(updateSensorData, 3000);
+    return () => window.clearInterval(intervalId);
+  }, [selectedRoom, autoRefresh, updateSensorData]);
+
+  const alerts = useMemo(
+    () => Object.entries(sensorData).filter(([, reading]) => reading?.isAlert),
+    [sensorData],
+  );
+
   const selectedConfig = SENSOR_CONFIG[selectedSensor];
+  const SelectedIcon = selectedConfig.icon;
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="min-h-screen space-y-6 bg-slate-50/70 p-4 md:p-6">
+      <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="text-2xl font-black text-gray-800">Cảm biến IoT</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
-            Dữ liệu cảm biến mô phỏng theo thời gian thực
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-600">
+            <Activity size={16} />
+            <span>Giám sát môi trường</span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+            Cảm biến IoT
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Theo dõi chỉ số môi trường trong các phòng học.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Status */}
-          <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 shadow-sm">
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
             {autoRefresh ? (
-              <Wifi size={15} className="text-green-500" />
+              <Wifi size={16} className="text-green-600" />
             ) : (
-              <WifiOff size={15} className="text-gray-400" />
+              <WifiOff size={16} className="text-slate-400" />
             )}
-            <span
-              className="text-xs font-bold"
-              style={{ color: autoRefresh ? "#22c55e" : "#9ca3af" }}
-            >
+            <span className="text-xs font-medium text-slate-600">
               {autoRefresh
-                ? `Cập nhật: ${lastUpdate.toLocaleTimeString("vi-VN")}`
-                : "Đã dừng"}
+                ? `Cập nhật ${formatTime(lastUpdate)}`
+                : "Đã tạm dừng"}
             </span>
           </div>
+
           <button
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border-2"
-            style={{
-              background: autoRefresh ? "#fef2f2" : "#f0fdf4",
-              color: autoRefresh ? "#ef4444" : "#22c55e",
-              borderColor: autoRefresh ? "#fecaca" : "#bbf7d0",
-            }}
+            type="button"
+            onClick={() => setAutoRefresh((current) => !current)}
+            disabled={!selectedRoom}
+            className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+              autoRefresh
+                ? "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                : "bg-green-600 text-white hover:bg-green-700"
+            }`}
           >
             <RefreshCw
-              size={14}
+              size={16}
               className={autoRefresh ? "animate-spin" : ""}
             />
-            {autoRefresh ? "Dừng" : "Bắt đầu"}
+            {autoRefresh ? "Dừng cập nhật" : "Tiếp tục"}
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* Alerts banner */}
-      {alerts.length > 0 && (
-        <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
-            <AlertTriangle size={20} className="text-red-500" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-black text-red-700">
-              ⚠️ Phát hiện {alerts.length} cảm biến vượt ngưỡng tại phòng{" "}
-              {selectedRoom?.code}
-            </p>
-            <div className="flex flex-wrap gap-2 mt-1.5">
-              {alerts.map(([type, data]) => (
-                <span
-                  key={type}
-                  className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full text-white"
-                  style={{ background: SENSOR_CONFIG[type].color }}
-                >
-                  {SENSOR_CONFIG[type].label}: {data.value}
-                  {SENSOR_CONFIG[type].unit}
+      {loadingRooms ? (
+        <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-slate-500">
+          <LoaderCircle size={28} className="animate-spin text-blue-600" />
+          <p className="text-sm">Đang tải danh sách phòng...</p>
+        </div>
+      ) : roomsError ? (
+        <div
+          role="alert"
+          className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700"
+        >
+          <p className="font-semibold">{roomsError}</p>
+          <button
+            type="button"
+            onClick={fetchRooms}
+            className="mt-3 rounded-lg bg-white px-3 py-2 font-semibold text-red-700 shadow-sm hover:bg-red-100"
+          >
+            Thử lại
+          </button>
+        </div>
+      ) : rooms.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-16 text-center">
+          <p className="font-semibold text-slate-800">Chưa có phòng học</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Thêm phòng học để xem thông tin cảm biến.
+          </p>
+        </div>
+      ) : (
+        <>
+          {alerts.length > 0 && (
+            <section className="rounded-2xl border border-red-200 bg-red-50 p-4 sm:p-5">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-700">
+                  <AlertTriangle size={20} />
                 </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-12 gap-5">
-        {/* LEFT: Room list */}
-        <div className="col-span-2">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div
-              className="px-4 py-3 border-b border-gray-100"
-              style={{
-                background: "linear-gradient(135deg, #f8fafc, #eff6ff)",
-              }}
-            >
-              <p className="text-xs font-black text-gray-500 uppercase tracking-widest">
-                Chọn phòng
-              </p>
-            </div>
-            <div className="p-2 max-h-96 overflow-y-auto space-y-1">
-              {rooms.map((room) => (
-                <button
-                  key={room.id}
-                  onClick={() => setSelectedRoom(room)}
-                  className="w-full text-left px-3 py-2.5 rounded-xl transition-all"
-                  style={{
-                    background:
-                      selectedRoom?.id === room.id ? "#eff6ff" : "transparent",
-                    borderLeft:
-                      selectedRoom?.id === room.id
-                        ? "3px solid #1a56db"
-                        : "3px solid transparent",
-                  }}
-                >
-                  <p
-                    className={`font-bold text-sm ${selectedRoom?.id === room.id ? "text-blue-700" : "text-gray-700"}`}
-                  >
-                    {room.code}
+                <div className="min-w-0">
+                  <p className="font-semibold text-red-800">
+                    {alerts.length} chỉ số đang vượt ngưỡng tại phòng{" "}
+                    {selectedRoom?.code}
                   </p>
-                  <p className="text-xs text-gray-400">
-                    {room.building_name} / T{room.floor_number}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT: Main content */}
-        <div className="col-span-10 space-y-5">
-          {selectedRoom && (
-            <>
-              {/* Room info bar */}
-              <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-xl">
-                    📡
-                  </div>
-                  <div>
-                    <p className="font-black text-gray-800">
-                      Phòng {selectedRoom.code}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {selectedRoom.building_name} / Tầng{" "}
-                      {selectedRoom.floor_number} — {selectedRoom.capacity} chỗ
-                      ngồi
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-2.5 h-2.5 rounded-full ${autoRefresh ? "bg-green-500 animate-pulse" : "bg-gray-300"}`}
-                  />
-                  <div className="text-right">
-                    <p className="text-xs text-gray-400">Cập nhật lúc</p>
-                    <p className="text-sm font-black text-gray-700 font-mono">
-                      {lastUpdate.toLocaleTimeString("vi-VN")}
-                    </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {alerts.map(([type, reading]) => (
+                      <span
+                        key={type}
+                        className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-red-700"
+                      >
+                        {SENSOR_CONFIG[type].label}: {reading.value}{" "}
+                        {SENSOR_CONFIG[type].unit}
+                      </span>
+                    ))}
                   </div>
                 </div>
               </div>
+            </section>
+          )}
 
-              {/* Sensor cards grid */}
-              <div className="grid grid-cols-3 gap-4">
-                {Object.entries(SENSOR_CONFIG).map(([type]) => (
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-4">
+            <aside className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:col-span-1">
+              <div className="border-b border-slate-100 px-4 py-4">
+                <h2 className="font-semibold text-slate-900">Chọn phòng</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  {rooms.length} phòng trong hệ thống
+                </p>
+              </div>
+
+              <div className="flex gap-2 overflow-x-auto p-3 xl:max-h-[620px] xl:flex-col xl:overflow-y-auto">
+                {rooms.map((room) => {
+                  const selected = selectedRoom?.id === room.id;
+
+                  return (
+                    <button
+                      key={room.id}
+                      type="button"
+                      onClick={() => setSelectedRoom(room)}
+                      className={`min-w-36 rounded-xl border p-3 text-left transition xl:min-w-0 ${
+                        selected
+                          ? "border-blue-300 bg-blue-50 ring-2 ring-blue-100"
+                          : "border-slate-200 bg-white hover:bg-slate-50"
+                      }`}
+                    >
+                      <p
+                        className={`font-semibold ${
+                          selected ? "text-blue-700" : "text-slate-800"
+                        }`}
+                      >
+                        {room.code}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {room.building_name || "Tòa nhà"} · Tầng{" "}
+                        {room.floor_number ?? "—"}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </aside>
+
+            <main className="space-y-5 xl:col-span-3">
+              <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                <div>
+                  <p className="text-xs font-medium text-slate-500">
+                    Đang xem dữ liệu phòng
+                  </p>
+                  <h2 className="mt-1 text-xl font-bold text-slate-900">
+                    {selectedRoom?.code}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {selectedRoom?.building_name || "Tòa nhà"} · Tầng{" "}
+                    {selectedRoom?.floor_number ?? "—"} ·{" "}
+                    {selectedRoom?.capacity ?? "—"} chỗ
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <span
+                    className={`h-2.5 w-2.5 rounded-full ${
+                      autoRefresh
+                        ? "animate-pulse bg-green-500"
+                        : "bg-slate-300"
+                    }`}
+                  />
+                  {autoRefresh ? "Đang cập nhật mô phỏng" : "Đang tạm dừng"}
+                </div>
+              </section>
+
+              <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+                {SENSOR_KEYS.map((type) => (
                   <SensorCard
                     key={type}
                     type={type}
-                    value={
-                      sensorData[type]?.value ?? SENSOR_CONFIG[type].normal[0]
-                    }
-                    isAlert={sensorData[type]?.isAlert ?? false}
-                    isSelected={selectedSensor === type}
+                    reading={sensorData[type]}
+                    selected={selectedSensor === type}
                     onClick={() => setSelectedSensor(type)}
                   />
                 ))}
-              </div>
+              </section>
 
-              {/* Charts */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Detail chart */}
-                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-                  <div className="flex items-center justify-between mb-5">
+              <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
+                <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                  <div className="mb-4 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div
-                        className="w-9 h-9 rounded-xl flex items-center justify-center"
-                        style={{ background: selectedConfig.iconBg }}
+                      <span
+                        className="flex h-10 w-10 items-center justify-center rounded-xl"
+                        style={{
+                          color: selectedConfig.color,
+                          backgroundColor: `${selectedConfig.color}12`,
+                        }}
                       >
-                        <selectedConfig.icon
-                          size={18}
-                          style={{ color: selectedConfig.color }}
-                        />
-                      </div>
+                        <SelectedIcon size={19} />
+                      </span>
                       <div>
-                        <p className="text-sm font-black text-gray-800">
+                        <h2 className="font-semibold text-slate-900">
                           {selectedConfig.label}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          Biểu đồ theo thời gian
+                        </h2>
+                        <p className="text-xs text-slate-500">
+                          {selectedConfig.description}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p
-                        className="text-2xl font-black"
-                        style={{ color: selectedConfig.color }}
-                      >
-                        {sensorData[selectedSensor]?.value ??
-                          selectedConfig.normal[0]}
-                        <span className="text-sm font-medium text-gray-400 ml-1">
-                          {selectedConfig.unit}
-                        </span>
-                      </p>
-                    </div>
+                    <p
+                      className="shrink-0 text-xl font-bold"
+                      style={{ color: selectedConfig.color }}
+                    >
+                      {sensorData[selectedSensor]?.value ??
+                        selectedConfig.normal[0]}{" "}
+                      <span className="text-xs font-medium text-slate-500">
+                        {selectedConfig.unit}
+                      </span>
+                    </p>
                   </div>
-                  <ResponsiveContainer width="100%" height={180}>
-                    <AreaChart data={chartData[selectedSensor] || []}>
-                      <XAxis
-                        dataKey="time"
-                        tick={{ fontSize: 10 }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 10 }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Area
-                        type="monotone"
-                        dataKey="value"
-                        name={selectedConfig.unit}
-                        stroke={selectedConfig.color}
-                        strokeWidth={2.5}
-                        fill={selectedConfig.color + "18"}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
 
-                {/* Overview */}
-                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-                  <p className="text-sm font-black text-gray-800 mb-4">
-                    Tổng quan tất cả cảm biến
-                  </p>
-                  <div className="space-y-4">
-                    {Object.entries(SENSOR_CONFIG).map(([type, config]) => {
-                      const val = sensorData[type]?.value ?? config.normal[0];
-                      const pct = Math.min(
-                        ((val - config.min) / (config.max - config.min)) * 100,
+                  {chartData[selectedSensor]?.length ? (
+                    <ResponsiveContainer width="100%" height={230}>
+                      <AreaChart data={chartData[selectedSensor]}>
+                        <defs>
+                          <linearGradient
+                            id="sensorChartFill"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="0%"
+                              stopColor={selectedConfig.color}
+                              stopOpacity={0.22}
+                            />
+                            <stop
+                              offset="95%"
+                              stopColor={selectedConfig.color}
+                              stopOpacity={0.02}
+                            />
+                          </linearGradient>
+                        </defs>
+                        <XAxis
+                          dataKey="time"
+                          tick={{ fontSize: 10 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          width={45}
+                          tick={{ fontSize: 10 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip content={<SensorTooltip />} />
+                        <Area
+                          type="monotone"
+                          dataKey="value"
+                          name={selectedConfig.unit}
+                          stroke={selectedConfig.color}
+                          strokeWidth={2.5}
+                          fill="url(#sensorChartFill)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex h-56 items-center justify-center text-sm text-slate-400">
+                      Chưa có dữ liệu biểu đồ
+                    </div>
+                  )}
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                  <div className="mb-4">
+                    <h2 className="font-semibold text-slate-900">
+                      Tổng quan cảm biến
+                    </h2>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Chọn một chỉ số để xem biểu đồ chi tiết.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {SENSOR_KEYS.map((type) => {
+                      const config = SENSOR_CONFIG[type];
+                      const Icon = config.icon;
+                      const reading = sensorData[type];
+                      const value = reading?.value ?? config.normal[0];
+                      const percentage = clamp(
+                        ((value - config.min) / (config.max - config.min)) *
+                          100,
+                        0,
                         100,
                       );
-                      const isAlert = sensorData[type]?.isAlert;
+
                       return (
-                        <div
+                        <button
                           key={type}
-                          className="flex items-center gap-3 p-2 rounded-xl cursor-pointer hover:bg-gray-50 transition-all"
+                          type="button"
                           onClick={() => setSelectedSensor(type)}
-                          style={{
-                            background:
-                              selectedSensor === type
-                                ? config.iconBg
-                                : "transparent",
-                          }}
+                          className={`flex w-full items-center gap-3 rounded-xl p-3 text-left transition ${
+                            selectedSensor === type
+                              ? "bg-slate-50 ring-1 ring-slate-200"
+                              : "hover:bg-slate-50"
+                          }`}
                         >
-                          <div
-                            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                            style={{ background: config.iconBg }}
-                          >
-                            <config.icon
-                              size={15}
-                              style={{ color: config.color }}
-                            />
-                          </div>
-                          <span className="text-xs font-bold text-gray-600 w-20 flex-shrink-0">
-                            {config.label}
-                          </span>
-                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all duration-500"
-                              style={{
-                                width: `${pct}%`,
-                                background: config.color,
-                              }}
-                            />
-                          </div>
                           <span
-                            className="text-xs font-black w-20 text-right flex-shrink-0"
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
                             style={{
-                              color: isAlert ? config.color : "#6b7280",
+                              color: config.color,
+                              backgroundColor: `${config.color}12`,
                             }}
                           >
-                            {val}
-                            {config.unit}
-                            {isAlert && " ⚠️"}
+                            <Icon size={17} />
                           </span>
-                        </div>
+
+                          <span className="w-20 shrink-0 text-xs font-semibold text-slate-600">
+                            {config.label}
+                          </span>
+
+                          <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                            <span
+                              className="block h-full rounded-full transition-all"
+                              style={{
+                                width: `${percentage}%`,
+                                backgroundColor: config.color,
+                              }}
+                            />
+                          </span>
+
+                          <span
+                            className="w-20 shrink-0 text-right text-xs font-bold"
+                            style={{
+                              color: reading?.isAlert
+                                ? config.color
+                                : "#475569",
+                            }}
+                          >
+                            {value} {config.unit}
+                          </span>
+                        </button>
                       );
                     })}
                   </div>
-                </div>
+                </section>
               </div>
-            </>
-          )}
-        </div>
-      </div>
+            </main>
+          </div>
+        </>
+      )}
     </div>
   );
 }

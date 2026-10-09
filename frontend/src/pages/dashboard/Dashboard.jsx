@@ -53,6 +53,22 @@ const STATUS_LABELS = {
   su_co: "Sự cố",
 };
 
+const INCIDENT_LABELS = {
+  chay: "Cháy",
+  mat_dien: "Mất điện",
+  may_chieu_hong: "Máy chiếu hỏng",
+  dieu_hoa_hong: "Điều hòa hỏng",
+  mat_internet: "Mất Internet",
+  qua_tai: "Quá tải",
+};
+
+const SEVERITY_LABELS = {
+  thap: "Thấp",
+  trung: "Trung bình",
+  cao: "Cao",
+  nghiem_trong: "Nghiêm trọng",
+};
+
 const FLOOR_HEIGHT = 0.86;
 
 const tempData = [
@@ -126,7 +142,6 @@ function RoomBox({ position, room, onClick, isSelected }) {
         document.body.style.cursor = "default";
       }}
     >
-      {/* Khối phòng nổi nhẹ khỏi mặt tiền */}
       <RoundedBox
         args={[1.04, 0.62, 0.24]}
         radius={0.045}
@@ -147,7 +162,6 @@ function RoomBox({ position, room, onClick, isSelected }) {
         {isSelected && <Edges color="#1768e8" threshold={15} />}
       </RoundedBox>
 
-      {/* Khung kính lớn phía trước */}
       <RoundedBox
         args={[0.88, 0.3, 0.025]}
         radius={0.018}
@@ -162,7 +176,6 @@ function RoomBox({ position, room, onClick, isSelected }) {
         />
       </RoundedBox>
 
-      {/* Thanh ngang cửa kính */}
       <mesh position={[0, 0.075, 0.15]}>
         <boxGeometry args={[0.88, 0.018, 0.012]} />
         <meshStandardMaterial
@@ -172,7 +185,6 @@ function RoomBox({ position, room, onClick, isSelected }) {
         />
       </mesh>
 
-      {/* Thanh dọc cửa kính */}
       <mesh position={[0, 0.075, 0.15]}>
         <boxGeometry args={[0.018, 0.3, 0.012]} />
         <meshStandardMaterial
@@ -182,7 +194,6 @@ function RoomBox({ position, room, onClick, isSelected }) {
         />
       </mesh>
 
-      {/* Bảng tên phòng */}
       <RoundedBox
         args={[0.67, 0.17, 0.025]}
         radius={0.025}
@@ -205,7 +216,6 @@ function RoomBox({ position, room, onClick, isSelected }) {
         {room.code}
       </Text>
 
-      {/* Dải trạng thái và đèn báo */}
       <mesh position={[0, -0.285, 0.14]}>
         <boxGeometry args={[0.88, 0.045, 0.025]} />
         <meshStandardMaterial
@@ -257,7 +267,6 @@ function FloorGroup({
 
   return (
     <group position={[buildingOffset, floorY, 0]}>
-      {/* Sàn bê tông */}
       <mesh position={[2.5, -0.08, 1.55]} receiveShadow castShadow>
         <boxGeometry args={[5.18, 0.13, 3.35]} />
         <meshStandardMaterial
@@ -267,7 +276,6 @@ function FloorGroup({
         />
       </mesh>
 
-      {/* Viền màu tầng đang chọn */}
       <mesh position={[2.5, -0.045, 3.24]}>
         <boxGeometry args={[5.06, 0.045, 0.045]} />
         <meshStandardMaterial
@@ -277,7 +285,6 @@ function FloorGroup({
         />
       </mesh>
 
-      {/* Bốn phòng thành một hàng trên mặt tiền */}
       {floorRooms.map((room, index) => (
         <RoomBox
           key={room.id}
@@ -288,7 +295,6 @@ function FloorGroup({
         />
       ))}
 
-      {/* Nhãn tầng ở cạnh tòa nhà */}
       <RoundedBox
         args={[0.38, 0.34, 0.13]}
         radius={0.045}
@@ -325,7 +331,6 @@ function Building3D({
 }) {
   return (
     <group>
-      {/* Mặt sau sáng, giúp nhìn xuyên qua mô hình */}
       <mesh position={[offset + 2.5, 2.1, 0.12]} receiveShadow>
         <boxGeometry args={[4.95, 4.25, 0.16]} />
         <meshStandardMaterial
@@ -337,7 +342,6 @@ function Building3D({
         />
       </mesh>
 
-      {/* Mặt kính bên hông tạo chiều sâu */}
       <mesh position={[offset + 4.98, 2.1, 1.62]} receiveShadow>
         <boxGeometry args={[0.16, 4.25, 3.12]} />
         <meshPhysicalMaterial
@@ -351,7 +355,6 @@ function Building3D({
         />
       </mesh>
 
-      {/* Các thanh đứng ở mặt tiền */}
       {[0.03, 4.97].map((x) => (
         <RoundedBox
           key={`front-column-${x}`}
@@ -369,13 +372,11 @@ function Building3D({
         </RoundedBox>
       ))}
 
-      {/* Bệ móng */}
       <mesh position={[offset + 2.5, -0.16, 1.55]} castShadow receiveShadow>
         <boxGeometry args={[5.32, 0.24, 3.52]} />
         <meshStandardMaterial color="#a9bbc3" roughness={0.7} />
       </mesh>
 
-      {/* Mái và nẹp xanh */}
       <RoundedBox
         args={[5.26, 0.2, 3.5]}
         radius={0.06}
@@ -399,7 +400,6 @@ function Building3D({
         />
       </mesh>
 
-      {/* Bảng tên trên mái */}
       <RoundedBox
         args={[1.4, 0.35, 0.12]}
         radius={0.06}
@@ -488,7 +488,6 @@ function Scene({
         activeFloor={activeBuilding === "B" ? activeFloor : null}
       />
 
-      {/* Nền sân cỏ */}
       <mesh
         position={[0, -0.29, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -498,7 +497,6 @@ function Scene({
         <meshStandardMaterial color="#b7d5b0" roughness={0.96} />
       </mesh>
 
-      {/* Lối đi giữa hai tòa */}
       <mesh
         position={[0, -0.27, 1.5]}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -508,7 +506,6 @@ function Scene({
         <meshStandardMaterial color="#d8e0df" roughness={0.88} />
       </mesh>
 
-      {/* Sân phía trước */}
       <mesh
         position={[0, -0.265, 4.35]}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -518,7 +515,6 @@ function Scene({
         <meshStandardMaterial color="#e6ece8" roughness={0.9} />
       </mesh>
 
-      {/* Cây cảnh trong khuôn viên */}
       <Tree position={[-6.45, -0.27, 3.95]} scale={1.05} />
       <Tree position={[-5.9, -0.27, -0.75]} scale={0.9} />
       <Tree position={[-1.25, -0.27, 4.25]} scale={0.82} />
@@ -552,7 +548,7 @@ function Scene({
 export default function Dashboard() {
   const [rooms, setRooms] = useState([]);
   const [devices, setDevices] = useState([]);
-  const [notifications, setNotifications] = useState([]);
+  const [incidents, setIncidents] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [selectedBuilding, setSelectedBuilding] = useState("A");
   const [selectedFloor, setSelectedFloor] = useState(5);
@@ -563,15 +559,15 @@ export default function Dashboard() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [roomsRes, devicesRes, notificationsRes] = await Promise.all([
+      const [roomsRes, devicesRes, incidentsRes] = await Promise.all([
         api.get("/rooms"),
         api.get("/devices"),
-        api.get("/notifications"),
+        api.get("/simulation/active"),
       ]);
 
-      setRooms(roomsRes.data);
-      setDevices(devicesRes.data);
-      setNotifications(notificationsRes.data);
+      setRooms(Array.isArray(roomsRes.data) ? roomsRes.data : []);
+      setDevices(Array.isArray(devicesRes.data) ? devicesRes.data : []);
+      setIncidents(Array.isArray(incidentsRes.data) ? incidentsRes.data : []);
     } catch (error) {
       console.error("Không thể tải dữ liệu tổng quan:", error);
     } finally {
@@ -589,6 +585,8 @@ export default function Dashboard() {
   useSocket({
     incident_simulated: fetchAll,
     incident_resolved: fetchAll,
+    incident_created: fetchAll,
+    incident_updated: fetchAll,
     room_status_changed: fetchAll,
     device_status_changed: fetchAll,
   });
@@ -622,14 +620,6 @@ export default function Dashboard() {
     { name: "Sự cố", value: roomStats.su_co, color: "#ef4444" },
   ];
 
-  const alerts = notifications
-    .filter(
-      (notification) =>
-        !notification.is_read &&
-        ["error", "warning"].includes(notification.severity),
-    )
-    .slice(0, 3);
-
   const handleRoomClick = (room) => {
     setSelectedRoom(room);
 
@@ -645,7 +635,6 @@ export default function Dashboard() {
   return (
     <div className="space-y-4 text-sm">
       <div className="grid grid-cols-12 gap-4">
-        {/* Bộ chọn tòa nhà và tầng */}
         <aside className="col-span-2 space-y-3">
           <div className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
             <p className="mb-2 text-xs font-bold text-gray-500">Chọn tòa nhà</p>
@@ -719,7 +708,6 @@ export default function Dashboard() {
           </div>
         </aside>
 
-        {/* Mô hình 3D hoặc sơ đồ 2D */}
         <section className="col-span-7">
           <div
             className="relative overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm"
@@ -837,7 +825,6 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Danh sách phòng */}
         <aside className="col-span-3">
           <div
             className="flex flex-col rounded-xl border border-gray-100 bg-white shadow-sm"
@@ -917,8 +904,7 @@ export default function Dashboard() {
         </aside>
       </div>
 
-      {/* Thống kê */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <section className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
           <p className="mb-3 text-xs font-bold text-gray-600">
             Tổng quan phòng
@@ -1066,61 +1052,85 @@ export default function Dashboard() {
         </section>
 
         <section className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-xs font-bold text-gray-600">Cảnh báo</p>
+          <div className="mb-2 flex items-start justify-between gap-2">
+            <div>
+              <p className="text-xs font-bold text-gray-600">Cảnh báo</p>
+              <p className="mt-1 text-xs text-gray-400">
+                {incidents.length} sự cố đang xảy ra
+              </p>
+            </div>
+
             <button
               type="button"
-              onClick={() => navigate("/notifications")}
-              className="text-xs font-medium text-blue-600 hover:underline"
+              onClick={() => navigate("/incidents")}
+              className="shrink-0 text-xs font-medium text-blue-600 hover:underline"
             >
               Xem tất cả
             </button>
           </div>
 
-          {alerts.length === 0 ? (
+          {loading ? (
+            <div className="flex h-24 items-center justify-center text-xs text-gray-400">
+              Đang tải sự cố...
+            </div>
+          ) : incidents.length === 0 ? (
             <div className="flex h-24 flex-col items-center justify-center text-gray-400">
               <CheckCircle size={28} className="mb-1 text-green-400" />
-              <p className="text-xs">
-                {loading ? "Đang tải..." : "Không có cảnh báo"}
-              </p>
+              <p className="text-xs">Không có cảnh báo</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {alerts.map((alert) => (
-                <div
-                  key={alert.id}
-                  className="flex items-start gap-2 rounded-lg p-2"
-                  style={{
-                    background:
-                      alert.severity === "error" ? "#fef2f2" : "#fffbeb",
-                  }}
-                >
-                  <AlertTriangle
-                    size={13}
-                    className="mt-0.5 shrink-0"
-                    style={{
-                      color: alert.severity === "error" ? "#ef4444" : "#f59e0b",
-                    }}
-                  />
+            <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
+              {incidents.slice(0, 5).map((incident) => {
+                const severe = ["cao", "nghiem_trong"].includes(
+                  incident.severity,
+                );
 
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold text-gray-700">
-                      {alert.content}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {alert.created_at
-                        ? new Date(alert.created_at).toLocaleTimeString(
-                            "vi-VN",
-                            {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            },
-                          )
-                        : ""}
-                    </p>
+                return (
+                  <div
+                    key={incident.id}
+                    className="flex items-start gap-2 rounded-lg p-2"
+                    style={{
+                      background: severe ? "#fef2f2" : "#fffbeb",
+                    }}
+                  >
+                    <AlertTriangle
+                      size={14}
+                      className="mt-0.5 shrink-0"
+                      style={{ color: severe ? "#ef4444" : "#f59e0b" }}
+                    />
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-semibold text-gray-700">
+                        {INCIDENT_LABELS[incident.type] || incident.type}
+                        {incident.room_code
+                          ? ` — Phòng ${incident.room_code}`
+                          : ""}
+                      </p>
+
+                      <p className="truncate text-xs text-gray-500">
+                        {incident.description ||
+                          `Mức độ: ${
+                            SEVERITY_LABELS[incident.severity] ||
+                            incident.severity ||
+                            "Chưa rõ"
+                          }`}
+                      </p>
+
+                      <p className="text-xs text-gray-400">
+                        {incident.occurred_at
+                          ? new Date(incident.occurred_at).toLocaleTimeString(
+                              "vi-VN",
+                              {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              },
+                            )
+                          : ""}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

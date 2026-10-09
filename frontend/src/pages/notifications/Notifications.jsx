@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bell,
   CheckCheck,
@@ -54,205 +54,210 @@ const TYPE_MAP = {
   he_thong: { label: "Hệ thống", color: "#6b7280", bg: "#f9fafb", icon: "⚙️" },
 };
 
-// Fallback data khi chưa có DB
-const SAMPLE_FALLBACK = [
-  {
-    id: 1,
-    content: "Thiết bị máy chiếu tại phòng B302 bị lỗi kết nối",
-    type: "su_co",
-    severity: "error",
-    is_read: false,
-    created_at: new Date(Date.now() - 1800000).toISOString(),
-  },
-  {
-    id: 2,
-    content: "Nhiệt độ cao bất thường tại phòng A403 — 32°C",
-    type: "su_co",
-    severity: "warning",
-    is_read: false,
-    created_at: new Date(Date.now() - 3600000).toISOString(),
-  },
-  {
-    id: 3,
-    content: "Phòng B201 đã được đặt thành công — Ca học 14:00-16:00",
-    type: "dat_phong",
-    severity: "info",
-    is_read: false,
-    created_at: new Date(Date.now() - 5400000).toISOString(),
-  },
-  {
-    id: 4,
-    content: "Bảo trì điều hòa phòng A301 hoàn thành",
-    type: "bao_tri",
-    severity: "info",
-    is_read: true,
-    created_at: new Date(Date.now() - 7200000).toISOString(),
-  },
-  {
-    id: 5,
-    content: "Mô phỏng sự cố cháy tại phòng B403 — Mức độ nghiêm trọng",
-    type: "su_co",
-    severity: "critical",
-    is_read: true,
-    created_at: new Date(Date.now() - 10800000).toISOString(),
-  },
-  {
-    id: 6,
-    content: "Hệ thống đã khởi động lại thành công",
-    type: "he_thong",
-    severity: "info",
-    is_read: true,
-    created_at: new Date(Date.now() - 14400000).toISOString(),
-  },
-  {
-    id: 7,
-    content: "Thiết bị điều hòa phòng A201 cần bảo trì định kỳ",
-    type: "bao_tri",
-    severity: "warning",
-    is_read: false,
-    created_at: new Date(Date.now() - 18000000).toISOString(),
-  },
-  {
-    id: 8,
-    content: "Đặt phòng A303 đã được duyệt thành công",
-    type: "dat_phong",
-    severity: "info",
-    is_read: true,
-    created_at: new Date(Date.now() - 21600000).toISOString(),
-  },
-];
+function notifyLayout() {
+  window.dispatchEvent(new Event("notifications:updated"));
+}
+
+function getTimeAgo(dateStr) {
+  if (!dateStr) return "";
+
+  const timestamp = new Date(dateStr).getTime();
+  if (Number.isNaN(timestamp)) return "";
+
+  const mins = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+
+  if (mins < 1) return "Vừa xong";
+  if (mins < 60) return `${mins} phút trước`;
+
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} giờ trước`;
+
+  return `${Math.floor(hours / 24)} ngày trước`;
+}
 
 export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [useLocalState, setUseLocalState] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterRead, setFilterRead] = useState("");
   const [filterSeverity, setFilterSeverity] = useState("");
 
-  useEffect(() => {
-    fetchNotifications();
-  }, []);
-
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
+      setLoading(true);
+      setErrorMessage("");
+
       const res = await api.get("/notifications");
-      if (res.data && res.data.length > 0) {
-        setNotifications(res.data);
-        setUseLocalState(false);
-      } else {
-        // DB chưa có dữ liệu, dùng fallback sample
-        setNotifications(SAMPLE_FALLBACK);
-        setUseLocalState(true);
-      }
+      setNotifications(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
-      console.warn("Không thể lấy thông báo từ API, dùng dữ liệu mẫu:", error);
-      setNotifications(SAMPLE_FALLBACK);
-      setUseLocalState(true);
+      console.error("Không thể lấy thông báo:", error);
+      setNotifications([]);
+      setErrorMessage(
+        error.response?.data?.message ||
+          "Không thể tải thông báo. Vui lòng thử lại.",
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  const unreadCount = useMemo(
+    () => notifications.filter((notification) => !notification.is_read).length,
+    [notifications],
+  );
 
   const markAllRead = async () => {
-    if (useLocalState) {
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-      return;
-    }
+    if (unreadCount === 0) return;
+
     try {
       await api.patch("/notifications/read-all");
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+
+      setNotifications((previous) =>
+        previous.map((notification) => ({ ...notification, is_read: true })),
+      );
+
+      notifyLayout();
     } catch (error) {
-      console.error(error);
+      console.error("Không thể đánh dấu tất cả đã đọc:", error);
+      setErrorMessage(
+        error.response?.data?.message || "Không thể đánh dấu thông báo đã đọc.",
+      );
     }
   };
 
   const markRead = async (id) => {
-    if (useLocalState) {
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
-      );
-      return;
-    }
+    const notification = notifications.find((item) => item.id === id);
+
+    if (!notification || notification.is_read) return;
+
     try {
       await api.patch(`/notifications/${id}/read`);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
+
+      setNotifications((previous) =>
+        previous.map((item) =>
+          item.id === id ? { ...item, is_read: true } : item,
+        ),
       );
+
+      notifyLayout();
     } catch (error) {
-      console.error(error);
+      console.error("Không thể đánh dấu thông báo đã đọc:", error);
+      setErrorMessage(
+        error.response?.data?.message || "Không thể đánh dấu thông báo đã đọc.",
+      );
     }
   };
 
   const deleteNotif = async (id) => {
-    if (useLocalState) {
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
-      return;
-    }
     try {
       await api.delete(`/notifications/${id}`);
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
+
+      setNotifications((previous) =>
+        previous.filter((notification) => notification.id !== id),
+      );
+
+      notifyLayout();
     } catch (error) {
-      console.error(error);
+      console.error("Không thể xóa thông báo:", error);
+      setErrorMessage(
+        error.response?.data?.message || "Không thể xóa thông báo.",
+      );
     }
   };
 
   const clearAll = async () => {
+    if (notifications.length === 0) return;
     if (!window.confirm("Xóa tất cả thông báo?")) return;
-    if (useLocalState) {
-      setNotifications([]);
-      return;
-    }
+
     try {
       await api.delete("/notifications/all");
       setNotifications([]);
+      notifyLayout();
     } catch (error) {
-      console.error(error);
+      console.error("Không thể xóa thông báo:", error);
+      setErrorMessage(
+        error.response?.data?.message || "Không thể xóa tất cả thông báo.",
+      );
     }
   };
 
-  const filtered = notifications.filter((n) => {
-    const matchType = filterType ? n.type === filterType : true;
-    const matchRead =
-      filterRead === "read"
-        ? n.is_read
-        : filterRead === "unread"
-          ? !n.is_read
+  const filtered = useMemo(
+    () =>
+      notifications.filter((notification) => {
+        const matchType = filterType ? notification.type === filterType : true;
+
+        const matchRead =
+          filterRead === "read"
+            ? Boolean(notification.is_read)
+            : filterRead === "unread"
+              ? !notification.is_read
+              : true;
+
+        const matchSeverity = filterSeverity
+          ? notification.severity === filterSeverity
           : true;
-    const matchSeverity = filterSeverity ? n.severity === filterSeverity : true;
-    return matchType && matchRead && matchSeverity;
-  });
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+        return matchType && matchRead && matchSeverity;
+      }),
+    [notifications, filterType, filterRead, filterSeverity],
+  );
 
-  const getTimeAgo = (dateStr) => {
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "Vừa xong";
-    if (mins < 60) return `${mins} phút trước`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours} giờ trước`;
-    return `${Math.floor(hours / 24)} ngày trước`;
-  };
+  const stats = useMemo(
+    () => [
+      {
+        label: "Tổng thông báo",
+        value: notifications.length,
+        color: "#1a56db",
+        bg: "#eff6ff",
+        icon: "🔔",
+      },
+      {
+        label: "Chưa đọc",
+        value: unreadCount,
+        color: "#f59e0b",
+        bg: "#fffbeb",
+        icon: "📬",
+      },
+      {
+        label: "Sự cố",
+        value: notifications.filter((item) => item.type === "su_co").length,
+        color: "#ef4444",
+        bg: "#fef2f2",
+        icon: "🚨",
+      },
+      {
+        label: "Đã đọc",
+        value: notifications.filter((item) => item.is_read).length,
+        color: "#22c55e",
+        bg: "#f0fdf4",
+        icon: "✅",
+      },
+    ],
+    [notifications, unreadCount],
+  );
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
       </div>
     );
   }
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-black text-gray-800 flex items-center gap-3">
+          <h1 className="flex items-center gap-3 text-2xl font-black text-gray-800">
             Thông báo
             {unreadCount > 0 && (
               <span
-                className="text-sm font-black text-white px-2.5 py-1 rounded-full"
+                className="rounded-full px-2.5 py-1 text-sm font-black text-white"
                 style={{
                   background: "linear-gradient(135deg, #ef4444, #f97316)",
                 }}
@@ -261,117 +266,109 @@ export default function Notifications() {
               </span>
             )}
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <p className="mt-0.5 text-sm text-gray-400">
             {unreadCount} thông báo chưa đọc
-            {useLocalState && (
-              <span className="ml-2 text-xs text-orange-400">(Dữ liệu mẫu)</span>
-            )}
           </p>
         </div>
-        <div className="flex gap-2">
+
+        <div className="flex flex-wrap gap-2">
           <button
+            type="button"
             onClick={markAllRead}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold border-2 border-gray-200 text-gray-600 hover:bg-gray-50 transition-all"
+            disabled={unreadCount === 0}
+            className="flex items-center gap-2 rounded-xl border-2 border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <CheckCheck size={15} /> Đánh dấu đã đọc
+            <CheckCheck size={15} />
+            Đánh dấu đã đọc
           </button>
+
           <button
+            type="button"
             onClick={clearAll}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold border-2 border-red-200 text-red-500 hover:bg-red-50 transition-all"
+            disabled={notifications.length === 0}
+            className="flex items-center gap-2 rounded-xl border-2 border-red-200 px-4 py-2.5 text-sm font-bold text-red-500 transition-all hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Trash2 size={15} /> Xóa tất cả
+            <Trash2 size={15} />
+            Xóa tất cả
           </button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-3">
-        {[
-          {
-            label: "Tổng thông báo",
-            value: notifications.length,
-            color: "#1a56db",
-            bg: "#eff6ff",
-            icon: "🔔",
-          },
-          {
-            label: "Chưa đọc",
-            value: unreadCount,
-            color: "#f59e0b",
-            bg: "#fffbeb",
-            icon: "📬",
-          },
-          {
-            label: "Sự cố",
-            value: notifications.filter((n) => n.type === "su_co").length,
-            color: "#ef4444",
-            bg: "#fef2f2",
-            icon: "🚨",
-          },
-          {
-            label: "Đã đọc",
-            value: notifications.filter((n) => n.is_read).length,
-            color: "#22c55e",
-            bg: "#f0fdf4",
-            icon: "✅",
-          },
-        ].map((s, i) => (
+      {errorMessage && (
+        <div
+          role="alert"
+          className="flex flex-col justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center"
+        >
+          <span>{errorMessage}</span>
+          <button
+            type="button"
+            onClick={fetchNotifications}
+            className="self-start rounded-lg bg-white px-3 py-2 font-semibold text-red-700 hover:bg-red-100 sm:self-auto"
+          >
+            Tải lại
+          </button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {stats.map((stat) => (
           <div
-            key={i}
-            className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-3 hover:shadow-md transition-all"
+            key={stat.label}
+            className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:shadow-md"
           >
             <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-              style={{ background: s.bg }}
+              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xl"
+              style={{ background: stat.bg }}
             >
-              {s.icon}
+              {stat.icon}
             </div>
             <div>
-              <p className="text-xs text-gray-400 font-medium">{s.label}</p>
-              <p className="text-2xl font-black" style={{ color: s.color }}>
-                {s.value}
+              <p className="text-xs font-medium text-gray-400">{stat.label}</p>
+              <p className="text-2xl font-black" style={{ color: stat.color }}>
+                {stat.value}
               </p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Filter */}
-      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-        <div className="flex flex-wrap gap-2 items-center">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400 mr-1">
-            <Filter size={13} /> Lọc:
+      <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="mr-1 flex items-center gap-1.5 text-xs font-bold text-gray-400">
+            <Filter size={13} />
+            Lọc:
           </div>
 
-          {/* Read filter */}
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {[
               { value: "", label: "Tất cả" },
               { value: "unread", label: "📬 Chưa đọc" },
               { value: "read", label: "✅ Đã đọc" },
-            ].map((f) => (
+            ].map((filter) => (
               <button
-                key={f.value}
-                onClick={() => setFilterRead(f.value)}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all border-2"
+                key={filter.value}
+                type="button"
+                onClick={() => setFilterRead(filter.value)}
+                className="rounded-xl border-2 px-3 py-1.5 text-xs font-bold transition-all"
                 style={{
-                  background: filterRead === f.value ? "#eff6ff" : "white",
-                  color: filterRead === f.value ? "#1a56db" : "#6b7280",
-                  borderColor: filterRead === f.value ? "#1a56db" : "#e5e7eb",
+                  background: filterRead === filter.value ? "#eff6ff" : "white",
+                  color: filterRead === filter.value ? "#1a56db" : "#6b7280",
+                  borderColor:
+                    filterRead === filter.value ? "#1a56db" : "#e5e7eb",
                 }}
               >
-                {f.label}
+                {filter.label}
               </button>
             ))}
           </div>
 
-          <div className="w-px h-6 bg-gray-200 mx-1" />
+          <div className="mx-1 hidden h-6 w-px bg-gray-200 sm:block" />
 
-          {/* Type filter */}
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             <button
+              type="button"
               onClick={() => setFilterType("")}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all border-2"
+              className="rounded-xl border-2 px-3 py-1.5 text-xs font-bold transition-all"
               style={{
                 background: filterType === "" ? "#eff6ff" : "white",
                 color: filterType === "" ? "#1a56db" : "#6b7280",
@@ -380,59 +377,84 @@ export default function Notifications() {
             >
               Tất cả loại
             </button>
-            {Object.entries(TYPE_MAP).map(([k, v]) => (
+
+            {Object.entries(TYPE_MAP).map(([key, type]) => (
               <button
-                key={k}
-                onClick={() => setFilterType(k)}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all border-2"
+                key={key}
+                type="button"
+                onClick={() => setFilterType(key)}
+                className="rounded-xl border-2 px-3 py-1.5 text-xs font-bold transition-all"
                 style={{
-                  background: filterType === k ? v.bg : "white",
-                  color: filterType === k ? v.color : "#6b7280",
-                  borderColor: filterType === k ? v.color : "#e5e7eb",
+                  background: filterType === key ? type.bg : "white",
+                  color: filterType === key ? type.color : "#6b7280",
+                  borderColor: filterType === key ? type.color : "#e5e7eb",
                 }}
               >
-                {v.icon} {v.label}
+                {type.icon} {type.label}
               </button>
             ))}
           </div>
         </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <label className="sr-only" htmlFor="notification-severity">
+            Lọc theo mức độ
+          </label>
+          <select
+            id="notification-severity"
+            value={filterSeverity}
+            onChange={(event) => setFilterSeverity(event.target.value)}
+            className="rounded-xl border-2 border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 outline-none focus:border-blue-400"
+          >
+            <option value="">Tất cả mức độ</option>
+            {Object.entries(SEVERITY_MAP).map(([key, severity]) => (
+              <option key={key} value={key}>
+                {severity.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* Notifications list */}
       <div className="space-y-3">
         {filtered.length === 0 ? (
-          <div className="bg-white rounded-2xl p-16 text-center shadow-sm border border-gray-100">
+          <div className="rounded-2xl border border-gray-100 bg-white p-12 text-center shadow-sm">
             <Bell size={56} className="mx-auto mb-4 text-gray-200" />
-            <p className="text-base font-bold text-gray-300">
-              Không có thông báo nào
+            <p className="text-base font-bold text-gray-500">
+              {notifications.length === 0
+                ? "Chưa có thông báo"
+                : "Không có thông báo phù hợp"}
             </p>
-            <p className="text-sm text-gray-200 mt-1">
-              Tất cả thông báo sẽ hiện ở đây
+            <p className="mt-1 text-sm text-gray-400">
+              Thông báo mới sẽ xuất hiện tại đây.
             </p>
           </div>
         ) : (
-          filtered.map((notif) => {
-            const severity = SEVERITY_MAP[notif.severity] || SEVERITY_MAP.info;
-            const type = TYPE_MAP[notif.type] || TYPE_MAP.he_thong;
+          filtered.map((notification) => {
+            const severity =
+              SEVERITY_MAP[notification.severity] || SEVERITY_MAP.info;
+            const type = TYPE_MAP[notification.type] || TYPE_MAP.he_thong;
             const Icon = severity.icon;
+
             return (
-              <div
-                key={notif.id}
-                className={`bg-white rounded-2xl border-2 transition-all cursor-pointer hover:shadow-md ${
-                  !notif.is_read ? "shadow-sm" : ""
+              <article
+                key={notification.id}
+                className={`cursor-pointer rounded-2xl border-2 transition-all hover:shadow-md ${
+                  !notification.is_read ? "shadow-sm" : ""
                 }`}
                 style={{
-                  borderColor: !notif.is_read ? severity.border : "#f1f5f9",
-                  background: !notif.is_read
+                  borderColor: !notification.is_read
+                    ? severity.border
+                    : "#f1f5f9",
+                  background: !notification.is_read
                     ? `linear-gradient(135deg, white, ${severity.bg}88)`
                     : "white",
                 }}
-                onClick={() => markRead(notif.id)}
+                onClick={() => markRead(notification.id)}
               >
                 <div className="flex items-start gap-4 p-4">
-                  {/* Icon */}
                   <div
-                    className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm"
+                    className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl shadow-sm"
                     style={{
                       background: severity.bg,
                       border: `1px solid ${severity.border}`,
@@ -441,17 +463,17 @@ export default function Notifications() {
                     <Icon size={19} style={{ color: severity.color }} />
                   </div>
 
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
                       <span
-                        className="text-xs font-black px-2.5 py-1 rounded-full"
-                        style={{ color: type?.color, background: type?.bg }}
+                        className="rounded-full px-2.5 py-1 text-xs font-black"
+                        style={{ color: type.color, background: type.bg }}
                       >
-                        {type?.icon} {type?.label}
+                        {type.icon} {type.label}
                       </span>
+
                       <span
-                        className="text-xs font-bold px-2.5 py-1 rounded-full"
+                        className="rounded-full px-2.5 py-1 text-xs font-bold"
                         style={{
                           color: severity.color,
                           background: severity.bg,
@@ -459,51 +481,70 @@ export default function Notifications() {
                       >
                         {severity.label}
                       </span>
-                      {!notif.is_read && (
-                        <span className="inline-flex items-center gap-1 text-xs font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+
+                      {!notification.is_read && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-black text-blue-600">
+                          <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
                           Mới
                         </span>
                       )}
                     </div>
+
                     <p
-                      className={`text-sm leading-relaxed ${!notif.is_read ? "font-bold text-gray-800" : "font-medium text-gray-600"}`}
+                      className={`text-sm leading-relaxed ${
+                        !notification.is_read
+                          ? "font-bold text-gray-800"
+                          : "font-medium text-gray-600"
+                      }`}
                     >
-                      {notif.content}
+                      {notification.content}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1.5 font-medium">
-                      🕐 {getTimeAgo(notif.created_at)} —{" "}
-                      {new Date(notif.created_at).toLocaleString("vi-VN")}
+
+                    <p className="mt-1.5 text-xs font-medium text-gray-400">
+                      🕐 {getTimeAgo(notification.created_at)}
+                      {notification.created_at && (
+                        <>
+                          {" "}
+                          —{" "}
+                          {new Date(notification.created_at).toLocaleString(
+                            "vi-VN",
+                          )}
+                        </>
+                      )}
                     </p>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    {!notif.is_read && (
+                  <div className="flex flex-shrink-0 items-center gap-1">
+                    {!notification.is_read && (
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          markRead(notif.id);
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          markRead(notification.id);
                         }}
-                        className="p-2 rounded-xl text-blue-500 hover:bg-blue-100 transition-all"
+                        className="rounded-xl p-2 text-blue-500 transition-all hover:bg-blue-100"
                         title="Đánh dấu đã đọc"
+                        aria-label="Đánh dấu đã đọc"
                       >
                         <CheckCircle size={16} />
                       </button>
                     )}
+
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteNotif(notif.id);
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deleteNotif(notification.id);
                       }}
-                      className="p-2 rounded-xl text-red-400 hover:bg-red-100 transition-all"
+                      className="rounded-xl p-2 text-red-400 transition-all hover:bg-red-100"
                       title="Xóa"
+                      aria-label="Xóa thông báo"
                     >
                       <Trash2 size={16} />
                     </button>
                   </div>
                 </div>
-              </div>
+              </article>
             );
           })
         )}

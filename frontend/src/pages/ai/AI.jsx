@@ -1,13 +1,29 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "../../services/api";
-import { Send, Bot, User, Zap, Wrench, Search, RefreshCw } from "lucide-react";
+import {
+  AlertTriangle,
+  Bot,
+  Building2,
+  CheckCircle2,
+  ChevronRight,
+  CircleHelp,
+  Clock3,
+  Eraser,
+  LoaderCircle,
+  MessageSquare,
+  Search,
+  Send,
+  Sparkles,
+  User,
+  Wrench,
+} from "lucide-react";
 
 const QUICK_QUESTIONS = [
-  " Có bao nhiêu phòng đang trống?",
-  " Thiết bị nào đang hỏng?",
-  " Sự cố nào đang xảy ra?",
-  " Đề xuất lịch bảo trì",
-  " Tìm phòng cho 40 người",
+  "Có bao nhiêu phòng đang trống?",
+  "Thiết bị nào đang hỏng?",
+  "Sự cố nào đang xảy ra?",
+  "Đề xuất lịch bảo trì",
+  "Tìm phòng cho 40 người",
 ];
 
 const INCIDENT_TYPES = {
@@ -19,83 +35,204 @@ const INCIDENT_TYPES = {
   qua_tai: "👥 Quá tải",
 };
 
-// ✅ Tin nhắn mặc định
-const INIT_MESSAGE = {
-  role: "assistant",
-  content:
-    "Xin chào! 👋 Tôi là AI Assistant của Smart Campus.\n\nTôi có thể giúp bạn:\n• Phân tích sự cố và đề xuất xử lý\n• Tìm phòng học phù hợp\n• Đề xuất lịch bảo trì thiết bị\n• Trả lời câu hỏi về hệ thống\n\nBạn cần hỗ trợ gì?",
-  time: new Date().toLocaleTimeString("vi-VN", {
+const DEVICE_TYPES = [
+  { value: "den", label: "💡 Đèn" },
+  { value: "dieu_hoa", label: "❄️ Điều hòa" },
+  { value: "may_chieu", label: "📽️ Máy chiếu" },
+  { value: "quat", label: "🌀 Quạt" },
+  { value: "loa", label: "🔊 Loa" },
+  { value: "may_tinh", label: "💻 Máy tính" },
+];
+
+const ROOM_TYPES = [
+  { value: "", label: "Bất kỳ loại phòng" },
+  { value: "ly_thuyet", label: "📖 Lý thuyết" },
+  { value: "thuc_hanh", label: "💻 Thực hành" },
+  { value: "hoi_truong", label: "🎭 Hội trường" },
+];
+
+const STORAGE_KEY = "ai_messages";
+
+function getCurrentTime() {
+  return new Date().toLocaleTimeString("vi-VN", {
     hour: "2-digit",
     minute: "2-digit",
-  }),
-};
+  });
+}
 
-function MessageBubble({ msg }) {
-  const isAI = msg.role === "assistant";
+function createWelcomeMessage() {
+  return {
+    role: "assistant",
+    content:
+      "Xin chào! Tôi là trợ lý AI của Smart Campus.\n\nTôi có thể giúp bạn phân tích sự cố, tìm phòng học phù hợp, đề xuất bảo trì thiết bị hoặc trả lời câu hỏi về hệ thống.\n\nBạn muốn bắt đầu với việc gì?",
+    time: getCurrentTime(),
+  };
+}
+
+function loadSavedMessages() {
+  try {
+    const saved = sessionStorage.getItem(STORAGE_KEY);
+    if (!saved) return [createWelcomeMessage()];
+
+    const parsed = JSON.parse(saved);
+    if (
+      !Array.isArray(parsed) ||
+      !parsed.every(
+        (message) =>
+          message &&
+          ["assistant", "user"].includes(message.role) &&
+          typeof message.content === "string",
+      )
+    ) {
+      return [createWelcomeMessage()];
+    }
+
+    return parsed.length > 0 ? parsed : [createWelcomeMessage()];
+  } catch {
+    return [createWelcomeMessage()];
+  }
+}
+
+function MessageText({ content }) {
   return (
-    <div className={`flex gap-3 ${isAI ? "" : "flex-row-reverse"}`}>
+    <div className="space-y-1.5 break-words text-sm leading-6">
+      {String(content || "")
+        .split("\n")
+        .map((line, index) => {
+          const trimmed = line.trim();
+
+          if (!trimmed) {
+            return <div key={index} className="h-1" />;
+          }
+
+          if (trimmed.startsWith("##") || trimmed.startsWith("**")) {
+            return (
+              <p key={index} className="font-bold">
+                {trimmed.replace(/\*\*/g, "").replace(/#/g, "").trim()}
+              </p>
+            );
+          }
+
+          if (/^[•*-]\s/.test(trimmed)) {
+            return (
+              <p key={index} className="pl-2">
+                <span className="mr-1">•</span>
+                {trimmed.replace(/^[•*-]\s*/, "")}
+              </p>
+            );
+          }
+
+          return <p key={index}>{trimmed}</p>;
+        })}
+    </div>
+  );
+}
+
+function MessageBubble({ message }) {
+  const isAssistant = message.role === "assistant";
+
+  return (
+    <div
+      className={`flex items-end gap-2.5 sm:gap-3 ${
+        isAssistant ? "" : "flex-row-reverse"
+      }`}
+    >
       <div
-        className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm ${isAI ? "" : "bg-gray-100"}`}
-        style={
-          isAI
-            ? { background: "linear-gradient(135deg, #1a56db, #3b82f6)" }
-            : {}
-        }
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+          isAssistant
+            ? "bg-blue-600 text-white shadow-sm shadow-blue-200"
+            : "bg-slate-100 text-slate-500"
+        }`}
       >
-        {isAI ? (
-          <Bot size={16} className="text-white" />
-        ) : (
-          <User size={16} className="text-gray-500" />
-        )}
+        {isAssistant ? <Bot size={16} /> : <User size={16} />}
       </div>
+
       <div
-        className={`max-w-lg rounded-2xl px-4 py-3 text-sm shadow-sm ${isAI ? "bg-white border border-gray-100 text-gray-700" : "text-white"}`}
-        style={
-          !isAI
-            ? { background: "linear-gradient(135deg, #1a56db, #3b82f6)" }
-            : {}
-        }
+        className={`max-w-[88%] rounded-2xl px-4 py-3 shadow-sm sm:max-w-[78%] ${
+          isAssistant
+            ? "rounded-bl-md border border-slate-100 bg-white text-slate-700"
+            : "rounded-br-md bg-blue-600 text-white"
+        }`}
       >
-        <div className="space-y-1">
-          {msg.content.split("\n").map((line, i) => {
-            if (line.startsWith("##") || line.startsWith("**")) {
-              return (
-                <p key={i} className="font-black text-blue-600">
-                  {line.replace(/\*\*/g, "").replace(/##/g, "").trim()}
-                </p>
-              );
-            }
-            if (line.startsWith("•") || line.startsWith("*")) {
-              return (
-                <p key={i} className="pl-2">
-                  • {line.replace(/^[•*]\s*/, "").trim()}
-                </p>
-              );
-            }
-            return line ? <p key={i}>{line}</p> : <br key={i} />;
-          })}
-        </div>
+        <MessageText content={message.content} />
         <p
-          className={`text-xs mt-2 ${isAI ? "text-gray-300" : "text-blue-200"}`}
+          className={`mt-2 flex items-center gap-1 text-[11px] ${
+            isAssistant ? "text-slate-400" : "text-blue-100"
+          }`}
         >
-          {msg.time}
+          <Clock3 size={11} />
+          {message.time || ""}
         </p>
       </div>
     </div>
   );
 }
 
-export default function AIAssistant() {
-  // ✅ Load messages từ sessionStorage khi mở lại
-  const [messages, setMessages] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem("ai_messages");
-      return saved ? JSON.parse(saved) : [INIT_MESSAGE];
-    } catch {
-      return [INIT_MESSAGE];
-    }
-  });
+function ResultContent({ content }) {
+  if (!content) return null;
 
+  return (
+    <div className="max-h-80 space-y-1.5 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+      <MessageText content={content} />
+    </div>
+  );
+}
+
+function SectionHeading({ icon: Icon, title, description, tone = "blue" }) {
+  const tones = {
+    blue: "bg-blue-50 text-blue-600",
+    red: "bg-red-50 text-red-600",
+    amber: "bg-amber-50 text-amber-600",
+    green: "bg-emerald-50 text-emerald-600",
+  };
+
+  return (
+    <div className="mb-5 flex items-center gap-3">
+      <span
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tones[tone]}`}
+      >
+        <Icon size={19} />
+      </span>
+      <div>
+        <h2 className="font-bold text-slate-900">{title}</h2>
+        <p className="mt-0.5 text-xs text-slate-500">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function FormField({ label, children }) {
+  return (
+    <label className="block space-y-1.5">
+      <span className="text-sm font-semibold text-slate-700">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+const inputClassName =
+  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50";
+
+function ResultPanel({ title, description, icon: Icon, children }) {
+  return (
+    <section className="min-h-[280px] rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <SectionHeading icon={Icon} title={title} description={description} />
+      {children}
+    </section>
+  );
+}
+
+function EmptyResult({ icon: Icon = Sparkles, text }) {
+  return (
+    <div className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 text-center text-slate-400">
+      <Icon size={34} className="mb-3 text-slate-300" />
+      <p className="text-sm">{text}</p>
+    </div>
+  );
+}
+
+export default function AIAssistant() {
+  const [messages, setMessages] = useState(loadSavedMessages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("chat");
@@ -107,6 +244,7 @@ export default function AIAssistant() {
     room_code: "",
   });
   const [incidentResult, setIncidentResult] = useState("");
+  const [incidentError, setIncidentError] = useState("");
   const [incidentLoading, setIncidentLoading] = useState(false);
 
   const [maintenanceForm, setMaintenanceForm] = useState({
@@ -116,6 +254,7 @@ export default function AIAssistant() {
     issue: "",
   });
   const [maintenanceResult, setMaintenanceResult] = useState("");
+  const [maintenanceError, setMaintenanceError] = useState("");
   const [maintenanceLoading, setMaintenanceLoading] = useState(false);
 
   const [roomForm, setRoomForm] = useState({
@@ -125,674 +264,664 @@ export default function AIAssistant() {
     date: "",
   });
   const [roomResult, setRoomResult] = useState(null);
+  const [roomError, setRoomError] = useState("");
   const [roomLoading, setRoomLoading] = useState(false);
 
-  // ✅ Tự động lưu messages vào sessionStorage mỗi khi thay đổi
   useEffect(() => {
     try {
-      sessionStorage.setItem("ai_messages", JSON.stringify(messages));
-    } catch {}
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    } catch (error) {
+      console.warn("Không thể lưu lịch sử chat:", error);
+    }
   }, [messages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, loading]);
 
-  const handleSend = async () => {
-    if (!input.trim() || loading) return;
-    const userMsg = {
+  const addAssistantMessage = (content) => {
+    setMessages((previous) => [
+      ...previous,
+      {
+        role: "assistant",
+        content,
+        time: getCurrentTime(),
+      },
+    ]);
+  };
+
+  const handleSend = async (event) => {
+    event?.preventDefault();
+
+    const message = input.trim();
+    if (!message || loading) return;
+
+    const userMessage = {
       role: "user",
-      content: input,
-      time: new Date().toLocaleTimeString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      content: message,
+      time: getCurrentTime(),
     };
-    setMessages((prev) => [...prev, userMsg]);
+
+    const history = messages.map(({ role, content }) => ({ role, content }));
+
+    setMessages((previous) => [...previous, userMessage]);
     setInput("");
     setLoading(true);
+
     try {
-      const history = messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-      const res = await api.post("/ai/chat", { message: input, history });
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: res.data.response,
-          time: new Date().toLocaleTimeString("vi-VN", {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-        },
-      ]);
+      const response = await api.post("/ai/chat", { message, history });
+      const answer = response.data?.response;
+
+      addAssistantMessage(
+        answer || "AI chưa trả về nội dung. Bạn thử gửi lại câu hỏi nhé.",
+      );
     } catch (error) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content:
-            "❌ Xin lỗi, AI đang bận. Vui lòng thử lại sau!\n\n💡 Lưu ý: Cần cấu hình Gemini API Key để sử dụng tính năng này.",
-          time: new Date().toLocaleTimeString("vi-VN", {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-        },
-      ]);
+      const messageFromServer = error.response?.data?.message;
+      addAssistantMessage(
+        messageFromServer ||
+          "Mình chưa thể trả lời lúc này. Bạn kiểm tra kết nối rồi thử lại nhé.",
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Xóa chat và sessionStorage
   const handleClearChat = () => {
-    const initMsg = [INIT_MESSAGE];
-    setMessages(initMsg);
-    sessionStorage.setItem("ai_messages", JSON.stringify(initMsg));
+    const welcome = createWelcomeMessage();
+    setMessages([welcome]);
     setInput("");
+
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify([welcome]));
+    } catch (error) {
+      console.warn("Không thể xóa lịch sử chat đã lưu:", error);
+    }
   };
 
-  const handleAnalyzeIncident = async (e) => {
-    e.preventDefault();
+  const handleAnalyzeIncident = async (event) => {
+    event.preventDefault();
     setIncidentLoading(true);
+    setIncidentError("");
+    setIncidentResult("");
+
     try {
-      const res = await api.post("/ai/analyze-incident", incidentForm);
-      setIncidentResult(res.data.response);
+      const response = await api.post("/ai/analyze-incident", incidentForm);
+      setIncidentResult(
+        response.data?.response || "AI chưa trả về nội dung phân tích.",
+      );
     } catch (error) {
-      setIncidentResult("❌ Có lỗi xảy ra. Vui lòng thử lại!");
+      setIncidentError(
+        error.response?.data?.message ||
+          "Không thể phân tích sự cố. Vui lòng thử lại.",
+      );
     } finally {
       setIncidentLoading(false);
     }
   };
 
-  const handleSuggestMaintenance = async (e) => {
-    e.preventDefault();
+  const handleSuggestMaintenance = async (event) => {
+    event.preventDefault();
     setMaintenanceLoading(true);
+    setMaintenanceError("");
+    setMaintenanceResult("");
+
     try {
-      const res = await api.post("/ai/suggest-maintenance", maintenanceForm);
-      setMaintenanceResult(res.data.response);
+      const response = await api.post(
+        "/ai/suggest-maintenance",
+        maintenanceForm,
+      );
+      setMaintenanceResult(
+        response.data?.response || "AI chưa trả về đề xuất bảo trì.",
+      );
     } catch (error) {
-      setMaintenanceResult("❌ Có lỗi xảy ra. Vui lòng thử lại!");
+      setMaintenanceError(
+        error.response?.data?.message ||
+          "Không thể tạo đề xuất bảo trì. Vui lòng thử lại.",
+      );
     } finally {
       setMaintenanceLoading(false);
     }
   };
 
-  const handleFindRoom = async (e) => {
-    e.preventDefault();
+  const handleFindRoom = async (event) => {
+    event.preventDefault();
     setRoomLoading(true);
+    setRoomError("");
+    setRoomResult(null);
+
     try {
-      const res = await api.post("/ai/find-room", roomForm);
-      setRoomResult(res.data);
+      const response = await api.post("/ai/find-room", {
+        ...roomForm,
+        capacity: Number(roomForm.capacity),
+      });
+      setRoomResult(response.data);
     } catch (error) {
-      setRoomResult(null);
+      setRoomError(
+        error.response?.data?.message ||
+          "Không thể tìm phòng. Vui lòng thử lại.",
+      );
     } finally {
       setRoomLoading(false);
     }
   };
 
   const tabs = [
-    { id: "chat", icon: Bot, label: "Chat AI" },
-    { id: "incident", icon: Zap, label: "Phân tích sự cố" },
-    { id: "maintenance", icon: Wrench, label: "Đề xuất bảo trì" },
+    { id: "chat", icon: MessageSquare, label: "Chat AI" },
+    { id: "incident", icon: AlertTriangle, label: "Phân tích sự cố" },
+    { id: "maintenance", icon: Wrench, label: "Bảo trì thiết bị" },
     { id: "room", icon: Search, label: "Tìm phòng" },
   ];
 
-  const ResultBox = ({ content }) => (
-    <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-700 space-y-1.5 max-h-72 overflow-y-auto border border-gray-100">
-      {content.split("\n").map((line, i) => (
-        <p
-          key={i}
-          className={
-            line.startsWith("##") || line.startsWith("**")
-              ? "font-black text-blue-600 text-base"
-              : line.startsWith("*") || line.startsWith("•")
-                ? "pl-3 text-gray-600"
-                : "text-gray-700"
-          }
-        >
-          {line
-            .replace(/\*\*/g, "")
-            .replace(/##/g, "")
-            .replace(/^\*\s*/, "• ")
-            .replace(/^•\s*/, "• ")}
-        </p>
-      ))}
-    </div>
-  );
+  const renderError = (message) =>
+    message ? (
+      <div
+        role="alert"
+        className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+      >
+        {message}
+      </div>
+    ) : null;
+
+  const renderSubmitButton = (isLoading, idleText, loadingText, tone) => {
+    const colors = {
+      red: "bg-red-600 hover:bg-red-700 focus:ring-red-100",
+      amber: "bg-amber-500 hover:bg-amber-600 focus:ring-amber-100",
+      green: "bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-100",
+    };
+
+    return (
+      <button
+        type="submit"
+        disabled={isLoading}
+        className={`inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold text-white shadow-sm transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-60 ${colors[tone]}`}
+      >
+        {isLoading ? (
+          <>
+            <LoaderCircle size={17} className="animate-spin" />
+            {loadingText}
+          </>
+        ) : (
+          <>
+            {idleText}
+            <ChevronRight size={17} />
+          </>
+        )}
+      </button>
+    );
+  };
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-black text-gray-800 flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg"
-            style={{ background: "linear-gradient(135deg, #1a56db, #3b82f6)" }}
-          >
-            <Bot size={20} className="text-white" />
+    <div className="space-y-5 pb-6">
+      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div>
+          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+            <Sparkles size={14} />
+            Trợ lý cho Smart Campus
           </div>
-          AI Assistant
-        </h1>
-        <p className="text-sm text-gray-400 mt-1 ml-13">
-          Trợ lý thông minh tích hợp Google Gemini
-        </p>
-      </div>
+          <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+            AI Assistant
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Hỏi về hệ thống, phân tích sự cố hoặc tìm phòng phù hợp.
+          </p>
+        </div>
+      </header>
 
-      {/* Tabs */}
-      <div className="flex gap-2 bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100 w-fit">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
-            style={{
-              background:
-                activeTab === tab.id
-                  ? "linear-gradient(135deg, #1a56db, #3b82f6)"
-                  : "transparent",
-              color: activeTab === tab.id ? "white" : "#6b7280",
-              boxShadow:
-                activeTab === tab.id
-                  ? "0 4px 12px rgba(26,86,219,0.3)"
-                  : "none",
-            }}
-          >
-            <tab.icon size={15} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <nav
+        aria-label="Chức năng AI"
+        className="flex w-full gap-1.5 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm"
+      >
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
 
-      {/* Chat Tab */}
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              aria-current={isActive ? "page" : undefined}
+              className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition sm:px-4 ${
+                isActive
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+              }`}
+            >
+              <Icon size={16} />
+              {tab.label}
+            </button>
+          );
+        })}
+      </nav>
+
       {activeTab === "chat" && (
-        <div
-          className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col"
-          style={{ height: "65vh" }}
-        >
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
-            {messages.map((msg, i) => (
-              <MessageBubble key={i} msg={msg} />
+        <section className="flex h-[min(68vh,760px)] min-h-[500px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-5">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                <Bot size={18} />
+              </span>
+              <div>
+                <p className="text-sm font-bold text-slate-800">
+                  Trò chuyện với AI
+                </p>
+                <p className="text-xs text-slate-400">
+                  Lịch sử được lưu trong phiên trình duyệt này
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleClearChat}
+              title="Xóa cuộc trò chuyện"
+              aria-label="Xóa cuộc trò chuyện"
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            >
+              <Eraser size={15} />
+              <span className="hidden sm:inline">Làm mới</span>
+            </button>
+          </div>
+
+          <div
+            className="flex-1 space-y-4 overflow-y-auto bg-slate-50/60 p-4 sm:p-5"
+            aria-live="polite"
+          >
+            {messages.map((message, index) => (
+              <MessageBubble
+                key={`${message.time || "message"}-${index}`}
+                message={message}
+              />
             ))}
+
             {loading && (
-              <div className="flex gap-3">
-                <div
-                  className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm"
-                  style={{
-                    background: "linear-gradient(135deg, #1a56db, #3b82f6)",
-                  }}
-                >
-                  <Bot size={16} className="text-white" />
-                </div>
-                <div className="bg-white border border-gray-100 rounded-2xl px-4 py-3 shadow-sm">
-                  <div className="flex gap-1 items-center">
-                    <span className="text-xs text-gray-400 mr-2">
-                      AI đang suy nghĩ
-                    </span>
-                    {[0, 150, 300].map((delay) => (
-                      <div
-                        key={delay}
-                        className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"
-                        style={{ animationDelay: `${delay}ms` }}
-                      />
-                    ))}
-                  </div>
+              <div className="flex items-end gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-white">
+                  <Bot size={16} />
+                </span>
+                <div className="flex items-center gap-2 rounded-2xl rounded-bl-md border border-slate-100 bg-white px-4 py-3 text-sm text-slate-500 shadow-sm">
+                  <LoaderCircle
+                    size={15}
+                    className="animate-spin text-blue-600"
+                  />
+                  AI đang trả lời...
                 </div>
               </div>
             )}
+
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick questions */}
-          <div className="px-4 py-2 border-t border-gray-50">
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {QUICK_QUESTIONS.map((q, i) => (
+          <div className="border-t border-slate-100 bg-white px-3 py-3 sm:px-4">
+            <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+              {QUICK_QUESTIONS.map((question) => (
                 <button
-                  key={i}
-                  onClick={() => setInput(q.replace(/^[^\s]+\s/, ""))}
-                  className="text-xs px-3 py-1.5 rounded-full border-2 border-blue-100 text-blue-600 hover:bg-blue-50 whitespace-nowrap transition-all font-medium flex-shrink-0"
+                  key={question}
+                  type="button"
+                  onClick={() => setInput(question)}
+                  className="shrink-0 rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-50"
                 >
-                  {q}
+                  {question}
                 </button>
               ))}
             </div>
-          </div>
 
-          {/* Input */}
-          <div className="p-4 border-t border-gray-100">
-            <div className="flex gap-3 items-center">
-              <div className="flex-1 relative">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                  placeholder="Nhập câu hỏi của bạn..."
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50 focus:bg-white transition-all"
-                />
-              </div>
-              {/* ✅ Nút xóa chat đã sửa */}
+            <form onSubmit={handleSend} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder="Nhập câu hỏi của bạn..."
+                aria-label="Câu hỏi cho AI"
+                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              />
               <button
-                onClick={handleClearChat}
-                className="p-3 rounded-xl text-gray-400 hover:bg-gray-100 transition-all"
-                title="Xóa lịch sử chat"
-              >
-                <RefreshCw size={16} />
-              </button>
-              <button
-                onClick={handleSend}
+                type="submit"
                 disabled={loading || !input.trim()}
-                className="p-3 rounded-xl text-white transition-all disabled:opacity-40 shadow-lg"
-                style={{
-                  background: "linear-gradient(135deg, #1a56db, #3b82f6)",
-                  boxShadow: "0 4px 12px rgba(26,86,219,0.35)",
-                }}
+                aria-label="Gửi câu hỏi"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <Send size={16} />
+                {loading ? (
+                  <LoaderCircle size={18} className="animate-spin" />
+                ) : (
+                  <Send size={17} />
+                )}
               </button>
-            </div>
+            </form>
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Incident Analysis Tab */}
       {activeTab === "incident" && (
-        <div className="grid grid-cols-2 gap-5">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-red-50">
-                🚨
-              </div>
-              <div>
-                <h2 className="text-lg font-black text-gray-800">
-                  Phân tích sự cố
-                </h2>
-                <p className="text-xs text-gray-400">
-                  AI sẽ phân tích và đề xuất cách xử lý
-                </p>
-              </div>
-            </div>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <SectionHeading
+              icon={AlertTriangle}
+              title="Phân tích sự cố"
+              description="Nhập thông tin để AI đề xuất hướng xử lý."
+              tone="red"
+            />
+
+            {renderError(incidentError)}
+
             <form onSubmit={handleAnalyzeIncident} className="space-y-4">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                  Loại sự cố
-                </label>
+              <FormField label="Loại sự cố">
                 <select
                   value={incidentForm.incident_type}
-                  onChange={(e) =>
-                    setIncidentForm({
-                      ...incidentForm,
-                      incident_type: e.target.value,
-                    })
+                  onChange={(event) =>
+                    setIncidentForm((previous) => ({
+                      ...previous,
+                      incident_type: event.target.value,
+                    }))
                   }
-                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-400 bg-gray-50"
+                  className={inputClassName}
                 >
-                  {Object.entries(INCIDENT_TYPES).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v}
+                  {Object.entries(INCIDENT_TYPES).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
                     </option>
                   ))}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                  Mã phòng
-                </label>
+              </FormField>
+
+              <FormField label="Mã phòng">
                 <input
                   type="text"
                   value={incidentForm.room_code}
-                  onChange={(e) =>
-                    setIncidentForm({
-                      ...incidentForm,
-                      room_code: e.target.value,
-                    })
+                  onChange={(event) =>
+                    setIncidentForm((previous) => ({
+                      ...previous,
+                      room_code: event.target.value,
+                    }))
                   }
-                  placeholder="VD: A101"
-                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-400 bg-gray-50"
+                  placeholder="Ví dụ: A101"
+                  className={inputClassName}
                   required
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                  Mô tả chi tiết
-                </label>
+              </FormField>
+
+              <FormField label="Mô tả chi tiết">
                 <textarea
                   value={incidentForm.description}
-                  onChange={(e) =>
-                    setIncidentForm({
-                      ...incidentForm,
-                      description: e.target.value,
-                    })
+                  onChange={(event) =>
+                    setIncidentForm((previous) => ({
+                      ...previous,
+                      description: event.target.value,
+                    }))
                   }
-                  rows={3}
-                  placeholder="Mô tả tình trạng sự cố..."
-                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-400 bg-gray-50"
+                  rows={4}
+                  placeholder="Mô tả tình trạng đang xảy ra..."
+                  className={`${inputClassName} resize-y`}
                   required
                 />
-              </div>
-              <button
-                type="submit"
-                disabled={incidentLoading}
-                className="w-full py-3 rounded-xl text-white font-bold text-sm transition-all"
-                style={{
-                  background: incidentLoading
-                    ? "#fca5a5"
-                    : "linear-gradient(135deg, #ef4444, #f97316)",
-                }}
-              >
-                {incidentLoading
-                  ? "🔍 Đang phân tích..."
-                  : "🔍 Phân tích sự cố"}
-              </button>
+              </FormField>
+
+              {renderSubmitButton(
+                incidentLoading,
+                "Phân tích sự cố",
+                "Đang phân tích...",
+                "red",
+              )}
             </form>
-          </div>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-blue-50">
-                📋
-              </div>
-              <div>
-                <h2 className="text-lg font-black text-gray-800">
-                  Kết quả phân tích
-                </h2>
-                <p className="text-xs text-gray-400">Đề xuất từ AI Gemini</p>
-              </div>
-            </div>
+          </section>
+
+          <ResultPanel
+            title="Kết quả phân tích"
+            description="Nguyên nhân và hướng xử lý đề xuất"
+            icon={Sparkles}
+          >
             {incidentResult ? (
-              <ResultBox content={incidentResult} />
+              <ResultContent content={incidentResult} />
             ) : (
-              <div className="flex flex-col items-center justify-center h-48 text-gray-200">
-                <Bot size={48} className="mb-3" />
-                <p className="text-sm">Kết quả sẽ hiện ở đây</p>
-              </div>
+              <EmptyResult
+                icon={AlertTriangle}
+                text="Kết quả phân tích sẽ xuất hiện tại đây."
+              />
             )}
-          </div>
+          </ResultPanel>
         </div>
       )}
 
-      {/* Maintenance Tab */}
       {activeTab === "maintenance" && (
-        <div className="grid grid-cols-2 gap-5">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-amber-50">
-                🔧
-              </div>
-              <div>
-                <h2 className="text-lg font-black text-gray-800">
-                  Đề xuất bảo trì
-                </h2>
-                <p className="text-xs text-gray-400">
-                  AI đề xuất lịch và quy trình bảo trì
-                </p>
-              </div>
-            </div>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <SectionHeading
+              icon={Wrench}
+              title="Đề xuất bảo trì"
+              description="Mô tả thiết bị và vấn đề cần xử lý."
+              tone="amber"
+            />
+
+            {renderError(maintenanceError)}
+
             <form onSubmit={handleSuggestMaintenance} className="space-y-4">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                  Tên thiết bị
-                </label>
+              <FormField label="Tên thiết bị">
                 <input
                   type="text"
                   value={maintenanceForm.device_name}
-                  onChange={(e) =>
-                    setMaintenanceForm({
-                      ...maintenanceForm,
-                      device_name: e.target.value,
-                    })
+                  onChange={(event) =>
+                    setMaintenanceForm((previous) => ({
+                      ...previous,
+                      device_name: event.target.value,
+                    }))
                   }
-                  placeholder="VD: Máy chiếu phòng A101"
-                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-amber-400 bg-gray-50"
+                  placeholder="Ví dụ: Máy chiếu phòng A101"
+                  className={inputClassName}
                   required
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                  Loại thiết bị
-                </label>
+              </FormField>
+
+              <FormField label="Loại thiết bị">
                 <select
                   value={maintenanceForm.device_type}
-                  onChange={(e) =>
-                    setMaintenanceForm({
-                      ...maintenanceForm,
-                      device_type: e.target.value,
-                    })
+                  onChange={(event) =>
+                    setMaintenanceForm((previous) => ({
+                      ...previous,
+                      device_type: event.target.value,
+                    }))
                   }
-                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-amber-400 bg-gray-50"
+                  className={inputClassName}
                 >
-                  {[
-                    { value: "den", label: "💡 Đèn" },
-                    { value: "dieu_hoa", label: "❄️ Điều hòa" },
-                    { value: "may_chieu", label: "📽️ Máy chiếu" },
-                    { value: "quat", label: "🌀 Quạt" },
-                    { value: "loa", label: "🔊 Loa" },
-                    { value: "may_tinh", label: "💻 Máy tính" },
-                  ].map((d) => (
-                    <option key={d.value} value={d.value}>
-                      {d.label}
+                  {DEVICE_TYPES.map((device) => (
+                    <option key={device.value} value={device.value}>
+                      {device.label}
                     </option>
                   ))}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                  Bảo trì gần nhất
-                </label>
+              </FormField>
+
+              <FormField label="Ngày bảo trì gần nhất">
                 <input
                   type="date"
                   value={maintenanceForm.last_maintenance}
-                  onChange={(e) =>
-                    setMaintenanceForm({
-                      ...maintenanceForm,
-                      last_maintenance: e.target.value,
-                    })
+                  onChange={(event) =>
+                    setMaintenanceForm((previous) => ({
+                      ...previous,
+                      last_maintenance: event.target.value,
+                    }))
                   }
-                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-amber-400 bg-gray-50"
+                  className={inputClassName}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                  Vấn đề hiện tại
-                </label>
+              </FormField>
+
+              <FormField label="Vấn đề hiện tại">
                 <textarea
                   value={maintenanceForm.issue}
-                  onChange={(e) =>
-                    setMaintenanceForm({
-                      ...maintenanceForm,
-                      issue: e.target.value,
-                    })
+                  onChange={(event) =>
+                    setMaintenanceForm((previous) => ({
+                      ...previous,
+                      issue: event.target.value,
+                    }))
                   }
-                  rows={3}
-                  placeholder="Mô tả vấn đề thiết bị..."
-                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-amber-400 bg-gray-50"
+                  rows={4}
+                  placeholder="Mô tả dấu hiệu hoặc lỗi của thiết bị..."
+                  className={`${inputClassName} resize-y`}
                   required
                 />
-              </div>
-              <button
-                type="submit"
-                disabled={maintenanceLoading}
-                className="w-full py-3 rounded-xl text-white font-bold text-sm transition-all"
-                style={{
-                  background: maintenanceLoading
-                    ? "#fde68a"
-                    : "linear-gradient(135deg, #f59e0b, #fbbf24)",
-                }}
-              >
-                {maintenanceLoading ? "🔧 Đang xử lý..." : "🔧 Đề xuất bảo trì"}
-              </button>
+              </FormField>
+
+              {renderSubmitButton(
+                maintenanceLoading,
+                "Đề xuất bảo trì",
+                "Đang tạo đề xuất...",
+                "amber",
+              )}
             </form>
-          </div>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-blue-50">
-                📋
-              </div>
-              <div>
-                <h2 className="text-lg font-black text-gray-800">
-                  Đề xuất từ AI
-                </h2>
-                <p className="text-xs text-gray-400">
-                  Lịch và quy trình bảo trì
-                </p>
-              </div>
-            </div>
+          </section>
+
+          <ResultPanel
+            title="Đề xuất từ AI"
+            description="Các bước bảo trì và lịch dự kiến"
+            icon={Wrench}
+          >
             {maintenanceResult ? (
-              <ResultBox content={maintenanceResult} />
+              <ResultContent content={maintenanceResult} />
             ) : (
-              <div className="flex flex-col items-center justify-center h-48 text-gray-200">
-                <Wrench size={48} className="mb-3" />
-                <p className="text-sm">Đề xuất sẽ hiện ở đây</p>
-              </div>
+              <EmptyResult
+                icon={Wrench}
+                text="Đề xuất bảo trì sẽ xuất hiện tại đây."
+              />
             )}
-          </div>
+          </ResultPanel>
         </div>
       )}
 
-      {/* Find Room Tab */}
       {activeTab === "room" && (
-        <div className="grid grid-cols-2 gap-5">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-green-50">
-                🏫
-              </div>
-              <div>
-                <h2 className="text-lg font-black text-gray-800">
-                  Tìm phòng phù hợp
-                </h2>
-                <p className="text-xs text-gray-400">
-                  AI tìm phòng theo yêu cầu
-                </p>
-              </div>
-            </div>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <SectionHeading
+              icon={Building2}
+              title="Tìm phòng phù hợp"
+              description="Chọn sức chứa và điều kiện sử dụng."
+              tone="green"
+            />
+
+            {renderError(roomError)}
+
             <form onSubmit={handleFindRoom} className="space-y-4">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                  Sức chứa tối thiểu
-                </label>
+              <FormField label="Sức chứa tối thiểu">
                 <input
                   type="number"
+                  min="1"
                   value={roomForm.capacity}
-                  onChange={(e) =>
-                    setRoomForm({ ...roomForm, capacity: e.target.value })
+                  onChange={(event) =>
+                    setRoomForm((previous) => ({
+                      ...previous,
+                      capacity: event.target.value,
+                    }))
                   }
-                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-green-400 bg-gray-50"
-                  min={1}
+                  className={inputClassName}
                   required
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                  Loại phòng
-                </label>
+              </FormField>
+
+              <FormField label="Loại phòng">
                 <select
                   value={roomForm.type}
-                  onChange={(e) =>
-                    setRoomForm({ ...roomForm, type: e.target.value })
+                  onChange={(event) =>
+                    setRoomForm((previous) => ({
+                      ...previous,
+                      type: event.target.value,
+                    }))
                   }
-                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-green-400 bg-gray-50"
+                  className={inputClassName}
                 >
-                  <option value="">Bất kỳ</option>
-                  <option value="ly_thuyet">📖 Lý thuyết</option>
-                  <option value="thuc_hanh">💻 Thực hành</option>
-                  <option value="hoi_truong">🎭 Hội trường</option>
+                  {ROOM_TYPES.map((roomType) => (
+                    <option key={roomType.value} value={roomType.value}>
+                      {roomType.label}
+                    </option>
+                  ))}
                 </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                    Ngày
-                  </label>
+              </FormField>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <FormField label="Ngày cần phòng">
                   <input
                     type="date"
                     value={roomForm.date}
-                    onChange={(e) =>
-                      setRoomForm({ ...roomForm, date: e.target.value })
+                    onChange={(event) =>
+                      setRoomForm((previous) => ({
+                        ...previous,
+                        date: event.target.value,
+                      }))
                     }
-                    className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-green-400 bg-gray-50"
+                    className={inputClassName}
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                    Giờ
-                  </label>
+                </FormField>
+
+                <FormField label="Giờ bắt đầu">
                   <input
                     type="time"
                     value={roomForm.time}
-                    onChange={(e) =>
-                      setRoomForm({ ...roomForm, time: e.target.value })
+                    onChange={(event) =>
+                      setRoomForm((previous) => ({
+                        ...previous,
+                        time: event.target.value,
+                      }))
                     }
-                    className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-green-400 bg-gray-50"
+                    className={inputClassName}
                   />
-                </div>
+                </FormField>
               </div>
-              <button
-                type="submit"
-                disabled={roomLoading}
-                className="w-full py-3 rounded-xl text-white font-bold text-sm transition-all"
-                style={{
-                  background: roomLoading
-                    ? "#86efac"
-                    : "linear-gradient(135deg, #22c55e, #16a34a)",
-                }}
-              >
-                {roomLoading ? "🔍 Đang tìm..." : "🔍 Tìm phòng"}
-              </button>
+
+              {renderSubmitButton(
+                roomLoading,
+                "Tìm phòng",
+                "Đang tìm phòng...",
+                "green",
+              )}
             </form>
-          </div>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-green-50">
-                📋
-              </div>
-              <div>
-                <h2 className="text-lg font-black text-gray-800">
-                  Kết quả tìm kiếm
-                </h2>
-                <p className="text-xs text-gray-400">
-                  Phòng phù hợp với yêu cầu
-                </p>
-              </div>
-            </div>
+          </section>
+
+          <ResultPanel
+            title="Kết quả tìm phòng"
+            description="Các phòng trống phù hợp với yêu cầu"
+            icon={Search}
+          >
             {roomResult ? (
               <div className="space-y-4">
-                {roomResult.rooms?.length > 0 && (
+                {Array.isArray(roomResult.rooms) &&
+                roomResult.rooms.length > 0 ? (
                   <div className="space-y-2">
-                    <p className="text-xs font-black text-gray-500 uppercase tracking-wider">
-                      Phòng phù hợp:
-                    </p>
-                    {roomResult.rooms.map((r) => (
+                    {roomResult.rooms.map((room) => (
                       <div
-                        key={r.id}
-                        className="flex items-center justify-between p-3 bg-green-50 rounded-xl border border-green-100"
+                        key={room.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-emerald-50/70 p-3"
                       >
-                        <span className="text-sm font-black text-green-700">
-                          {r.code}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {r.building_code} / T{r.floor_number}
-                        </span>
-                        <span className="text-xs font-bold text-green-600">
-                          👥 {r.capacity}
+                        <div>
+                          <p className="font-bold text-emerald-800">
+                            {room.code}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {room.building_code
+                              ? `${room.building_code} · `
+                              : ""}
+                            Tầng {room.floor_number}
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-700">
+                          {room.capacity} chỗ
                         </span>
                       </div>
                     ))}
                   </div>
+                ) : (
+                  <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    Không tìm thấy phòng trống phù hợp với sức chứa đã chọn.
+                  </p>
                 )}
+
                 {roomResult.response && (
-                  <ResultBox content={roomResult.response} />
+                  <ResultContent content={roomResult.response} />
                 )}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-48 text-gray-200">
-                <Search size={48} className="mb-3" />
-                <p className="text-sm">Kết quả sẽ hiện ở đây</p>
-              </div>
+              <EmptyResult
+                icon={CircleHelp}
+                text="Kết quả tìm phòng sẽ xuất hiện tại đây."
+              />
             )}
-          </div>
+          </ResultPanel>
         </div>
       )}
     </div>
