@@ -8,9 +8,17 @@ const requireRole = require("../middleware/requireRole");
 
 router.use(authMiddleware);
 
-// Sự cố: mọi người xem và gửi báo cáo; admin/kỹ thuật viên xử lý
-router.get("/incidents", incidentController.getAll);
-router.get("/incidents/stats", incidentController.getStats);
+// Mọi người có thể gửi báo cáo; chỉ admin/kỹ thuật viên xem và xử lý.
+router.get(
+  "/incidents",
+  requireRole("admin", "ky_thuat_vien"),
+  incidentController.getAll,
+);
+router.get(
+  "/incidents/stats",
+  requireRole("admin", "ky_thuat_vien"),
+  incidentController.getStats,
+);
 router.post("/incidents", incidentController.create);
 
 router.patch(
@@ -25,9 +33,17 @@ router.delete(
   incidentController.delete,
 );
 
-// Bảo trì: mọi người xem; admin/kỹ thuật viên quản lý
-router.get("/maintenance", maintenanceController.getAll);
-router.get("/maintenance/stats", maintenanceController.getStats);
+// Chỉ admin/kỹ thuật viên xem và quản lý bảo trì.
+router.get(
+  "/maintenance",
+  requireRole("admin", "ky_thuat_vien"),
+  maintenanceController.getAll,
+);
+router.get(
+  "/maintenance/stats",
+  requireRole("admin", "ky_thuat_vien"),
+  maintenanceController.getStats,
+);
 
 router.post(
   "/maintenance",

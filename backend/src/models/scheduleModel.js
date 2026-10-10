@@ -53,6 +53,54 @@ const ScheduleModel = {
     return rows;
   },
 
+  getById: async (id) => {
+    const [rows] = await db.query(
+      `SELECT id, room_id, subject, session_type, instructor, class_date,
+              start_time, end_time, semester
+       FROM Schedules
+       WHERE id = ?
+       LIMIT 1`,
+      [id],
+    );
+    return rows[0] || null;
+  },
+
+  findConflict: async ({
+    room_id,
+    instructor,
+    class_date,
+    start_time,
+    end_time,
+    exclude_id = null,
+  }) => {
+    const [rows] = await db.query(
+      `SELECT s.id, s.room_id, s.subject, s.instructor, r.code AS room_code
+       FROM Schedules s
+       JOIN Rooms r ON r.id = s.room_id
+       WHERE s.class_date = ?
+         AND s.start_time < ?
+         AND s.end_time > ?
+         AND (
+           s.room_id = ?
+           OR (s.instructor IS NOT NULL AND ? <> '' AND s.instructor = ?)
+         )
+         AND (? IS NULL OR s.id <> ?)
+       ORDER BY s.start_time ASC
+       LIMIT 1`,
+      [
+        class_date,
+        end_time,
+        start_time,
+        room_id,
+        instructor || "",
+        instructor || "",
+        exclude_id,
+        exclude_id,
+      ],
+    );
+    return rows[0] || null;
+  },
+
   create: async (data) => {
     const {
       room_id,

@@ -70,11 +70,11 @@ function AppRoutes() {
           }
         />
 
-        {/* Đặt phòng - Admin + Giảng viên */}
+        {/* Đặt phòng - Admin, Giảng viên (lượt của mình), Kỹ thuật viên */}
         <Route
           path="bookings"
           element={
-            <RoleRoute roles={["admin", "giang_vien"]}>
+            <RoleRoute roles={["admin", "giang_vien", "ky_thuat_vien"]}>
               <Bookings />
             </RoleRoute>
           }

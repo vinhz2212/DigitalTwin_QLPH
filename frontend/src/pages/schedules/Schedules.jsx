@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import {
   CalendarDays,
@@ -147,6 +148,8 @@ const EMPTY_FORM = {
 };
 
 export default function Schedules() {
+  const { user } = useAuth();
+  const canManageSchedules = user?.role === "admin";
   const [schedules, setSchedules] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -312,6 +315,8 @@ export default function Schedules() {
   };
 
   const openModal = (schedule = null) => {
+    if (!canManageSchedules) return;
+
     setFormError("");
 
     if (schedule) {
@@ -445,14 +450,16 @@ export default function Schedules() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => openModal()}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
-        >
-          <Plus size={18} />
-          Thêm buổi học
-        </button>
+        {canManageSchedules && (
+          <button
+            type="button"
+            onClick={() => openModal()}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
+          >
+            <Plus size={18} />
+            Thêm buổi học
+          </button>
+        )}
       </header>
 
       <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:flex-row xl:items-center xl:justify-between">
@@ -718,7 +725,8 @@ export default function Schedules() {
                               key={schedule.id}
                               type="button"
                               onClick={() => openModal(schedule)}
-                              className="block w-full rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-300"
+                              disabled={!canManageSchedules}
+                              className={`block w-full rounded-xl border p-3 text-left ${canManageSchedules ? "transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-300" : "cursor-default"}`}
                               style={{
                                 backgroundColor: style.bg,
                                 borderColor: style.border,
@@ -799,7 +807,7 @@ export default function Schedules() {
                     "Ngày",
                     "Thời gian",
                     "Học kỳ",
-                    "Thao tác",
+                    ...(canManageSchedules ? ["Thao tác"] : []),
                   ].map((title) => (
                     <th
                       key={title}
@@ -865,36 +873,38 @@ export default function Schedules() {
                         </span>
                       </td>
 
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => openModal(schedule)}
-                            className="rounded-lg p-2 text-blue-600 transition hover:bg-blue-50"
-                            title="Chỉnh sửa lịch"
-                            aria-label="Chỉnh sửa lịch"
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(schedule.id)}
-                            disabled={deletingId === schedule.id}
-                            className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                            title="Xóa lịch"
-                            aria-label="Xóa lịch"
-                          >
-                            {deletingId === schedule.id ? (
-                              <LoaderCircle
-                                size={16}
-                                className="animate-spin"
-                              />
-                            ) : (
-                              <Trash2 size={16} />
-                            )}
-                          </button>
-                        </div>
-                      </td>
+                      {canManageSchedules && (
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openModal(schedule)}
+                              className="rounded-lg p-2 text-blue-600 transition hover:bg-blue-50"
+                              title="Chỉnh sửa lịch"
+                              aria-label="Chỉnh sửa lịch"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(schedule.id)}
+                              disabled={deletingId === schedule.id}
+                              className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                              title="Xóa lịch"
+                              aria-label="Xóa lịch"
+                            >
+                              {deletingId === schedule.id ? (
+                                <LoaderCircle
+                                  size={16}
+                                  className="animate-spin"
+                                />
+                              ) : (
+                                <Trash2 size={16} />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

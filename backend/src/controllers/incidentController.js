@@ -1,5 +1,6 @@
 const IncidentModel = require("../models/incidentModel");
 const RoomModel = require("../models/roomModel");
+const { notifyIncident } = require("../utils/incidentNotifications");
 
 const incidentController = {
   getAll: async (req, res) => {
@@ -28,11 +29,21 @@ const incidentController = {
       // Cập nhật trạng thái phòng → su_co
       await RoomModel.updateStatus(data.room_id, "su_co");
 
-      // Gửi socket realtime
-      const io = req.app.get("io");
-      io.emit("incident_created", { incidentId: id, roomId: data.room_id });
-
       const incident = await IncidentModel.getById(id);
+      const io = req.app.get("io");
+      await notifyIncident({
+        io,
+        roomId: data.room_id,
+        type: data.type,
+        severity: data.severity || "trung",
+        description: data.description,
+      });
+
+      // Gửi socket realtime cập nhật danh sách sự cố.
+      if (io) {
+        io.emit("incident_created", { incidentId: id, roomId: data.room_id });
+      }
+
       res.status(201).json({ message: "Tạo sự cố thành công", incident });
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
@@ -51,7 +62,9 @@ const incidentController = {
       }
 
       const io = req.app.get("io");
-      io.emit("incident_updated", { incidentId: req.params.id, status });
+      if (io) {
+        io.emit("incident_updated", { incidentId: req.params.id, status });
+      }
 
       res.json({ message: "Cập nhật trạng thái thành công" });
     } catch (error) {

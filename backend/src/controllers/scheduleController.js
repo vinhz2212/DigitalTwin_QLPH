@@ -21,6 +21,11 @@ const isValidTime = (value) =>
   typeof value === "string" &&
   /^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value);
 
+const timeToSeconds = (value) => {
+  const [hours, minutes, seconds = 0] = value.split(":").map(Number);
+  return hours * 3600 + minutes * 60 + seconds;
+};
+
 const validateSchedule = (body = {}) => {
   const roomId = Number(body.room_id);
   const subject = typeof body.subject === "string" ? body.subject.trim() : "";
@@ -40,6 +45,10 @@ const validateSchedule = (body = {}) => {
     return { error: "Vui lòng nhập tên môn học." };
   }
 
+  if (subject.length > 150 || instructor.length > 100 || semester.length > 20) {
+    return { error: "Tên môn, giảng viên hoặc học kỳ vượt quá độ dài cho phép." };
+  }
+
   if (!VALID_SESSION_TYPES.includes(sessionType)) {
     return { error: "Loại buổi học không hợp lệ." };
   }
@@ -52,7 +61,7 @@ const validateSchedule = (body = {}) => {
     return { error: "Vui lòng nhập giờ học hợp lệ." };
   }
 
-  if (body.start_time >= body.end_time) {
+  if (timeToSeconds(body.start_time) >= timeToSeconds(body.end_time)) {
     return { error: "Giờ kết thúc phải sau giờ bắt đầu." };
   }
 
@@ -105,6 +114,16 @@ const scheduleController = {
     }
 
     try {
+      const conflict = await ScheduleModel.findConflict(validation.value);
+      if (conflict) {
+        const resource = conflict.room_id === validation.value.room_id
+          ? `Phòng ${conflict.room_code}`
+          : `Giảng viên ${conflict.instructor}`;
+        return res.status(409).json({
+          message: `${resource} đã có lịch trùng khung giờ với “${conflict.subject}”.`,
+        });
+      }
+
       const id = await ScheduleModel.create(validation.value);
       return res.status(201).json({
         message: "Thêm lịch thành công",
@@ -122,6 +141,11 @@ const scheduleController = {
   },
 
   update: async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ message: "Mã lịch học không hợp lệ." });
+    }
+
     const validation = validateSchedule(req.body);
 
     if (validation.error) {
@@ -129,14 +153,25 @@ const scheduleController = {
     }
 
     try {
-      const affectedRows = await ScheduleModel.update(
-        req.params.id,
-        validation.value,
-      );
-
-      if (affectedRows === 0) {
+      const existing = await ScheduleModel.getById(id);
+      if (!existing) {
         return res.status(404).json({ message: "Không tìm thấy lịch học." });
       }
+
+      const conflict = await ScheduleModel.findConflict({
+        ...validation.value,
+        exclude_id: id,
+      });
+      if (conflict) {
+        const resource = conflict.room_id === validation.value.room_id
+          ? `Phòng ${conflict.room_code}`
+          : `Giảng viên ${conflict.instructor}`;
+        return res.status(409).json({
+          message: `${resource} đã có lịch trùng khung giờ với “${conflict.subject}”.`,
+        });
+      }
+
+      await ScheduleModel.update(id, validation.value);
 
       return res.json({ message: "Cập nhật lịch thành công." });
     } catch (error) {
@@ -151,8 +186,13 @@ const scheduleController = {
   },
 
   delete: async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ message: "Mã lịch học không hợp lệ." });
+    }
+
     try {
-      const affectedRows = await ScheduleModel.delete(req.params.id);
+      const affectedRows = await ScheduleModel.delete(id);
 
       if (affectedRows === 0) {
         return res.status(404).json({ message: "Không tìm thấy lịch học." });

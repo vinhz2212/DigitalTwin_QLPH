@@ -5,17 +5,13 @@ const sensorController = require("../controllers/sensorController");
 const authMiddleware = require("../middleware/auth");
 const requireRole = require("../middleware/requireRole");
 
-// Tất cả routes yêu cầu đăng nhập
-router.use(authMiddleware);
+// Chỉ admin/kỹ thuật viên được truy cập dữ liệu cảm biến và lưu snapshot.
+router.use(authMiddleware, requireRole("admin", "ky_thuat_vien"));
 
 // Chỉ admin và kỹ thuật viên được ghi dữ liệu cảm biến
-router.post(
-  "/snapshot",
-  requireRole("admin", "ky_thuat_vien"),
-  sensorController.saveSnapshot,
-);
+router.post("/snapshot", sensorController.saveSnapshot);
 
-// Người đã đăng nhập được xem dữ liệu
+// Admin/kỹ thuật viên được xem dữ liệu
 router.get("/", sensorController.getAll);
 router.get("/:roomId/history", sensorController.getHistory);
 router.get("/:roomId", sensorController.getByRoom);

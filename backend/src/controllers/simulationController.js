@@ -1,4 +1,5 @@
 const db = require("../config/database");
+const { notifyIncident } = require("../utils/incidentNotifications");
 
 const INCIDENT_DEVICE_MAP = {
   chay: null, // Tất cả thiết bị tắt
@@ -63,18 +64,15 @@ const simulationController = {
         );
       }
 
-      // Tạo thông báo
-      await db.query(
-        `
-        INSERT INTO Notifications (user_id, content, type, severity)
-        SELECT id, ?, 'su_co', ?
-        FROM Users WHERE role_id = 1
-      `,
-        [
-          `⚠️ Sự cố ${type} tại phòng (ID: ${room_id})`,
-          severity === "nghiem_trong" ? "critical" : "warning",
-        ],
-      );
+      // Lưu thông báo cho quản trị viên và kỹ thuật viên, kèm mã phòng.
+      const io = req.app.get("io");
+      await notifyIncident({
+        io,
+        roomId: room_id,
+        type,
+        severity: severity || "trung",
+        description: description || `Mô phỏng sự cố: ${type}`,
+      });
 
       // Ghi log
       await db.query(
@@ -86,13 +84,14 @@ const simulationController = {
       );
 
       // Gửi socket realtime
-      const io = req.app.get("io");
-      io.emit("incident_simulated", {
-        incidentId,
-        roomId: room_id,
-        type,
-        severity,
-      });
+      if (io) {
+        io.emit("incident_simulated", {
+          incidentId,
+          roomId: room_id,
+          type,
+          severity: severity || "trung",
+        });
+      }
 
       res.status(201).json({
         message: "Mô phỏng sự cố thành công",
@@ -134,10 +133,12 @@ const simulationController = {
 
       // Gửi socket
       const io = req.app.get("io");
-      io.emit("incident_resolved", {
-        incidentId: incident_id,
-        roomId: room_id,
-      });
+      if (io) {
+        io.emit("incident_resolved", {
+          incidentId: incident_id,
+          roomId: room_id,
+        });
+      }
 
       res.json({ message: "Đã giải quyết sự cố" });
     } catch (error) {

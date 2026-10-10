@@ -10,6 +10,7 @@ import {
   Filter,
 } from "lucide-react";
 import api from "../../services/api";
+import useSocket from "../../hooks/useSocket";
 
 const SEVERITY_MAP = {
   info: {
@@ -101,6 +102,8 @@ export default function Notifications() {
       setLoading(false);
     }
   }, []);
+
+  useSocket({ notification_created: fetchNotifications });
 
   useEffect(() => {
     fetchNotifications();

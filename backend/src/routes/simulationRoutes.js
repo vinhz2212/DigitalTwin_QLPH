@@ -7,10 +7,10 @@ const requireRole = require("../middleware/requireRole");
 
 router.use(authMiddleware);
 
-// Người đã đăng nhập được xem sự cố mô phỏng đang hoạt động
+// Người đã đăng nhập được xem để trang Tổng quan hiển thị đúng cảnh báo.
 router.get("/active", simulationController.getActive);
 
-// Chỉ admin và kỹ thuật viên được thao tác mô phỏng
+// Chỉ admin và kỹ thuật viên được thao tác mô phỏng.
 router.post(
   "/trigger",
   requireRole("admin", "ky_thuat_vien"),

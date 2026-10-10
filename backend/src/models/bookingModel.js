@@ -35,6 +35,14 @@ const BookingModel = {
     return rows;
   },
 
+  getById: async (id) => {
+    const [rows] = await db.query(
+      "SELECT * FROM Bookings WHERE id = ? LIMIT 1",
+      [id],
+    );
+    return rows[0] || null;
+  },
+
   getStats: async () => {
     const [rows] = await db.query(`
       SELECT
@@ -47,6 +55,59 @@ const BookingModel = {
     `);
 
     return rows[0];
+  },
+
+  findRoomConflict: async ({
+    room_id,
+    date,
+    start_time,
+    end_time,
+    exclude_id,
+  }) => {
+    const [rows] = await db.query(
+      `SELECT id, room_id, \`date\`, start_time, end_time, status
+       FROM Bookings
+       WHERE room_id = ?
+         AND \`date\` = ?
+         AND status IN ('cho_duyet', 'da_duyet')
+         AND start_time < ?
+         AND end_time > ?
+         AND (? IS NULL OR id <> ?)
+       ORDER BY start_time ASC
+       LIMIT 1`,
+      [
+        room_id,
+        date,
+        end_time,
+        start_time,
+        exclude_id ?? null,
+        exclude_id ?? null,
+      ],
+    );
+    return rows[0] || null;
+  },
+
+  findScheduleConflict: async ({ room_id, date, start_time, end_time }) => {
+    const [rows] = await db.query(
+      `SELECT id, subject, start_time, end_time
+       FROM Schedules
+       WHERE room_id = ?
+         AND class_date = ?
+         AND start_time < ?
+         AND end_time > ?
+       ORDER BY start_time ASC
+       LIMIT 1`,
+      [room_id, date, end_time, start_time],
+    );
+    return rows[0] || null;
+  },
+
+  getRoomStatus: async (roomId) => {
+    const [rows] = await db.query(
+      "SELECT status FROM Rooms WHERE id = ? LIMIT 1",
+      [roomId],
+    );
+    return rows[0]?.status ?? null;
   },
 
   create: async (data) => {
@@ -66,11 +127,16 @@ const BookingModel = {
   },
 
   updateStatus: async (id, status) => {
-    await db.query("UPDATE Bookings SET status = ? WHERE id = ?", [status, id]);
+    const [result] = await db.query(
+      "UPDATE Bookings SET status = ? WHERE id = ?",
+      [status, id],
+    );
+    return result.affectedRows;
   },
 
   delete: async (id) => {
-    await db.query("DELETE FROM Bookings WHERE id = ?", [id]);
+    const [result] = await db.query("DELETE FROM Bookings WHERE id = ?", [id]);
+    return result.affectedRows;
   },
 };
 

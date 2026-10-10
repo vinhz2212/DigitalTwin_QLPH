@@ -6,9 +6,7 @@ const authMiddleware = require("../middleware/auth");
 const requireRole = require("../middleware/requireRole");
 
 router.use(authMiddleware);
-router.use(requireRole("admin"));
-
-router.get("/", logController.getAll);
-router.delete("/:id", logController.remove);
+router.get("/", requireRole("admin", "ky_thuat_vien"), logController.getAll);
+router.delete("/:id", requireRole("admin"), logController.remove);
 
 module.exports = router;

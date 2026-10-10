@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
+import useSocket from "../hooks/useSocket";
 import {
   LayoutDashboard,
   Building2,
@@ -272,6 +273,8 @@ export default function MainLayout() {
     }
   }, []);
 
+  useSocket({ notification_created: fetchUnreadCount });
+
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -328,10 +331,12 @@ export default function MainLayout() {
         ...(role === "admin" || role === "ky_thuat_vien"
           ? [{ to: "/devices", icon: Cpu, label: "Thiết bị" }]
           : []),
-        ...(role === "admin" || role === "giang_vien"
+        ...(role === "admin" || role === "giang_vien" || role === "ky_thuat_vien"
           ? [
               { to: "/bookings", icon: History, label: "Lịch sử đặt phòng" },
-              { to: "/schedules", icon: Calendar, label: "Lịch học" },
+              ...(role !== "ky_thuat_vien"
+                ? [{ to: "/schedules", icon: Calendar, label: "Lịch học" }]
+                : []),
             ]
           : []),
         ...(role === "admin"
