@@ -138,12 +138,20 @@ function Room3D({ position, room, onClick, isSelected }) {
       {/* Khung cửa kính */}
       <mesh position={[0, 0.085, 0.15]}>
         <boxGeometry args={[0.018, 0.29, 0.012]} />
-        <meshStandardMaterial color="#315d70" metalness={0.28} roughness={0.34} />
+        <meshStandardMaterial
+          color="#315d70"
+          metalness={0.28}
+          roughness={0.34}
+        />
       </mesh>
 
       <mesh position={[0, 0.085, 0.15]}>
         <boxGeometry args={[0.86, 0.018, 0.012]} />
-        <meshStandardMaterial color="#315d70" metalness={0.28} roughness={0.34} />
+        <meshStandardMaterial
+          color="#315d70"
+          metalness={0.28}
+          roughness={0.34}
+        />
       </mesh>
 
       {/* Bảng mã phòng */}
@@ -245,13 +253,21 @@ function Floor3D({
       {/* Dầm mặt tiền tạo nhịp tầng và khung cửa sổ rõ hơn */}
       <mesh position={[2.5, 0.76, 3.16]} castShadow>
         <boxGeometry args={[5.04, 0.075, 0.12]} />
-        <meshStandardMaterial color="#376c80" metalness={0.2} roughness={0.38} />
+        <meshStandardMaterial
+          color="#376c80"
+          metalness={0.2}
+          roughness={0.38}
+        />
       </mesh>
 
       {[1.135, 2.285, 3.435].map((x) => (
         <mesh key={`mullion-${floorNumber}-${x}`} position={[x, 0.38, 3.14]}>
           <boxGeometry args={[0.045, 0.61, 0.085]} />
-          <meshStandardMaterial color="#7798a4" metalness={0.2} roughness={0.4} />
+          <meshStandardMaterial
+            color="#7798a4"
+            metalness={0.2}
+            roughness={0.4}
+          />
         </mesh>
       ))}
 
@@ -323,34 +339,60 @@ function Building3D({
 
         if (!innerSide) {
           return [
-            <mesh key={`side-wall-${code}-${side}`} position={[x, 2.1, 1.62]} receiveShadow>
+            <mesh
+              key={`side-wall-${code}-${side}`}
+              position={[x, 2.1, 1.62]}
+              receiveShadow
+            >
               <boxGeometry args={[0.16, 4.25, 3.12]} />
               <meshStandardMaterial color="#d4e1e4" roughness={0.7} />
             </mesh>,
           ];
         }
 
-        const wallMaterial = <meshStandardMaterial color="#d4e1e4" roughness={0.7} />;
+        const wallMaterial = (
+          <meshStandardMaterial color="#d4e1e4" roughness={0.7} />
+        );
         return [
           // Tầng 1: hai mảng hông và lanh tô/bậu cửa bao quanh ô cửa nối.
-          <mesh key={`inner-wall-low-${code}`} position={[x, 0.0275, 1.62]} receiveShadow>
+          <mesh
+            key={`inner-wall-low-${code}`}
+            position={[x, 0.0275, 1.62]}
+            receiveShadow
+          >
             <boxGeometry args={[0.16, 0.105, 3.12]} />
             {wallMaterial}
           </mesh>,
-          <mesh key={`inner-wall-left-${code}`} position={[x, 0.405, 0.63]} receiveShadow>
+          <mesh
+            key={`inner-wall-left-${code}`}
+            position={[x, 0.405, 0.63]}
+            receiveShadow
+          >
             <boxGeometry args={[0.16, 0.86, 1.14]} />
             {wallMaterial}
           </mesh>,
-          <mesh key={`inner-wall-right-${code}`} position={[x, 0.405, 2.55]} receiveShadow>
+          <mesh
+            key={`inner-wall-right-${code}`}
+            position={[x, 0.405, 2.55]}
+            receiveShadow
+          >
             <boxGeometry args={[0.16, 0.86, 1.26]} />
             {wallMaterial}
           </mesh>,
-          <mesh key={`inner-wall-high-${code}`} position={[x, 0.7675, 1.56]} receiveShadow>
+          <mesh
+            key={`inner-wall-high-${code}`}
+            position={[x, 0.7675, 1.56]}
+            receiveShadow
+          >
             <boxGeometry args={[0.16, 0.135, 0.72]} />
             {wallMaterial}
           </mesh>,
           // Các tầng trên giữ tường kín để mặt dựng ổn định.
-          <mesh key={`inner-wall-upper-${code}`} position={[x, 2.53, 1.62]} receiveShadow>
+          <mesh
+            key={`inner-wall-upper-${code}`}
+            position={[x, 2.53, 1.62]}
+            receiveShadow
+          >
             <boxGeometry args={[0.16, 3.39, 3.12]} />
             {wallMaterial}
           </mesh>,
@@ -502,7 +544,11 @@ function Skybridge() {
       </mesh>
       <mesh position={[0, 0.79, 1.56]} castShadow>
         <boxGeometry args={[3.25, 0.1, 0.84]} />
-        <meshStandardMaterial color="#17445d" metalness={0.18} roughness={0.42} />
+        <meshStandardMaterial
+          color="#17445d"
+          metalness={0.18}
+          roughness={0.42}
+        />
       </mesh>
 
       {/* Vách kính bắt đầu trên sàn hành lang và kéo lên tới mái */}
@@ -521,9 +567,17 @@ function Skybridge() {
             />
           </mesh>
           {mullionPositions.map((x) => (
-            <mesh key={`bridge-post-${z}-${x}`} position={[x, 0.445, z]} castShadow>
+            <mesh
+              key={`bridge-post-${z}-${x}`}
+              position={[x, 0.445, z]}
+              castShadow
+            >
               <boxGeometry args={[0.045, 0.59, 0.055]} />
-              <meshStandardMaterial color="#315d70" metalness={0.2} roughness={0.4} />
+              <meshStandardMaterial
+                color="#315d70"
+                metalness={0.2}
+                roughness={0.4}
+              />
             </mesh>
           ))}
         </group>
