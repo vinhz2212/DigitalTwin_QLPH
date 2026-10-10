@@ -4,13 +4,13 @@ import {
   AlertTriangle,
   Bot,
   Building2,
-  CheckCircle2,
   ChevronRight,
   CircleHelp,
   Clock3,
   Eraser,
   LoaderCircle,
   MessageSquare,
+  RefreshCw,
   Search,
   Send,
   Sparkles,
@@ -35,6 +35,24 @@ const INCIDENT_TYPES = {
   qua_tai: "👥 Quá tải",
 };
 
+const AI_REQUEST_TIMEOUT_MS = 150000;
+
+function getAIRequestErrorMessage(error, fallbackMessage) {
+  if (error.response?.data?.message) {
+    return error.response.data.message;
+  }
+
+  if (["ECONNABORTED", "ETIMEDOUT"].includes(error.code)) {
+    return "AI phản hồi quá lâu. Gemini có thể đang quá tải; vui lòng đợi một chút rồi thử lại.";
+  }
+
+  if (!error.response) {
+    return "Không kết nối được backend. Hãy kiểm tra backend đang chạy rồi thử lại.";
+  }
+
+  return fallbackMessage;
+}
+
 const DEVICE_TYPES = [
   { value: "den", label: "💡 Đèn" },
   { value: "dieu_hoa", label: "❄️ Điều hòa" },
@@ -52,6 +70,62 @@ const ROOM_TYPES = [
 ];
 
 const STORAGE_KEY = "ai_messages";
+const WORKSPACE_STORAGE_KEY = "ai_workspace_state";
+
+const DEFAULT_INCIDENT_FORM = {
+  incident_type: "chay",
+  description: "",
+  room_code: "",
+};
+
+const DEFAULT_MAINTENANCE_FORM = {
+  device_name: "",
+  device_type: "den",
+  last_maintenance: "",
+  issue: "",
+};
+
+const DEFAULT_ROOM_FORM = {
+  capacity: 40,
+  type: "",
+  time: "",
+  date: "",
+};
+
+function loadSavedWorkspace() {
+  try {
+    const saved = sessionStorage.getItem(WORKSPACE_STORAGE_KEY);
+    const parsed = saved ? JSON.parse(saved) : {};
+
+    return {
+      incidentForm: { ...DEFAULT_INCIDENT_FORM, ...parsed.incidentForm },
+      incidentResult:
+        typeof parsed.incidentResult === "string" ? parsed.incidentResult : "",
+      maintenanceForm: {
+        ...DEFAULT_MAINTENANCE_FORM,
+        ...parsed.maintenanceForm,
+      },
+      maintenanceResult:
+        typeof parsed.maintenanceResult === "string"
+          ? parsed.maintenanceResult
+          : "",
+      roomForm: { ...DEFAULT_ROOM_FORM, ...parsed.roomForm },
+      roomResult:
+        parsed.roomResult && typeof parsed.roomResult === "object"
+          ? parsed.roomResult
+          : null,
+    };
+  } catch {
+    return {
+      incidentForm: DEFAULT_INCIDENT_FORM,
+      incidentResult: "",
+      maintenanceForm: DEFAULT_MAINTENANCE_FORM,
+      maintenanceResult: "",
+      roomForm: DEFAULT_ROOM_FORM,
+      roomResult: null,
+    };
+  }
+}
 
 function getCurrentTime() {
   return new Date().toLocaleTimeString("vi-VN", {
@@ -94,21 +168,32 @@ function loadSavedMessages() {
 }
 
 function MessageText({ content }) {
+  const removeBoldMarkers = (text) =>
+    text.replace(/\*\*/g, "").replace(/__/g, "");
+
   return (
     <div className="space-y-1.5 break-words text-sm leading-6">
       {String(content || "")
         .split("\n")
         .map((line, index) => {
           const trimmed = line.trim();
+          const isHeading =
+            /^#{1,6}\s/.test(trimmed) ||
+            /^\d+\.\s+\*\*.+\*\*$/.test(trimmed) ||
+            /^\*\*.+\*\*$/.test(trimmed);
 
           if (!trimmed) {
             return <div key={index} className="h-1" />;
           }
 
-          if (trimmed.startsWith("##") || trimmed.startsWith("**")) {
+          if (/^(?:---+|___+|\*\*\*)$/.test(trimmed)) {
+            return null;
+          }
+
+          if (isHeading) {
             return (
               <p key={index} className="font-bold">
-                {trimmed.replace(/\*\*/g, "").replace(/#/g, "").trim()}
+                {removeBoldMarkers(trimmed.replace(/^#{1,6}\s*/, ""))}
               </p>
             );
           }
@@ -117,12 +202,20 @@ function MessageText({ content }) {
             return (
               <p key={index} className="pl-2">
                 <span className="mr-1">•</span>
-                {trimmed.replace(/^[•*-]\s*/, "")}
+                {removeBoldMarkers(trimmed.replace(/^[•*-]\s*/, ""))}
               </p>
             );
           }
 
-          return <p key={index}>{trimmed}</p>;
+          if (/^\d+[.)]\s/.test(trimmed)) {
+            return (
+              <p key={index} className="pl-2">
+                {removeBoldMarkers(trimmed)}
+              </p>
+            );
+          }
+
+          return <p key={index}>{removeBoldMarkers(trimmed)}</p>;
         })}
     </div>
   );
@@ -178,7 +271,13 @@ function ResultContent({ content }) {
   );
 }
 
-function SectionHeading({ icon: Icon, title, description, tone = "blue" }) {
+function SectionHeading({
+  icon: Icon,
+  title,
+  description,
+  tone = "blue",
+  action,
+}) {
   const tones = {
     blue: "bg-blue-50 text-blue-600",
     red: "bg-red-50 text-red-600",
@@ -187,17 +286,36 @@ function SectionHeading({ icon: Icon, title, description, tone = "blue" }) {
   };
 
   return (
-    <div className="mb-5 flex items-center gap-3">
-      <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tones[tone]}`}
-      >
-        <Icon size={19} />
-      </span>
-      <div>
-        <h2 className="font-bold text-slate-900">{title}</h2>
-        <p className="mt-0.5 text-xs text-slate-500">{description}</p>
+    <div className="mb-5 flex items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <span
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tones[tone]}`}
+        >
+          <Icon size={19} />
+        </span>
+        <div>
+          <h2 className="font-bold text-slate-900">{title}</h2>
+          <p className="mt-0.5 text-xs text-slate-500">{description}</p>
+        </div>
       </div>
+      {action}
     </div>
+  );
+}
+
+function RefreshButton({ onClick, disabled = false }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title="Làm mới phần này"
+      aria-label="Làm mới phần này"
+      className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <RefreshCw size={14} />
+      <span>Làm mới</span>
+    </button>
   );
 }
 
@@ -233,37 +351,30 @@ function EmptyResult({ icon: Icon = Sparkles, text }) {
 
 export default function AIAssistant() {
   const [messages, setMessages] = useState(loadSavedMessages);
+  const [savedWorkspace] = useState(loadSavedWorkspace);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("chat");
   const messagesEndRef = useRef(null);
 
-  const [incidentForm, setIncidentForm] = useState({
-    incident_type: "chay",
-    description: "",
-    room_code: "",
-  });
-  const [incidentResult, setIncidentResult] = useState("");
+  const [incidentForm, setIncidentForm] = useState(savedWorkspace.incidentForm);
+  const [incidentResult, setIncidentResult] = useState(
+    savedWorkspace.incidentResult,
+  );
   const [incidentError, setIncidentError] = useState("");
   const [incidentLoading, setIncidentLoading] = useState(false);
 
-  const [maintenanceForm, setMaintenanceForm] = useState({
-    device_name: "",
-    device_type: "den",
-    last_maintenance: "",
-    issue: "",
-  });
-  const [maintenanceResult, setMaintenanceResult] = useState("");
+  const [maintenanceForm, setMaintenanceForm] = useState(
+    savedWorkspace.maintenanceForm,
+  );
+  const [maintenanceResult, setMaintenanceResult] = useState(
+    savedWorkspace.maintenanceResult,
+  );
   const [maintenanceError, setMaintenanceError] = useState("");
   const [maintenanceLoading, setMaintenanceLoading] = useState(false);
 
-  const [roomForm, setRoomForm] = useState({
-    capacity: 40,
-    type: "",
-    time: "",
-    date: "",
-  });
-  const [roomResult, setRoomResult] = useState(null);
+  const [roomForm, setRoomForm] = useState(savedWorkspace.roomForm);
+  const [roomResult, setRoomResult] = useState(savedWorkspace.roomResult);
   const [roomError, setRoomError] = useState("");
   const [roomLoading, setRoomLoading] = useState(false);
 
@@ -274,6 +385,31 @@ export default function AIAssistant() {
       console.warn("Không thể lưu lịch sử chat:", error);
     }
   }, [messages]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        WORKSPACE_STORAGE_KEY,
+        JSON.stringify({
+          incidentForm,
+          incidentResult,
+          maintenanceForm,
+          maintenanceResult,
+          roomForm,
+          roomResult,
+        }),
+      );
+    } catch (error) {
+      console.warn("Không thể lưu nội dung các công cụ AI:", error);
+    }
+  }, [
+    incidentForm,
+    incidentResult,
+    maintenanceForm,
+    maintenanceResult,
+    roomForm,
+    roomResult,
+  ]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -309,17 +445,22 @@ export default function AIAssistant() {
     setLoading(true);
 
     try {
-      const response = await api.post("/ai/chat", { message, history });
+      const response = await api.post(
+        "/ai/chat",
+        { message, history },
+        { timeout: AI_REQUEST_TIMEOUT_MS },
+      );
       const answer = response.data?.response;
 
       addAssistantMessage(
         answer || "AI chưa trả về nội dung. Bạn thử gửi lại câu hỏi nhé.",
       );
     } catch (error) {
-      const messageFromServer = error.response?.data?.message;
       addAssistantMessage(
-        messageFromServer ||
-          "Mình chưa thể trả lời lúc này. Bạn kiểm tra kết nối rồi thử lại nhé.",
+        getAIRequestErrorMessage(
+          error,
+          "Mình chưa thể trả lời lúc này. Bạn thử lại nhé.",
+        ),
       );
     } finally {
       setLoading(false);
@@ -338,6 +479,24 @@ export default function AIAssistant() {
     }
   };
 
+  const handleResetIncident = () => {
+    setIncidentForm({ ...DEFAULT_INCIDENT_FORM });
+    setIncidentResult("");
+    setIncidentError("");
+  };
+
+  const handleResetMaintenance = () => {
+    setMaintenanceForm({ ...DEFAULT_MAINTENANCE_FORM });
+    setMaintenanceResult("");
+    setMaintenanceError("");
+  };
+
+  const handleResetRoom = () => {
+    setRoomForm({ ...DEFAULT_ROOM_FORM });
+    setRoomResult(null);
+    setRoomError("");
+  };
+
   const handleAnalyzeIncident = async (event) => {
     event.preventDefault();
     setIncidentLoading(true);
@@ -345,14 +504,17 @@ export default function AIAssistant() {
     setIncidentResult("");
 
     try {
-      const response = await api.post("/ai/analyze-incident", incidentForm);
+      const response = await api.post(
+        "/ai/analyze-incident",
+        incidentForm,
+        { timeout: AI_REQUEST_TIMEOUT_MS },
+      );
       setIncidentResult(
         response.data?.response || "AI chưa trả về nội dung phân tích.",
       );
     } catch (error) {
       setIncidentError(
-        error.response?.data?.message ||
-          "Không thể phân tích sự cố. Vui lòng thử lại.",
+        getAIRequestErrorMessage(error, "Không thể phân tích sự cố."),
       );
     } finally {
       setIncidentLoading(false);
@@ -369,14 +531,14 @@ export default function AIAssistant() {
       const response = await api.post(
         "/ai/suggest-maintenance",
         maintenanceForm,
+        { timeout: AI_REQUEST_TIMEOUT_MS },
       );
       setMaintenanceResult(
         response.data?.response || "AI chưa trả về đề xuất bảo trì.",
       );
     } catch (error) {
       setMaintenanceError(
-        error.response?.data?.message ||
-          "Không thể tạo đề xuất bảo trì. Vui lòng thử lại.",
+        getAIRequestErrorMessage(error, "Không thể tạo đề xuất bảo trì."),
       );
     } finally {
       setMaintenanceLoading(false);
@@ -390,15 +552,18 @@ export default function AIAssistant() {
     setRoomResult(null);
 
     try {
-      const response = await api.post("/ai/find-room", {
-        ...roomForm,
-        capacity: Number(roomForm.capacity),
-      });
+      const response = await api.post(
+        "/ai/find-room",
+        {
+          ...roomForm,
+          capacity: Number(roomForm.capacity),
+        },
+        { timeout: AI_REQUEST_TIMEOUT_MS },
+      );
       setRoomResult(response.data);
     } catch (error) {
       setRoomError(
-        error.response?.data?.message ||
-          "Không thể tìm phòng. Vui lòng thử lại.",
+        getAIRequestErrorMessage(error, "Không thể tìm phòng."),
       );
     } finally {
       setRoomLoading(false);
@@ -600,6 +765,12 @@ export default function AIAssistant() {
               title="Phân tích sự cố"
               description="Nhập thông tin để AI đề xuất hướng xử lý."
               tone="red"
+              action={
+                <RefreshButton
+                  onClick={handleResetIncident}
+                  disabled={incidentLoading}
+                />
+              }
             />
 
             {renderError(incidentError)}
@@ -690,6 +861,12 @@ export default function AIAssistant() {
               title="Đề xuất bảo trì"
               description="Mô tả thiết bị và vấn đề cần xử lý."
               tone="amber"
+              action={
+                <RefreshButton
+                  onClick={handleResetMaintenance}
+                  disabled={maintenanceLoading}
+                />
+              }
             />
 
             {renderError(maintenanceError)}
@@ -794,6 +971,9 @@ export default function AIAssistant() {
               title="Tìm phòng phù hợp"
               description="Chọn sức chứa và điều kiện sử dụng."
               tone="green"
+              action={
+                <RefreshButton onClick={handleResetRoom} disabled={roomLoading} />
+              }
             />
 
             {renderError(roomError)}

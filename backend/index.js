@@ -2,7 +2,10 @@ const express = require("express");
 const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
-require("dotenv").config();
+const path = require("path");
+
+// Luôn tải file .env nằm cạnh index.js, không phụ thuộc terminal chạy từ đâu.
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 // Import database
 require("./src/config/database");

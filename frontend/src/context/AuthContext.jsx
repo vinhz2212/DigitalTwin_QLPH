@@ -24,6 +24,8 @@ export function AuthProvider({ children }) {
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    sessionStorage.removeItem("ai_messages");
+    sessionStorage.removeItem("ai_workspace_state");
     setUser(null);
   };
 
