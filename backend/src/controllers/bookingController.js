@@ -1,10 +1,15 @@
 const BookingModel = require("../models/bookingModel");
 
 const bookingController = {
-  // Lấy tất cả danh sách đặt phòng
+  // Admin/kỹ thuật viên xem tất cả; người dùng khác chỉ xem lượt của mình
   getAll: async (req, res) => {
     try {
-      const bookings = await BookingModel.getAll();
+      const canViewAll = ["admin", "ky_thuat_vien"].includes(req.user.role);
+
+      const bookings = canViewAll
+        ? await BookingModel.getAll()
+        : await BookingModel.getByUser(req.user.id);
+
       res.json(bookings);
     } catch (error) {
       console.error("Lỗi lấy danh sách đặt phòng:", error);
@@ -12,7 +17,7 @@ const bookingController = {
     }
   },
 
-  // Lấy thống kê đặt phòng
+  // Route thống kê được giới hạn cho admin/kỹ thuật viên
   getStats: async (req, res) => {
     try {
       const stats = await BookingModel.getStats();
@@ -23,18 +28,19 @@ const bookingController = {
     }
   },
 
-  // Tạo yêu cầu đặt phòng mới
   create: async (req, res) => {
     try {
       const { room_id, date, start_time, end_time, purpose, note } = req.body;
 
       if (!room_id || !date || !start_time || !end_time) {
         return res.status(400).json({
-          message: "Vui lòng nhập đầy đủ thông tin (phòng, ngày, giờ bắt đầu, giờ kết thúc)",
+          message:
+            "Vui lòng nhập đầy đủ thông tin: phòng, ngày, giờ bắt đầu và giờ kết thúc.",
         });
       }
 
-      const userId = req.user ? req.user.id : 1; // Fallback nếu chưa qua auth middleware
+      // authMiddleware đã xác thực người dùng trước khi vào controller
+      const userId = req.user.id;
 
       const bookingId = await BookingModel.create({
         user_id: userId,
@@ -46,7 +52,6 @@ const bookingController = {
         note: note || "",
       });
 
-      // Gửi Socket realtime thông báo đặt phòng mới nếu có socket io
       const io = req.app.get("io");
       if (io) {
         io.emit("booking_created", {
@@ -67,7 +72,6 @@ const bookingController = {
     }
   },
 
-  // Cập nhật trạng thái (Duyệt/Từ chối/Hủy)
   updateStatus: async (req, res) => {
     try {
       const { id } = req.params;
@@ -75,30 +79,28 @@ const bookingController = {
 
       const validStatuses = ["cho_duyet", "da_duyet", "tu_choi", "da_huy"];
       if (!validStatuses.includes(status)) {
-        return res.status(400).json({ message: "Trạng thái không hợp lệ" });
+        return res.status(400).json({ message: "Trạng thái không hợp lệ." });
       }
 
       await BookingModel.updateStatus(id, status);
 
-      // Gửi Socket realtime thông báo đổi trạng thái
       const io = req.app.get("io");
       if (io) {
         io.emit("booking_status_changed", { id, status });
       }
 
-      res.json({ message: "Cập nhật trạng thái đặt phòng thành công" });
+      res.json({ message: "Cập nhật trạng thái đặt phòng thành công." });
     } catch (error) {
       console.error("Lỗi cập nhật trạng thái đặt phòng:", error);
       res.status(500).json({ message: "Lỗi server", error: error.message });
     }
   },
 
-  // Xóa đặt phòng
   delete: async (req, res) => {
     try {
       const { id } = req.params;
       await BookingModel.delete(id);
-      res.json({ message: "Xóa đặt phòng thành công" });
+      res.json({ message: "Xóa đặt phòng thành công." });
     } catch (error) {
       console.error("Lỗi xóa đặt phòng:", error);
       res.status(500).json({ message: "Lỗi server", error: error.message });

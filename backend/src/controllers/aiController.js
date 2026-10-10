@@ -27,6 +27,14 @@ function cleanChatHistory(history) {
     .slice(-MAX_HISTORY_MESSAGES);
 }
 
+function normalizeVietnamese(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .toLowerCase();
+}
+
 const aiController = {
   chat: async (req, res) => {
     try {
@@ -45,36 +53,133 @@ const aiController = {
 
       const history = cleanChatHistory(req.body.history);
 
-      const [[roomStats], [deviceStats], [incidentStats]] = await Promise.all([
-        db.query(`
+      // mysql2 trả kết quả dạng [rows, fields].
+      // Lấy dòng dữ liệu đầu tiên từ mỗi truy vấn.
+      const [[[roomStats]], [[deviceStats]], [[incidentStats]]] =
+        await Promise.all([
+          db.query(`
           SELECT
             COUNT(*) AS total,
-            SUM(status = 'trong') AS available,
-            SUM(status = 'dang_hoc') AS occupied,
-            SUM(status = 'bao_tri') AS maintenance,
-            SUM(status = 'su_co') AS incident
+            COALESCE(SUM(status = 'trong'), 0) AS available,
+            COALESCE(SUM(status = 'dang_hoc'), 0) AS occupied,
+            COALESCE(SUM(status = 'bao_tri'), 0) AS maintenance,
+            COALESCE(SUM(status = 'su_co'), 0) AS incident
           FROM Rooms
         `),
-        db.query(`
+          db.query(`
           SELECT
             COUNT(*) AS total,
-            SUM(status = 'hoat_dong') AS active,
-            SUM(status = 'hong') AS broken
+            COALESCE(SUM(status = 'hoat_dong'), 0) AS active,
+            COALESCE(SUM(status = 'tat'), 0) AS off,
+            COALESCE(SUM(status = 'hong'), 0) AS broken,
+            COALESCE(SUM(status = 'dang_sua'), 0) AS repairing
           FROM Devices
         `),
-        db.query(`
+          db.query(`
           SELECT COUNT(*) AS active
           FROM Incidents
           WHERE status = 'dang_xay_ra'
         `),
-      ]);
+        ]);
 
       const systemContext = `
 Số liệu hiện tại của hệ thống Smart Campus:
-- Phòng học: ${roomStats?.total || 0} tổng, ${roomStats?.available || 0} trống, ${roomStats?.occupied || 0} đang học, ${roomStats?.maintenance || 0} bảo trì, ${roomStats?.incident || 0} đang có sự cố.
-- Thiết bị: ${deviceStats?.total || 0} tổng, ${deviceStats?.active || 0} đang hoạt động, ${deviceStats?.broken || 0} bị hỏng.
+- Phòng học: ${roomStats?.total || 0} tổng, ${roomStats?.available || 0} trống, ${roomStats?.occupied || 0} đang học, ${roomStats?.maintenance || 0} bảo trì, ${roomStats?.incident || 0} có sự cố.
+- Thiết bị: ${deviceStats?.total || 0} tổng, ${deviceStats?.active || 0} đang hoạt động, ${deviceStats?.off || 0} đã tắt, ${deviceStats?.broken || 0} bị hỏng, ${deviceStats?.repairing || 0} đang sửa.
 - Sự cố đang xảy ra: ${incidentStats?.active || 0}.
 `;
+
+      const normalizedQuestion = normalizeVietnamese(message);
+
+      const asksRoomCount =
+        normalizedQuestion.includes("phong") &&
+        /(bao nhieu|co may|may phong|so luong|tong so)/.test(
+          normalizedQuestion,
+        );
+
+      if (asksRoomCount) {
+        const total = Number(roomStats?.total) || 0;
+        const available = Number(roomStats?.available) || 0;
+        const occupied = Number(roomStats?.occupied) || 0;
+        const maintenance = Number(roomStats?.maintenance) || 0;
+        const incident = Number(roomStats?.incident) || 0;
+
+        let count = total;
+        let label = "phòng";
+
+        if (normalizedQuestion.includes("trong")) {
+          count = available;
+          label = "phòng đang trống";
+        } else if (normalizedQuestion.includes("dang hoc")) {
+          count = occupied;
+          label = "phòng đang học";
+        } else if (normalizedQuestion.includes("bao tri")) {
+          count = maintenance;
+          label = "phòng đang bảo trì";
+        } else if (normalizedQuestion.includes("su co")) {
+          count = incident;
+          label = "phòng đang có sự cố";
+        }
+
+        const responseText =
+          `Hiện có ${count} ${label}. ` +
+          `Tổng số ${total} phòng gồm ${available} phòng trống, ` +
+          `${occupied} phòng đang học, ${maintenance} phòng bảo trì ` +
+          `và ${incident} phòng có sự cố.`;
+
+        await db.query(
+          `
+            INSERT INTO AIAnalysis (user_id, prompt, response, type)
+            VALUES (?, ?, ?, 'chatbot')
+          `,
+          [req.user.id, message, responseText],
+        );
+
+        return res.json({ response: responseText });
+      }
+
+      const asksBrokenDevices =
+        normalizedQuestion.includes("thiet bi") &&
+        /(hong|loi|hu hong)/.test(normalizedQuestion);
+
+      if (asksBrokenDevices) {
+        const [brokenDevices] = await db.query(`
+          SELECT d.name, r.code AS room_code
+          FROM Devices d
+          LEFT JOIN Rooms r ON d.room_id = r.id
+          WHERE d.status = 'hong'
+          ORDER BY r.code, d.name
+        `);
+
+        const total = Number(deviceStats?.total) || 0;
+        const active = Number(deviceStats?.active) || 0;
+        const off = Number(deviceStats?.off) || 0;
+        const repairing = Number(deviceStats?.repairing) || 0;
+
+        const brokenList = brokenDevices.length
+          ? brokenDevices
+              .map(
+                (device) =>
+                  `- ${device.name} — phòng ${device.room_code || "chưa rõ"}`,
+              )
+              .join("\n")
+          : "Hiện không có thiết bị nào được ghi nhận ở trạng thái hỏng.";
+
+        const responseText =
+          `${brokenList}\n\n` +
+          `Thống kê: ${brokenDevices.length}/${total} thiết bị hỏng, ` +
+          `${active} đang hoạt động, ${off} đã tắt và ${repairing} đang sửa.`;
+
+        await db.query(
+          `
+            INSERT INTO AIAnalysis (user_id, prompt, response, type)
+            VALUES (?, ?, ?, 'chatbot')
+          `,
+          [req.user.id, message, responseText],
+        );
+
+        return res.json({ response: responseText });
+      }
 
       const historyText = history.length
         ? history
@@ -96,15 +201,15 @@ ${historyText}
 Câu hỏi hiện tại của người dùng:
 ${message}
 
-Hãy trả lời dựa trên số liệu hệ thống ở trên và ngữ cảnh hội thoại. Nếu không có đủ dữ liệu, hãy nói rõ điều đó. Trả lời ngắn gọn, chuyên nghiệp bằng tiếng Việt.
+Hãy trả lời dựa trên số liệu hệ thống ở trên và ngữ cảnh hội thoại. Không tự thay đổi số liệu, không nói hệ thống đang chờ đồng bộ nếu không có dữ liệu xác nhận. Thiết bị đã tắt không đồng nghĩa với thiết bị đang hoạt động bình thường. Nếu không đủ dữ liệu, hãy nói rõ điều đó. Trả lời ngắn gọn, chuyên nghiệp bằng tiếng Việt.
 `;
 
       const response = await generateContent(prompt);
 
       await db.query(
         `
-        INSERT INTO AIAnalysis (user_id, prompt, response, type)
-        VALUES (?, ?, ?, 'chatbot')
+          INSERT INTO AIAnalysis (user_id, prompt, response, type)
+          VALUES (?, ?, ?, 'chatbot')
         `,
         [req.user.id, message, response],
       );
@@ -139,8 +244,8 @@ Hãy đưa ra:
 
       await db.query(
         `
-        INSERT INTO AIAnalysis (user_id, prompt, response, type)
-        VALUES (?, ?, ?, 'phan_tich_su_co')
+          INSERT INTO AIAnalysis (user_id, prompt, response, type)
+          VALUES (?, ?, ?, 'phan_tich_su_co')
         `,
         [req.user.id, prompt, response],
       );
@@ -177,8 +282,8 @@ Hãy đưa ra:
 
       await db.query(
         `
-        INSERT INTO AIAnalysis (user_id, prompt, response, type)
-        VALUES (?, ?, ?, 'de_xuat_bao_tri')
+          INSERT INTO AIAnalysis (user_id, prompt, response, type)
+          VALUES (?, ?, ?, 'de_xuat_bao_tri')
         `,
         [req.user.id, prompt, response],
       );
@@ -195,7 +300,7 @@ Hãy đưa ra:
 
   findRoom: async (req, res) => {
     try {
-      const { capacity, type, time, date } = req.body;
+      const { capacity, type } = req.body;
       const roomCapacity = Number(capacity);
 
       if (!Number.isFinite(roomCapacity) || roomCapacity < 1) {
@@ -204,44 +309,49 @@ Hãy đưa ra:
         });
       }
 
+      const queryParams = [roomCapacity];
+      const typeCondition = type ? "AND r.type = ?" : "";
+
+      if (type) {
+        queryParams.push(type);
+      }
+
       const [availableRooms] = await db.query(
         `
-        SELECT r.*, f.floor_number, b.code AS building_code
-        FROM Rooms r
-        JOIN Floors f ON r.floor_id = f.id
-        JOIN Buildings b ON f.building_id = b.id
-        WHERE r.status = 'trong'
-          AND r.capacity >= ?
-          ${type ? "AND r.type = ?" : ""}
-        ORDER BY r.capacity ASC
-        LIMIT 5
+          SELECT
+            r.id,
+            r.code,
+            r.name,
+            r.capacity,
+            r.type,
+            f.floor_number,
+            b.code AS building_code
+          FROM Rooms r
+          JOIN Floors f ON r.floor_id = f.id
+          JOIN Buildings b ON f.building_id = b.id
+          WHERE r.status = 'trong'
+            AND r.capacity >= ?
+            ${typeCondition}
+          ORDER BY r.capacity ASC, b.code ASC, f.floor_number ASC
+          LIMIT 5
         `,
-        type ? [roomCapacity, type] : [roomCapacity],
+        queryParams,
       );
 
-      const roomList = availableRooms
-        .map(
-          (room) =>
-            `- ${room.code} (${room.building_code}, tầng ${room.floor_number}, ${room.capacity} chỗ)`,
-        )
-        .join("\n");
+      const responseText = availableRooms.length
+        ? `Tìm thấy ${availableRooms.length} phòng đang có trạng thái trống và đủ sức chứa từ ${roomCapacity} người trở lên:\n` +
+          availableRooms
+            .map(
+              (room) =>
+                `- ${room.code}: ${room.capacity} chỗ, tòa ${room.building_code}, tầng ${room.floor_number}`,
+            )
+            .join("\n")
+        : `Không tìm thấy phòng đang có trạng thái trống và đủ sức chứa từ ${roomCapacity} người trở lên.`;
 
-      const prompt = `
-Tìm phòng học phù hợp:
-- Sức chứa cần: ${roomCapacity} người
-- Loại phòng: ${type || "Bất kỳ"}
-- Thời gian: ${time || "Không xác định"}
-- Ngày: ${date || "Không xác định"}
-
-Danh sách phòng trống phù hợp:
-${roomList || "Không tìm thấy phòng trống phù hợp."}
-
-Hãy đề xuất phòng phù hợp nhất và nêu lý do. Không đề xuất phòng không có trong danh sách.
-`;
-
-      const response = await generateContent(prompt);
-
-      return res.json({ response, rooms: availableRooms });
+      return res.json({
+        response: responseText,
+        rooms: availableRooms,
+      });
     } catch (error) {
       console.error("Gemini room search error:", error);
       return res.status(500).json({

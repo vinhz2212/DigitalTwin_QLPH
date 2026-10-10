@@ -2,9 +2,16 @@
 -- DIGITAL TWIN SMART CAMPUS - DATABASE SCHEMA & SEED DATA
 -- Database Name: smart_campus
 -- MySQL Version: 8.0+
+--
+-- CẢNH BÁO: Đây là file khởi tạo/reset database.
+-- Các lệnh DROP TABLE bên dưới sẽ xóa các bảng và dữ liệu hiện có.
+-- Không chạy trên database đang sử dụng nếu chưa chủ động sao lưu.
 -- ============================================================
 
-CREATE DATABASE IF NOT EXISTS `smart_campus` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS `smart_campus`
+  DEFAULT CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
 USE `smart_campus`;
 
 -- Disable FK checks for clean reset
@@ -60,11 +67,14 @@ CREATE TABLE `Users` (
   `is_active` BOOLEAN DEFAULT TRUE,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (`role_id`) REFERENCES `Roles`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+  FOREIGN KEY (`role_id`) REFERENCES `Roles`(`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Hash below corresponds to password "admin123"
-INSERT INTO `Users` (`id`, `role_id`, `username`, `email`, `password_hash`, `full_name`, `phone`) VALUES
+INSERT INTO `Users`
+  (`id`, `role_id`, `username`, `email`, `password_hash`, `full_name`, `phone`)
+VALUES
 (1, 1, 'admin', 'admin@smartcampus.edu.vn', '$2b$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeg6Lruj3vjPGga31lW', 'Nguyễn Văn Admin', '0901234567'),
 (2, 2, 'giangvien', 'giangvien@smartcampus.edu.vn', '$2b$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeg6Lruj3vjPGga31lW', 'Trần Thị Giảng Viên', '0912345678'),
 (3, 3, 'kythuat', 'kythuat@smartcampus.edu.vn', '$2b$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeg6Lruj3vjPGga31lW', 'Lê Văn Kỹ Thuật', '0923456789');
@@ -94,7 +104,8 @@ CREATE TABLE `Floors` (
   `floor_number` INT NOT NULL,
   `name` VARCHAR(50) NOT NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`building_id`) REFERENCES `Buildings`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (`building_id`) REFERENCES `Buildings`(`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
   UNIQUE KEY `uk_building_floor` (`building_id`, `floor_number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -119,16 +130,21 @@ CREATE TABLE `Rooms` (
   `code` VARCHAR(20) NOT NULL UNIQUE,
   `name` VARCHAR(100) NOT NULL,
   `capacity` INT NOT NULL DEFAULT 40,
-  `type` ENUM('ly_thuyet', 'thuc_hanh', 'hoi_truong') NOT NULL DEFAULT 'ly_thuyet',
-  `status` ENUM('trong', 'dang_hoc', 'bao_tri', 'su_co') NOT NULL DEFAULT 'trong',
+  `type` ENUM('ly_thuyet', 'thuc_hanh', 'hoi_truong')
+    NOT NULL DEFAULT 'ly_thuyet',
+  `status` ENUM('trong', 'dang_hoc', 'bao_tri', 'su_co')
+    NOT NULL DEFAULT 'trong',
   `description` TEXT DEFAULT NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (`floor_id`) REFERENCES `Floors`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
+  FOREIGN KEY (`floor_id`) REFERENCES `Floors`(`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Insert 40 Rooms
-INSERT INTO `Rooms` (`id`, `floor_id`, `code`, `name`, `capacity`, `type`, `status`, `description`) VALUES
+INSERT INTO `Rooms`
+  (`id`, `floor_id`, `code`, `name`, `capacity`, `type`, `status`, `description`)
+VALUES
 -- Building A - Floor 1
 (1, 1, 'A101', 'Phòng học A101', 45, 'ly_thuyet', 'trong', 'Phòng học lý thuyết tầng 1'),
 (2, 1, 'A102', 'Phòng học A102', 45, 'ly_thuyet', 'dang_hoc', 'Phòng học lý thuyết tầng 1'),
@@ -207,37 +223,46 @@ CREATE TABLE `Devices` (
   `room_id` INT NOT NULL,
   `device_type_id` INT NOT NULL,
   `name` VARCHAR(100) NOT NULL,
-  `status` ENUM('hoat_dong', 'tat', 'hong', 'dang_sua') NOT NULL DEFAULT 'tat',
+  `status` ENUM('hoat_dong', 'tat', 'hong', 'dang_sua')
+    NOT NULL DEFAULT 'tat',
   `installed_at` DATE DEFAULT NULL,
   `last_maintenance` DATE DEFAULT NULL,
   `notes` TEXT DEFAULT NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (`room_id`) REFERENCES `Rooms`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (`device_type_id`) REFERENCES `DeviceTypes`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+  FOREIGN KEY (`room_id`) REFERENCES `Rooms`(`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (`device_type_id`) REFERENCES `DeviceTypes`(`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Procedure to generate 6 devices for each of the 40 rooms
 DELIMITER //
+
 CREATE PROCEDURE generate_devices()
 BEGIN
   DECLARE r_id INT DEFAULT 1;
   DECLARE r_code VARCHAR(20);
-  
+
   WHILE r_id <= 40 DO
-    SELECT code INTO r_code FROM Rooms WHERE id = r_id;
-    
-    INSERT INTO Devices (room_id, device_type_id, name, status, installed_at, last_maintenance) VALUES
-    (r_id, 1, CONCAT('Đèn chiếu sáng ', r_code), 'hoat_dong', '2023-01-15', '2024-01-10'),
-    (r_id, 2, CONCAT('Điều hòa ', r_code), IF(r_id IN (15, 36), 'hong', 'hoat_dong'), '2023-01-15', '2024-02-01'),
-    (r_id, 3, CONCAT('Máy chiếu ', r_code), IF(r_id = 30, 'hong', 'hoat_dong'), '2023-01-15', '2024-01-15'),
-    (r_id, 4, CONCAT('Quạt thông gió ', r_code), 'hoat_dong', '2023-01-15', '2024-01-05'),
-    (r_id, 5, CONCAT('Hệ thống Loa ', r_code), 'hoat_dong', '2023-01-15', '2024-03-01'),
-    (r_id, 6, CONCAT('Máy tính giáo viên ', r_code), 'hoat_dong', '2023-01-15', '2024-02-15');
-    
+    SELECT code INTO r_code
+    FROM Rooms
+    WHERE id = r_id;
+
+    INSERT INTO Devices
+      (room_id, device_type_id, name, status, installed_at, last_maintenance)
+    VALUES
+      (r_id, 1, CONCAT('Đèn chiếu sáng ', r_code), 'hoat_dong', '2023-01-15', '2024-01-10'),
+      (r_id, 2, CONCAT('Điều hòa ', r_code), IF(r_id IN (15, 36), 'hong', 'hoat_dong'), '2023-01-15', '2024-02-01'),
+      (r_id, 3, CONCAT('Máy chiếu ', r_code), IF(r_id = 30, 'hong', 'hoat_dong'), '2023-01-15', '2024-01-15'),
+      (r_id, 4, CONCAT('Quạt thông gió ', r_code), 'hoat_dong', '2023-01-15', '2024-01-05'),
+      (r_id, 5, CONCAT('Hệ thống Loa ', r_code), 'hoat_dong', '2023-01-15', '2024-03-01'),
+      (r_id, 6, CONCAT('Máy tính giáo viên ', r_code), 'hoat_dong', '2023-01-15', '2024-02-15');
+
     SET r_id = r_id + 1;
   END WHILE;
 END //
+
 DELIMITER ;
 
 CALL generate_devices();
@@ -251,17 +276,23 @@ CREATE TABLE `Incidents` (
   `room_id` INT NOT NULL,
   `type` VARCHAR(50) NOT NULL,
   `description` TEXT DEFAULT NULL,
-  `severity` ENUM('thap', 'trung', 'cao', 'nghiem_trong') NOT NULL DEFAULT 'trung',
-  `status` ENUM('dang_xay_ra', 'dang_xu_ly', 'da_giai_quyet') NOT NULL DEFAULT 'dang_xay_ra',
+  `severity` ENUM('thap', 'trung', 'cao', 'nghiem_trong')
+    NOT NULL DEFAULT 'trung',
+  `status` ENUM('dang_xay_ra', 'dang_xu_ly', 'da_giai_quyet')
+    NOT NULL DEFAULT 'dang_xay_ra',
   `triggered_by` INT DEFAULT NULL,
   `simulated` BOOLEAN DEFAULT FALSE,
   `occurred_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `resolved_at` DATETIME DEFAULT NULL,
-  FOREIGN KEY (`room_id`) REFERENCES `Rooms`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (`triggered_by`) REFERENCES `Users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE
+  FOREIGN KEY (`room_id`) REFERENCES `Rooms`(`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (`triggered_by`) REFERENCES `Users`(`id`)
+    ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO `Incidents` (`id`, `room_id`, `type`, `description`, `severity`, `status`, `triggered_by`, `simulated`, `occurred_at`) VALUES
+INSERT INTO `Incidents`
+  (`id`, `room_id`, `type`, `description`, `severity`, `status`, `triggered_by`, `simulated`, `occurred_at`)
+VALUES
 (1, 15, 'dieu_hoa_hong', 'Nhiệt độ phòng tăng cao do điều hòa ngừng chạy', 'cao', 'dang_xay_ra', 1, TRUE, NOW() - INTERVAL 2 HOUR),
 (2, 30, 'may_chieu_hong', 'Máy chiếu bị chập nguồn không lên hình', 'trung', 'dang_xay_ra', 1, TRUE, NOW() - INTERVAL 1 HOUR),
 (3, 8, 'mat_dien', 'Mất điện cục bộ phòng A204', 'trung', 'dang_xu_ly', 1, FALSE, NOW() - INTERVAL 5 HOUR);
@@ -276,39 +307,48 @@ CREATE TABLE `Maintenance` (
   `resolved_by` INT DEFAULT NULL,
   `description` TEXT DEFAULT NULL,
   `image_url` VARCHAR(255) DEFAULT NULL,
-  `status` ENUM('cho_xu_ly', 'dang_sua', 'da_xong') NOT NULL DEFAULT 'cho_xu_ly',
+  `status` ENUM('cho_xu_ly', 'dang_sua', 'da_xong')
+    NOT NULL DEFAULT 'cho_xu_ly',
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `resolved_at` DATETIME DEFAULT NULL,
-  FOREIGN KEY (`device_id`) REFERENCES `Devices`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (`reported_by`) REFERENCES `Users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-  FOREIGN KEY (`resolved_by`) REFERENCES `Users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE
+  FOREIGN KEY (`device_id`) REFERENCES `Devices`(`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (`reported_by`) REFERENCES `Users`(`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  FOREIGN KEY (`resolved_by`) REFERENCES `Users`(`id`)
+    ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO `Maintenance` (`id`, `device_id`, `reported_by`, `status`, `description`, `created_at`) VALUES
+INSERT INTO `Maintenance`
+  (`id`, `device_id`, `reported_by`, `status`, `description`, `created_at`)
+VALUES
 (1, 86, 2, 'dang_sua', 'Sửa chữa bóng đèn máy chiếu phòng B302', NOW() - INTERVAL 1 DAY),
 (2, 44, 2, 'cho_xu_ly', 'Bảo trì dàn lạnh điều hòa phòng A204', NOW() - INTERVAL 3 HOUR);
 
 -- ------------------------------------------------------------
 -- 10. Table: Schedules
+-- Lịch được gắn với ngày cụ thể và phân loại lý thuyết/thực hành/thi.
+-- Không tạo lịch mẫu vì chưa có ngày học thực tế.
 -- ------------------------------------------------------------
 CREATE TABLE `Schedules` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `id` INT NOT NULL AUTO_INCREMENT,
   `room_id` INT NOT NULL,
-  `subject` VARCHAR(100) NOT NULL,
-  `instructor` VARCHAR(100) NOT NULL,
-  `day_of_week` TINYINT NOT NULL COMMENT '2: T2, 3: T3, ..., 7: T7, 8: CN',
+  `subject` VARCHAR(150) NOT NULL,
+  `session_type` ENUM('theory', 'practical', 'exam')
+    NOT NULL DEFAULT 'theory',
+  `instructor` VARCHAR(100) DEFAULT NULL,
+  `class_date` DATE NOT NULL,
   `start_time` TIME NOT NULL,
   `end_time` TIME NOT NULL,
-  `semester` VARCHAR(20) DEFAULT 'HK1-2024',
+  `semester` VARCHAR(20) DEFAULT NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`room_id`) REFERENCES `Rooms`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
+  PRIMARY KEY (`id`),
+  KEY `idx_schedules_room_date` (`room_id`, `class_date`),
+  CONSTRAINT `fk_schedules_room`
+    FOREIGN KEY (`room_id`) REFERENCES `Rooms` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-INSERT INTO `Schedules` (`room_id`, `subject`, `instructor`, `day_of_week`, `start_time`, `end_time`, `semester`) VALUES
-(2, 'Lập trình Web nâng cao', 'ThS. Nguyễn Văn A', 2, '07:00:00', '09:15:00', 'HK1-2024'),
-(5, 'Cấu trúc dữ liệu & Giải thuật', 'TS. Trần Thị B', 2, '09:30:00', '11:45:00', 'HK1-2024'),
-(10, 'Hệ quản trị CSDL', 'ThS. Lê Văn C', 3, '13:00:00', '15:15:00', 'HK1-2024'),
-(22, 'Thực hành Mạng máy tính', 'KS. Hoàng Văn D', 4, '07:00:00', '11:00:00', 'HK1-2024');
 
 -- ------------------------------------------------------------
 -- 11. Table: Bookings
@@ -322,14 +362,19 @@ CREATE TABLE `Bookings` (
   `end_time` TIME NOT NULL,
   `purpose` VARCHAR(255) DEFAULT NULL,
   `note` TEXT DEFAULT NULL,
-  `status` ENUM('cho_duyet', 'da_duyet', 'tu_choi', 'da_huy') NOT NULL DEFAULT 'cho_duyet',
+  `status` ENUM('cho_duyet', 'da_duyet', 'tu_choi', 'da_huy')
+    NOT NULL DEFAULT 'cho_duyet',
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (`user_id`) REFERENCES `Users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (`room_id`) REFERENCES `Rooms`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
+  FOREIGN KEY (`user_id`) REFERENCES `Users`(`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (`room_id`) REFERENCES `Rooms`(`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO `Bookings` (`user_id`, `room_id`, `date`, `start_time`, `end_time`, `purpose`, `status`) VALUES
+INSERT INTO `Bookings`
+  (`user_id`, `room_id`, `date`, `start_time`, `end_time`, `purpose`, `status`)
+VALUES
 (2, 1, CURDATE() + INTERVAL 1 DAY, '08:00:00', '10:00:00', 'Họp nhóm nghiên cứu AI', 'cho_duyet'),
 (2, 3, CURDATE() + INTERVAL 2 DAY, '14:00:00', '16:00:00', 'Hội thảo chuyên đề CNTT', 'da_duyet');
 
@@ -340,14 +385,19 @@ CREATE TABLE `Notifications` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT NOT NULL,
   `content` TEXT NOT NULL,
-  `type` ENUM('su_co', 'bao_tri', 'dat_phong', 'he_thong') NOT NULL DEFAULT 'he_thong',
-  `severity` ENUM('info', 'warning', 'error', 'critical') NOT NULL DEFAULT 'info',
+  `type` ENUM('su_co', 'bao_tri', 'dat_phong', 'he_thong')
+    NOT NULL DEFAULT 'he_thong',
+  `severity` ENUM('info', 'warning', 'error', 'critical')
+    NOT NULL DEFAULT 'info',
   `is_read` BOOLEAN DEFAULT FALSE,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`user_id`) REFERENCES `Users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
+  FOREIGN KEY (`user_id`) REFERENCES `Users`(`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO `Notifications` (`user_id`, `content`, `type`, `severity`, `is_read`, `created_at`) VALUES
+INSERT INTO `Notifications`
+  (`user_id`, `content`, `type`, `severity`, `is_read`, `created_at`)
+VALUES
 (1, 'Thiết bị máy chiếu tại phòng B302 bị lỗi kết nối', 'su_co', 'error', FALSE, NOW() - INTERVAL 30 MINUTE),
 (1, 'Nhiệt độ cao bất thường tại phòng A403 — 32°C', 'su_co', 'warning', FALSE, NOW() - INTERVAL 1 HOUR),
 (2, 'Yêu cầu đặt phòng A103 ngày mai đã được tạo thành công', 'dat_phong', 'info', FALSE, NOW() - INTERVAL 2 HOUR);
@@ -364,7 +414,8 @@ CREATE TABLE `ActivityLogs` (
   `details` JSON DEFAULT NULL,
   `ip_address` VARCHAR(45) DEFAULT NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`user_id`) REFERENCES `Users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE
+  FOREIGN KEY (`user_id`) REFERENCES `Users`(`id`)
+    ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
@@ -375,9 +426,11 @@ CREATE TABLE `AIAnalysis` (
   `user_id` INT NOT NULL,
   `prompt` TEXT NOT NULL,
   `response` LONGTEXT NOT NULL,
-  `type` ENUM('chatbot', 'phan_tich_su_co', 'de_xuat_bao_tri') NOT NULL DEFAULT 'chatbot',
+  `type` ENUM('chatbot', 'phan_tich_su_co', 'de_xuat_bao_tri')
+    NOT NULL DEFAULT 'chatbot',
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`user_id`) REFERENCES `Users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
+  FOREIGN KEY (`user_id`) REFERENCES `Users`(`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
@@ -393,7 +446,8 @@ CREATE TABLE `SensorReadings` (
   `light` INT DEFAULT 500 COMMENT 'lux',
   `smoke` INT DEFAULT 10 COMMENT 'ppm',
   `recorded_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`room_id`) REFERENCES `Rooms`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (`room_id`) REFERENCES `Rooms`(`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
   INDEX `idx_room_recorded` (`room_id`, `recorded_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -407,7 +461,9 @@ CREATE TABLE `EnergyLogs` (
   `kwh` DECIMAL(8,2) NOT NULL,
   `cost` DECIMAL(10,2) NOT NULL,
   `recorded_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`building_id`) REFERENCES `Buildings`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (`room_id`) REFERENCES `Rooms`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (`building_id`) REFERENCES `Buildings`(`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (`room_id`) REFERENCES `Rooms`(`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
   INDEX `idx_recorded_at` (`recorded_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

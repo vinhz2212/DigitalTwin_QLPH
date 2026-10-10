@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../../services/api";
+import { useAuth } from "../../context/AuthContext";
 import {
   CalendarDays,
   Check,
@@ -84,6 +85,10 @@ function formatTime(value) {
 }
 
 export default function Bookings() {
+  const { user } = useAuth();
+  const canViewGlobalStats = ["admin", "ky_thuat_vien"].includes(user?.role);
+  const isAdmin = user?.role === "admin";
+
   const [bookings, setBookings] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [stats, setStats] = useState({});
@@ -105,7 +110,9 @@ export default function Bookings() {
       const [bookingsRes, roomsRes, statsRes] = await Promise.all([
         api.get("/bookings"),
         api.get("/rooms"),
-        api.get("/bookings/stats"),
+        canViewGlobalStats
+          ? api.get("/bookings/stats")
+          : Promise.resolve({ data: null }),
       ]);
 
       setBookings(Array.isArray(bookingsRes.data) ? bookingsRes.data : []);
@@ -120,7 +127,7 @@ export default function Bookings() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canViewGlobalStats]);
 
   useEffect(() => {
     fetchAll();
@@ -215,10 +222,20 @@ export default function Bookings() {
     }
   };
 
+  const visibleStats = useMemo(
+    () => ({
+      total: bookings.length,
+      pending: bookings.filter((item) => item.status === "cho_duyet").length,
+      approved: bookings.filter((item) => item.status === "da_duyet").length,
+      rejected: bookings.filter((item) => item.status === "tu_choi").length,
+    }),
+    [bookings],
+  );
+
   const statsCards = [
     {
       label: "Tổng yêu cầu",
-      value: stats.total ?? bookings.length,
+      value: stats.total ?? visibleStats.total,
       icon: CalendarDays,
       color: "#2563eb",
       background: "#eff6ff",
@@ -226,7 +243,7 @@ export default function Bookings() {
     },
     {
       label: "Chờ duyệt",
-      value: stats.pending ?? 0,
+      value: stats.pending ?? visibleStats.pending,
       icon: Clock3,
       color: "#d97706",
       background: "#fffbeb",
@@ -234,7 +251,7 @@ export default function Bookings() {
     },
     {
       label: "Đã duyệt",
-      value: stats.approved ?? 0,
+      value: stats.approved ?? visibleStats.approved,
       icon: CheckCircle2,
       color: "#16a34a",
       background: "#f0fdf4",
@@ -242,7 +259,7 @@ export default function Bookings() {
     },
     {
       label: "Từ chối",
-      value: stats.rejected ?? 0,
+      value: stats.rejected ?? visibleStats.rejected,
       icon: XCircle,
       color: "#dc2626",
       background: "#fef2f2",
@@ -517,7 +534,9 @@ export default function Bookings() {
 
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-1">
-                          {isBusy ? (
+                          {!isAdmin ? (
+                            <span className="text-xs text-slate-400">—</span>
+                          ) : isBusy ? (
                             <LoaderCircle
                               size={18}
                               className="animate-spin text-blue-600"
