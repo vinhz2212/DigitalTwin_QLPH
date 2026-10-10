@@ -154,10 +154,10 @@ function RoomBox({ position, room, onClick, isSelected }) {
         }}
       >
         <meshPhysicalMaterial
-          color="#f9fcfe"
-          roughness={0.4}
-          metalness={0.04}
-          clearcoat={0.35}
+          color="#eef4f5"
+          roughness={0.56}
+          metalness={0.02}
+          clearcoat={0.18}
         />
         {isSelected && <Edges color="#1768e8" threshold={15} />}
       </RoundedBox>
@@ -170,27 +170,27 @@ function RoomBox({ position, room, onClick, isSelected }) {
       >
         <meshPhysicalMaterial
           color={surfaceColor}
-          roughness={0.22}
-          metalness={0.08}
-          clearcoat={0.8}
+          roughness={0.3}
+          metalness={0.12}
+          clearcoat={0.45}
         />
       </RoundedBox>
 
       <mesh position={[0, 0.075, 0.15]}>
         <boxGeometry args={[0.88, 0.018, 0.012]} />
         <meshStandardMaterial
-          color="#9bbac8"
-          metalness={0.25}
-          roughness={0.4}
+          color="#315d70"
+          metalness={0.28}
+          roughness={0.34}
         />
       </mesh>
 
       <mesh position={[0, 0.075, 0.15]}>
         <boxGeometry args={[0.018, 0.3, 0.012]} />
         <meshStandardMaterial
-          color="#9bbac8"
-          metalness={0.25}
-          roughness={0.4}
+          color="#315d70"
+          metalness={0.28}
+          roughness={0.34}
         />
       </mesh>
 
@@ -285,6 +285,18 @@ function FloorGroup({
         />
       </mesh>
 
+      <mesh position={[2.5, 0.76, 3.16]} castShadow>
+        <boxGeometry args={[5.04, 0.075, 0.12]} />
+        <meshStandardMaterial color="#376c80" metalness={0.2} roughness={0.38} />
+      </mesh>
+
+      {[1.135, 2.285, 3.435].map((x) => (
+        <mesh key={`mullion-${floorNumber}-${x}`} position={[x, 0.38, 3.14]}>
+          <boxGeometry args={[0.045, 0.61, 0.085]} />
+          <meshStandardMaterial color="#7798a4" metalness={0.2} roughness={0.4} />
+        </mesh>
+      ))}
+
       {floorRooms.map((room, index) => (
         <RoomBox
           key={room.id}
@@ -329,31 +341,90 @@ function Building3D({
   selectedRoom,
   activeFloor,
 }) {
+  const isInnerSide = (side) =>
+    (code === "A" && side === 1) || (code === "B" && side === -1);
+
   return (
     <group>
       <mesh position={[offset + 2.5, 2.1, 0.12]} receiveShadow>
         <boxGeometry args={[4.95, 4.25, 0.16]} />
         <meshStandardMaterial
-          color="#d8e8ef"
-          transparent
-          opacity={0.42}
-          depthWrite={false}
-          roughness={0.38}
+          color="#dce6e8"
+          roughness={0.76}
+          metalness={0.02}
         />
       </mesh>
 
-      <mesh position={[offset + 4.98, 2.1, 1.62]} receiveShadow>
-        <boxGeometry args={[0.16, 4.25, 3.12]} />
-        <meshPhysicalMaterial
-          color="#a7cddd"
-          transparent
-          opacity={0.38}
-          depthWrite={false}
-          roughness={0.28}
-          metalness={0.08}
-          clearcoat={0.5}
-        />
-      </mesh>
+      {[-1, 1].flatMap((side) => {
+        const x = side < 0 ? offset + 0.02 : offset + 4.98;
+        const innerSide = isInnerSide(side);
+
+        if (!innerSide) {
+          return [
+            <mesh key={`side-wall-${code}-${side}`} position={[x, 2.1, 1.62]} receiveShadow>
+              <boxGeometry args={[0.16, 4.25, 3.12]} />
+              <meshStandardMaterial color="#d4e1e4" roughness={0.7} />
+            </mesh>,
+          ];
+        }
+
+        const wallMaterial = <meshStandardMaterial color="#d4e1e4" roughness={0.7} />;
+        return [
+          <mesh key={`inner-wall-low-${code}`} position={[x, 0.0275, 1.62]} receiveShadow>
+            <boxGeometry args={[0.16, 0.105, 3.12]} />
+            {wallMaterial}
+          </mesh>,
+          <mesh key={`inner-wall-left-${code}`} position={[x, 0.405, 0.63]} receiveShadow>
+            <boxGeometry args={[0.16, 0.86, 1.14]} />
+            {wallMaterial}
+          </mesh>,
+          <mesh key={`inner-wall-right-${code}`} position={[x, 0.405, 2.55]} receiveShadow>
+            <boxGeometry args={[0.16, 0.86, 1.26]} />
+            {wallMaterial}
+          </mesh>,
+          <mesh key={`inner-wall-high-${code}`} position={[x, 0.7675, 1.56]} receiveShadow>
+            <boxGeometry args={[0.16, 0.135, 0.72]} />
+            {wallMaterial}
+          </mesh>,
+          <mesh key={`inner-wall-upper-${code}`} position={[x, 2.53, 1.62]} receiveShadow>
+            <boxGeometry args={[0.16, 3.39, 3.12]} />
+            {wallMaterial}
+          </mesh>,
+        ];
+      })}
+
+      {[-1, 1].flatMap((side) =>
+        [1, 2, 3, 4, 5].flatMap((floorNumber) => {
+          const innerOpeningSide = isInnerSide(side) && floorNumber === 1;
+          const windowZs = innerOpeningSide
+            ? [0.4, 0.89, 2.27, 2.84]
+            : [0.48, 1.2, 1.92, 2.64];
+          const frameWidth = innerOpeningSide ? 0.42 : 0.57;
+          const paneWidth = innerOpeningSide ? 0.32 : 0.47;
+          const sideX = side < 0 ? offset - 0.075 : offset + 5.075;
+          const glassX = side < 0 ? offset - 0.103 : offset + 5.103;
+          const y = (floorNumber - 1) * FLOOR_HEIGHT + 0.4;
+
+          return windowZs.map((z, index) => (
+            <group key={`side-window-${code}-${side}-${floorNumber}-${index}`}>
+              <mesh position={[sideX, y, z]} castShadow>
+                <boxGeometry args={[0.045, 0.53, frameWidth]} />
+                <meshStandardMaterial color="#315d70" metalness={0.24} roughness={0.4} />
+              </mesh>
+              <mesh position={[glassX, y, z]}>
+                <boxGeometry args={[0.018, 0.43, paneWidth]} />
+                <meshPhysicalMaterial
+                  color="#75b5c7"
+                  roughness={0.2}
+                  metalness={0.28}
+                  clearcoat={0.85}
+                  clearcoatRoughness={0.16}
+                />
+              </mesh>
+            </group>
+          ));
+        }),
+      )}
 
       {[0.03, 4.97].map((x) => (
         <RoundedBox
@@ -365,16 +436,16 @@ function Building3D({
           castShadow
         >
           <meshStandardMaterial
-            color="#f7fafb"
-            metalness={0.1}
-            roughness={0.42}
+          color="#f4f6f3"
+          metalness={0.04}
+          roughness={0.52}
           />
         </RoundedBox>
       ))}
 
       <mesh position={[offset + 2.5, -0.16, 1.55]} castShadow receiveShadow>
         <boxGeometry args={[5.32, 0.24, 3.52]} />
-        <meshStandardMaterial color="#a9bbc3" roughness={0.7} />
+        <meshStandardMaterial color="#849da5" roughness={0.68} />
       </mesh>
 
       <RoundedBox
@@ -385,17 +456,17 @@ function Building3D({
         castShadow
       >
         <meshStandardMaterial
-          color="#f3f8fa"
-          metalness={0.08}
-          roughness={0.38}
+          color="#e8eff0"
+          metalness={0.04}
+          roughness={0.5}
         />
       </RoundedBox>
 
       <mesh position={[offset + 2.5, 4.4, 1.55]}>
         <boxGeometry args={[5.32, 0.055, 3.55]} />
         <meshStandardMaterial
-          color="#4b9dcc"
-          metalness={0.22}
+          color="#17637d"
+          metalness={0.28}
           roughness={0.34}
         />
       </mesh>
@@ -439,6 +510,54 @@ function Building3D({
   );
 }
 
+function Skybridge() {
+  const mullionPositions = [-1.18, -0.72, -0.26, 0.2, 0.66, 1.12];
+
+  return (
+    <group>
+      <mesh position={[0, -0.205, 1.56]} castShadow receiveShadow>
+        <boxGeometry args={[3.25, 0.17, 0.78]} />
+        <meshStandardMaterial color="#849da5" roughness={0.68} />
+      </mesh>
+      <mesh position={[0, -0.045, 1.56]} castShadow receiveShadow>
+        <boxGeometry args={[3.25, 0.15, 0.78]} />
+        <meshStandardMaterial color="#e8eff0" roughness={0.62} />
+      </mesh>
+      <mesh position={[0, 0.09, 1.56]} castShadow receiveShadow>
+        <boxGeometry args={[3.25, 0.12, 0.78]} />
+        <meshStandardMaterial color="#647f87" roughness={0.58} />
+      </mesh>
+      <mesh position={[0, 0.79, 1.56]} castShadow>
+        <boxGeometry args={[3.25, 0.1, 0.84]} />
+        <meshStandardMaterial color="#17445d" metalness={0.18} roughness={0.42} />
+      </mesh>
+
+      {[1.19, 1.93].map((z) => (
+        <group key={`bridge-side-${z}`}>
+          <mesh position={[0, 0.445, z]} receiveShadow>
+            <boxGeometry args={[3.16, 0.59, 0.035]} />
+            <meshPhysicalMaterial
+              color="#78b9c8"
+              transparent
+              opacity={0.48}
+              depthWrite={false}
+              metalness={0.12}
+              roughness={0.28}
+              clearcoat={0.65}
+            />
+          </mesh>
+          {mullionPositions.map((x) => (
+            <mesh key={`bridge-post-${z}-${x}`} position={[x, 0.445, z]} castShadow>
+              <boxGeometry args={[0.045, 0.59, 0.055]} />
+              <meshStandardMaterial color="#315d70" metalness={0.2} roughness={0.4} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+    </group>
+  );
+}
+
 function Scene({
   rooms,
   onRoomClick,
@@ -448,13 +567,14 @@ function Scene({
 }) {
   return (
     <>
-      <color attach="background" args={["#dcecf7"]} />
+      <color attach="background" args={["#d7e8f0"]} />
+      <fog attach="fog" args={["#d7e8f0", 24, 48]} />
 
-      <hemisphereLight args={["#f5fbff", "#829b80", 1.2]} />
+      <hemisphereLight args={["#f5fbff", "#718777", 1.35]} />
 
       <directionalLight
         position={[7, 12, 9]}
-        intensity={2}
+        intensity={1.65}
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
@@ -473,7 +593,7 @@ function Scene({
       <Building3D
         code="A"
         rooms={rooms}
-        offset={-5.8}
+        offset={-6.5}
         onRoomClick={onRoomClick}
         selectedRoom={selectedRoom}
         activeFloor={activeBuilding === "A" ? activeFloor : null}
@@ -482,11 +602,13 @@ function Scene({
       <Building3D
         code="B"
         rooms={rooms}
-        offset={0.8}
+        offset={1.5}
         onRoomClick={onRoomClick}
         selectedRoom={selectedRoom}
         activeFloor={activeBuilding === "B" ? activeFloor : null}
       />
+
+      <Skybridge />
 
       <mesh
         position={[0, -0.29, 0]}
@@ -515,12 +637,12 @@ function Scene({
         <meshStandardMaterial color="#e6ece8" roughness={0.9} />
       </mesh>
 
-      <Tree position={[-6.45, -0.27, 3.95]} scale={1.05} />
-      <Tree position={[-5.9, -0.27, -0.75]} scale={0.9} />
+      <Tree position={[-7.2, -0.27, 3.95]} scale={1.05} />
+      <Tree position={[-7.05, -0.27, -0.75]} scale={0.9} />
       <Tree position={[-1.25, -0.27, 4.25]} scale={0.82} />
       <Tree position={[1.25, -0.27, 4.25]} scale={0.82} />
-      <Tree position={[5.9, -0.27, -0.75]} scale={0.9} />
-      <Tree position={[6.45, -0.27, 3.95]} scale={1.05} />
+      <Tree position={[7.05, -0.27, -0.75]} scale={0.9} />
+      <Tree position={[7.2, -0.27, 3.95]} scale={1.05} />
 
       <ContactShadows
         position={[0, -0.275, 1.4]}
@@ -743,7 +865,7 @@ export default function Dashboard() {
                   far: 100,
                 }}
                 shadows
-                dpr={[1, 1.75]}
+        dpr={[1, 2]}
                 gl={{ antialias: true, alpha: false }}
               >
                 <Scene

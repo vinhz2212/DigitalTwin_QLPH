@@ -1,22 +1,14 @@
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, UserRound } from "lucide-react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Text } from "@react-three/drei";
 
 function MiniBuilding({ position, color, floors = 5 }) {
-  const groupRef = useRef();
-
-  useFrame(({ clock }) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y = Math.sin(clock.elapsedTime * 0.28) * 0.08;
-    }
-  });
-
   return (
-    <group ref={groupRef} position={position}>
+    <group position={position}>
       {Array.from({ length: floors }).map((_, index) => (
         <group key={index} position={[0, index * 0.62, 0]}>
           <mesh castShadow receiveShadow>
@@ -45,6 +37,24 @@ function MiniBuilding({ position, color, floors = 5 }) {
         </group>
       ))}
 
+      {/* Cột xanh chạy suốt chiều cao để các tầng thành một khung tòa nhà liền mạch */}
+      {[-1, 1].flatMap((xSide) =>
+        [-1, 1].map((zSide) => (
+          <mesh
+            key={`frame-${xSide}-${zSide}`}
+            position={[xSide * 0.74, floors * 0.31 - 0.27, zSide * 0.7]}
+            castShadow
+          >
+            <boxGeometry args={[0.1, floors * 0.62 + 0.27, 0.1]} />
+            <meshStandardMaterial
+              color="#2563eb"
+              metalness={0.22}
+              roughness={0.4}
+            />
+          </mesh>
+        )),
+      )}
+
       <mesh position={[0, floors * 0.62, 0]}>
         <boxGeometry args={[1.68, 0.12, 1.62]} />
         <meshStandardMaterial
@@ -58,6 +68,50 @@ function MiniBuilding({ position, color, floors = 5 }) {
   );
 }
 
+function LoginBridge() {
+  return (
+    <group>
+      <mesh position={[0, -1.74, 0]} castShadow receiveShadow>
+        <boxGeometry args={[2.25, 0.12, 0.82]} />
+        <meshStandardMaterial color="#1e40af" roughness={0.48} metalness={0.12} />
+      </mesh>
+      {[0.41, -0.41].map((z) => (
+        <group key={z}>
+          {[-0.7875, -0.2625, 0.2625, 0.7875].map((x) => (
+            <mesh key={`glass-${z}-${x}`} position={[x, -1.5, z]}>
+              <boxGeometry args={[0.48, 0.36, 0.035]} />
+              <meshPhysicalMaterial
+                color="#60a5fa"
+                transparent
+                opacity={0.5}
+                depthWrite={false}
+                roughness={0.28}
+                clearcoat={0.65}
+              />
+            </mesh>
+          ))}
+          {[-1.05, -0.525, 0, 0.525, 1.05].map((x) => (
+            <mesh key={`${z}-${x}`} position={[x, -1.5, z]} castShadow>
+              <boxGeometry args={[0.045, 0.38, 0.055]} />
+              <meshStandardMaterial color="#1e3a8a" metalness={0.2} roughness={0.4} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+      <mesh position={[0, -1.29, 0]} castShadow>
+        <boxGeometry args={[2.3, 0.08, 0.9]} />
+        <meshStandardMaterial color="#3b82f6" metalness={0.18} roughness={0.42} />
+      </mesh>
+      {[-1.025, 1.025].map((x) => (
+        <mesh key={`bridge-entry-${x}`} position={[x, -1.55, 0]}>
+          <boxGeometry args={[0.025, 0.34, 0.82]} />
+          <meshStandardMaterial color="#10295b" roughness={0.5} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 function LoginScene() {
   return (
     <>
@@ -66,12 +120,13 @@ function LoginScene() {
       <pointLight position={[-4, 3, 4]} intensity={1.1} color="#38bdf8" />
       <pointLight position={[4, 2, -3]} intensity={0.8} color="#6366f1" />
 
-      <MiniBuilding position={[-2, -1.55, 0]} color="#1e40af" floors={5} />
-      <MiniBuilding position={[2, -1.55, 0]} color="#1e3a8a" floors={5} />
+      <MiniBuilding position={[-1.8, -1.55, 0]} color="#1e40af" floors={5} />
+      <MiniBuilding position={[1.8, -1.55, 0]} color="#1e3a8a" floors={5} />
+      <LoginBridge />
 
       <Suspense fallback={null}>
         <Text
-          position={[-2, 2.05, 0.82]}
+          position={[-1.8, 2.05, 0.82]}
           fontSize={0.25}
           color="#bfdbfe"
           anchorX="center"
@@ -80,7 +135,7 @@ function LoginScene() {
           TOA A
         </Text>
         <Text
-          position={[2, 2.05, 0.82]}
+          position={[1.8, 2.05, 0.82]}
           fontSize={0.25}
           color="#bfdbfe"
           anchorX="center"
@@ -115,7 +170,6 @@ function LoginScene() {
     </>
   );
 }
-
 function getTimeForDisplay(date) {
   return date.toLocaleTimeString("vi-VN", {
     hour: "2-digit",
@@ -188,30 +242,20 @@ export default function Login() {
           className="pointer-events-none absolute -left-20 top-[29%] h-56 w-56 rounded-full border border-blue-300/10"
         />
 
-        <div className="relative z-10 w-full max-w-2xl">
-          <div className="mb-3 flex items-center gap-3">
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-2xl">
-              🎓
-            </span>
+        <div className="relative z-10 w-full max-w-none">
+          <div className="mb-3 flex items-center justify-center gap-3 text-center">
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-3xl">🎓</span>
             <div>
-              <p className="text-xl font-bold tracking-tight">SmartCampus</p>
-              <p className="text-xs text-blue-200/70">
-                Digital Twin Management System
-              </p>
+              <p className="text-2xl font-bold tracking-tight">SmartCampus</p>
+              <p className="text-sm text-blue-200/70">Digital Twin Management System</p>
             </div>
           </div>
 
-          <h1 className="mt-8 max-w-xl text-3xl font-semibold leading-tight xl:text-4xl">
-            Quản lý khuôn viên trường học trong một không gian số.
-          </h1>
-          <p className="mt-3 max-w-lg text-sm leading-6 text-slate-300">
-            Theo dõi phòng học, thiết bị và sự cố qua hệ thống SmartCampus.
-          </p>
-
-          <div className="mt-5 h-[min(46vh,420px)] min-h-[280px] overflow-hidden rounded-3xl border border-white/10 bg-slate-900/55 shadow-2xl shadow-blue-950/40">
+          <div className="mt-6 h-[min(65vh,600px)] min-h-[400px] overflow-hidden rounded-3xl border border-white/10 bg-slate-900/55 shadow-2xl shadow-blue-950/40">
             <Canvas
               camera={{ position: [0, 1.6, 8.5], fov: 43 }}
-              dpr={[1, 1.5]}
+              shadows
+              dpr={[1, 2]}
               gl={{ antialias: true, alpha: true }}
             >
               <LoginScene />
