@@ -171,6 +171,88 @@ Số liệu hiện tại của hệ thống Smart Campus:
 
       const normalizedQuestion = normalizeVietnamese(message);
 
+      // Câu hỏi đếm phòng theo sức chứa phải được xử lý trước câu hỏi đếm phòng
+      // chung để không trả nhầm tổng số phòng toàn trường.
+      const requestedCapacity = normalizedQuestion.match(
+        /(?:chua|suc chua|suc chua duoc|cho ngoi)[^0-9]{0,16}(\d{1,4})\s*(?:nguoi|cho)?/,
+      )?.[1];
+      const asksRoomCapacity =
+        normalizedQuestion.includes("phong") &&
+        Boolean(requestedCapacity) &&
+        /(bao nhieu|co may|tong cong|tong so|so luong|may phong)/.test(
+          normalizedQuestion,
+        );
+
+      if (asksRoomCapacity) {
+        const capacity = Number(requestedCapacity);
+        const buildingCodes = ["a", "b"].filter((code) =>
+          new RegExp(`toa\\s*${code}\\b`).test(normalizedQuestion),
+        );
+        const hasBothBuildings =
+          buildingCodes.length === 2 ||
+          /(toa a va b|toa b va a|ca hai toa|hai toa)/.test(
+            normalizedQuestion,
+          );
+        const filterBuildings = hasBothBuildings ? [] : buildingCodes;
+        const onlyAvailable = /(phong trong|con trong|dang trong)/.test(
+          normalizedQuestion,
+        );
+        const conditions = ["r.capacity >= ?"];
+        const params = [capacity];
+
+        if (filterBuildings.length) {
+          conditions.push(
+            `LOWER(b.code) IN (${filterBuildings.map(() => "?").join(", ")})`,
+          );
+          params.push(...filterBuildings);
+        }
+
+        if (onlyAvailable) {
+          conditions.push("r.status = 'trong'");
+        }
+
+        const [matchingRooms] = await db.query(
+          `
+            SELECT r.code, r.capacity, r.status, b.code AS building_code
+            FROM Rooms r
+            JOIN Floors f ON r.floor_id = f.id
+            JOIN Buildings b ON f.building_id = b.id
+            WHERE ${conditions.join(" AND ")}
+            ORDER BY b.code, r.capacity, r.code
+          `,
+          params,
+        );
+
+        const buildingLabel = hasBothBuildings
+          ? "ở cả Tòa A và Tòa B"
+          : filterBuildings.length
+            ? `ở Tòa ${filterBuildings.map((code) => code.toUpperCase()).join(" và Tòa ")}`
+            : "toàn khuôn viên";
+        const roomLabel = onlyAvailable ? "phòng trống" : "phòng";
+        const roomList = matchingRooms.length
+          ? ` Danh sách: ${matchingRooms
+              .map(
+                (room) =>
+                  `${room.code} (Tòa ${room.building_code}, ${room.capacity} chỗ)`,
+              )
+              .join(", ")}.`
+          : "";
+        const responseText =
+          matchingRooms.length
+            ? `Có ${matchingRooms.length} ${roomLabel} ${buildingLabel} có sức chứa từ ${capacity} người trở lên.${roomList}`
+            : `Không có ${roomLabel} ${buildingLabel} nào có sức chứa từ ${capacity} người trở lên theo dữ liệu hiện tại.`;
+
+        await db.query(
+          `
+            INSERT INTO AIAnalysis (user_id, prompt, response, type)
+            VALUES (?, ?, ?, 'chatbot')
+          `,
+          [req.user.id, message, responseText],
+        );
+
+        return res.json({ response: responseText });
+      }
+
       // Các câu hỏi có mã phòng phải tra đúng phòng và lịch hiện tại trong MySQL,
       // không suy luận từ số liệu tổng quan rồi giao cho Gemini đoán.
       const roomCode = message.match(/\b([A-Za-z]\d{3})\b/)?.[1]?.toUpperCase();
