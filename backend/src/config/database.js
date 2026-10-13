@@ -11,6 +11,10 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   charset: "utf8mb4",
   timezone: "+07:00", // Múi giờ Việt Nam
+  ssl:
+    process.env.DB_SSL === "true"
+      ? { minVersion: "TLSv1.2" }
+      : undefined,
 });
 
 const db = pool.promise();

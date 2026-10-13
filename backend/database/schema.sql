@@ -236,37 +236,39 @@ CREATE TABLE `Devices` (
     ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Procedure to generate 6 devices for each of the 40 rooms
-DELIMITER //
-
-CREATE PROCEDURE generate_devices()
-BEGIN
-  DECLARE r_id INT DEFAULT 1;
-  DECLARE r_code VARCHAR(20);
-
-  WHILE r_id <= 40 DO
-    SELECT code INTO r_code
-    FROM Rooms
-    WHERE id = r_id;
-
-    INSERT INTO Devices
-      (room_id, device_type_id, name, status, installed_at, last_maintenance)
-    VALUES
-      (r_id, 1, CONCAT('Đèn chiếu sáng ', r_code), 'hoat_dong', '2023-01-15', '2024-01-10'),
-      (r_id, 2, CONCAT('Điều hòa ', r_code), IF(r_id IN (15, 36), 'hong', 'hoat_dong'), '2023-01-15', '2024-02-01'),
-      (r_id, 3, CONCAT('Máy chiếu ', r_code), IF(r_id = 30, 'hong', 'hoat_dong'), '2023-01-15', '2024-01-15'),
-      (r_id, 4, CONCAT('Quạt thông gió ', r_code), 'hoat_dong', '2023-01-15', '2024-01-05'),
-      (r_id, 5, CONCAT('Hệ thống Loa ', r_code), 'hoat_dong', '2023-01-15', '2024-03-01'),
-      (r_id, 6, CONCAT('Máy tính giáo viên ', r_code), 'hoat_dong', '2023-01-15', '2024-02-15');
-
-    SET r_id = r_id + 1;
-  END WHILE;
-END //
-
-DELIMITER ;
-
-CALL generate_devices();
-DROP PROCEDURE IF EXISTS generate_devices;
+-- Seed 6 devices per room using standard INSERT ... SELECT syntax.
+-- This also works with MySQL-compatible services that do not support procedures.
+INSERT INTO Devices
+  (room_id, device_type_id, name, status, installed_at, last_maintenance)
+SELECT
+  r.id,
+  dt.id,
+  CASE dt.id
+    WHEN 1 THEN CONCAT('Đèn chiếu sáng ', r.code)
+    WHEN 2 THEN CONCAT('Điều hòa ', r.code)
+    WHEN 3 THEN CONCAT('Máy chiếu ', r.code)
+    WHEN 4 THEN CONCAT('Quạt thông gió ', r.code)
+    WHEN 5 THEN CONCAT('Hệ thống Loa ', r.code)
+    WHEN 6 THEN CONCAT('Máy tính giáo viên ', r.code)
+  END,
+  CASE
+    WHEN (dt.id = 2 AND r.id IN (15, 36)) OR (dt.id = 3 AND r.id = 30)
+      THEN 'hong'
+    ELSE 'hoat_dong'
+  END,
+  '2023-01-15',
+  CASE dt.id
+    WHEN 1 THEN '2024-01-10'
+    WHEN 2 THEN '2024-02-01'
+    WHEN 3 THEN '2024-01-15'
+    WHEN 4 THEN '2024-01-05'
+    WHEN 5 THEN '2024-03-01'
+    WHEN 6 THEN '2024-02-15'
+  END
+FROM Rooms r
+CROSS JOIN DeviceTypes dt
+WHERE r.id BETWEEN 1 AND 40
+  AND dt.id BETWEEN 1 AND 6;
 
 -- ------------------------------------------------------------
 -- 8. Table: Incidents
