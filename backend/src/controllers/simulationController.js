@@ -1,5 +1,8 @@
 const db = require("../config/database");
 const { notifyIncident } = require("../utils/incidentNotifications");
+const {
+  syncRoomOperationalStatus,
+} = require("../services/roomOperationalStatusService");
 
 const INCIDENT_DEVICE_MAP = {
   chay: null, // Tất cả thiết bị tắt
@@ -33,11 +36,7 @@ const simulationController = {
 
       const incidentId = result.insertId;
 
-      // Cập nhật trạng thái phòng
-      await db.query("UPDATE Rooms SET status = ? WHERE id = ?", [
-        "su_co",
-        room_id,
-      ]);
+      await syncRoomOperationalStatus(room_id);
 
       // Xử lý thiết bị theo loại sự cố
       if (type === "chay" || type === "mat_dien") {
@@ -66,22 +65,17 @@ const simulationController = {
 
       // Lưu thông báo cho quản trị viên và kỹ thuật viên, kèm mã phòng.
       const io = req.app.get("io");
-      await notifyIncident({
-        io,
-        roomId: room_id,
-        type,
-        severity: severity || "trung",
-        description: description || `Mô phỏng sự cố: ${type}`,
-      });
-
-      // Ghi log
-      await db.query(
-        `
-        INSERT INTO ActivityLogs (user_id, action, entity_type, entity_id, details)
-        VALUES (?, 'SIMULATE_INCIDENT', 'Incident', ?, ?)
-      `,
-        [req.user.id, incidentId, JSON.stringify({ room_id, type, severity })],
-      );
+      try {
+        await notifyIncident({
+          io,
+          roomId: room_id,
+          type,
+          severity: severity || "trung",
+          description: description || `Mô phỏng sự cố: ${type}`,
+        });
+      } catch (notificationError) {
+        console.error("Không thể tạo cảnh báo mô phỏng:", notificationError);
+      }
 
       // Gửi socket realtime
       if (io) {
@@ -116,11 +110,7 @@ const simulationController = {
         [incident_id],
       );
 
-      // Phòng về trạng thái trống
-      await db.query("UPDATE Rooms SET status = ? WHERE id = ?", [
-        "trong",
-        room_id,
-      ]);
+      await syncRoomOperationalStatus(room_id);
 
       // Thiết bị về trạng thái bình thường
       await db.query(
@@ -136,6 +126,10 @@ const simulationController = {
       if (io) {
         io.emit("incident_resolved", {
           incidentId: incident_id,
+          roomId: room_id,
+        });
+        io.emit("rooms_changed", {
+          action: "incident_resolved",
           roomId: room_id,
         });
       }

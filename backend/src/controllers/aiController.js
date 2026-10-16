@@ -1,5 +1,6 @@
 const { generateContent } = require("../config/gemini");
 const db = require("../config/database");
+const RoomModel = require("../models/roomModel");
 
 const MAX_HISTORY_MESSAGES = 12;
 const MAX_MESSAGE_LENGTH = 4000;
@@ -29,10 +30,10 @@ function cleanChatHistory(history) {
 
 function normalizeVietnamese(value) {
   return String(value || "")
+    .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d")
-    .toLowerCase();
+    .replace(/đ/g, "d");
 }
 
 function getVietnamCurrentDateTime() {
@@ -54,8 +55,86 @@ function getVietnamCurrentDateTime() {
   };
 }
 
+function shiftISODate(dateString, days) {
+  const date = new Date(`${dateString}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function getRequestedDate(question) {
+  const explicitISODate = question.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
+  const explicitLocalDate = question.match(/\b(\d{1,2})[/-](\d{1,2})[/-](20\d{2})\b/);
+  let year;
+  let month;
+  let day;
+
+  if (explicitISODate) {
+    [, year, month, day] = explicitISODate;
+  } else if (explicitLocalDate) {
+    [, day, month, year] = explicitLocalDate;
+  } else {
+    const today = getVietnamCurrentDateTime().date;
+    if (/(hom nay|ngay nay|hien tai|dang dien ra)/.test(question)) return today;
+    if (/(ngay mai|hom sau|mai)/.test(question)) return shiftISODate(today, 1);
+    return null;
+  }
+
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  if (
+    date.getUTCFullYear() !== Number(year) ||
+    date.getUTCMonth() !== Number(month) - 1 ||
+    date.getUTCDate() !== Number(day)
+  ) {
+    return null;
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
 function formatTime(value) {
   return String(value || "").slice(0, 5);
+}
+
+function getBuildingScope(question) {
+  const mentionsA = /toa(?: nha)?\s*a\b/.test(question);
+  const mentionsB = /toa(?: nha)?\s*b\b/.test(question);
+  const mentionsBoth =
+    (mentionsA && mentionsB) ||
+    /(ca hai toa|hai toa|toa(?: nha)?\s*a va b\b|toa(?: nha)?\s*b va a\b)/.test(
+      question,
+    );
+
+  if (mentionsBoth) {
+    return { codes: [], label: "ở cả Tòa A và Tòa B" };
+  }
+  if (mentionsA) return { codes: ["A"], label: "ở Tòa A" };
+  if (mentionsB) return { codes: ["B"], label: "ở Tòa B" };
+  return { codes: [], label: "toàn khuôn viên" };
+}
+
+function getRequestedRoomType(question) {
+  const roomTypes = [
+    {
+      value: "thuc_hanh",
+      label: "thực hành",
+      pattern: /(thuc hanh|phong may|phong lab|phong thi nghiem)/,
+    },
+    { value: "ly_thuyet", label: "lý thuyết", pattern: /ly thuyet/ },
+    { value: "hoi_truong", label: "hội trường", pattern: /hoi truong/ },
+  ];
+
+  return roomTypes.find((roomType) => roomType.pattern.test(question)) || null;
+}
+
+async function saveChatAnswer(userId, prompt, response) {
+  await db.query(
+    `
+      INSERT INTO AIAnalysis (user_id, prompt, response, type)
+      VALUES (?, ?, ?, 'chatbot')
+    `,
+    [userId, prompt, response],
+  );
+  return response;
 }
 
 function sendAIError(res, error, context, fallbackMessage) {
@@ -95,22 +174,14 @@ const aiController = {
       // mysql2 trả kết quả dạng [rows, fields].
       // Lấy dòng dữ liệu đầu tiên từ mỗi truy vấn.
       const [
-        [[roomStats]],
+        roomStats,
         [[deviceStats]],
         [[incidentStats]],
         [[maintenanceStats]],
         [openMaintenanceItems],
       ] =
         await Promise.all([
-          db.query(`
-          SELECT
-            COUNT(*) AS total,
-            COALESCE(SUM(status = 'trong'), 0) AS available,
-            COALESCE(SUM(status = 'dang_hoc'), 0) AS occupied,
-            COALESCE(SUM(status = 'bao_tri'), 0) AS maintenance,
-            COALESCE(SUM(status = 'su_co'), 0) AS incident
-          FROM Rooms
-        `),
+          RoomModel.getStats(),
           db.query(`
           SELECT
             COUNT(*) AS total,
@@ -162,58 +233,58 @@ const aiController = {
 
       const systemContext = `
 Số liệu hiện tại của hệ thống Smart Campus:
-- Phòng học: ${roomStats?.total || 0} tổng, ${roomStats?.available || 0} trống, ${roomStats?.occupied || 0} đang học, ${roomStats?.maintenance || 0} bảo trì, ${roomStats?.incident || 0} có sự cố.
+- Phòng học: ${roomStats?.total || 0} tổng, ${roomStats?.trong || 0} trống, ${roomStats?.dang_hoc || 0} đang học, ${roomStats?.bao_tri || 0} bảo trì, ${roomStats?.su_co || 0} có sự cố.
 - Thiết bị: ${deviceStats?.total || 0} tổng, ${deviceStats?.active || 0} đang hoạt động, ${deviceStats?.off || 0} đã tắt, ${deviceStats?.broken || 0} bị hỏng, ${deviceStats?.repairing || 0} đang sửa.
 - Sự cố đang xảy ra: ${incidentStats?.active || 0}.
 - Phiếu bảo trì đang mở: ${maintenanceStats?.open_total || 0} (${maintenanceStats?.pending || 0} chờ xử lý, ${maintenanceStats?.in_progress || 0} đang sửa). Chi tiết hiện có: ${maintenanceDetails}.
 - Bảng dữ liệu chỉ lưu phiếu bảo trì và ngày bảo trì gần nhất, không lưu lịch bảo trì đã lên kế hoạch. Không được tự kết luận rằng thiết bị đang tắt cần bảo trì; cần kiểm tra thực tế trước.
+- Các thống kê tổng hợp không chứa danh sách chi tiết phòng, thiết bị, lịch học hay sự cố. Chỉ nêu mã phòng, tên thiết bị, lịch hoặc số lượng chi tiết khi đã được truy vấn và có trong dữ liệu đầu vào; nếu chưa có thì nói rõ hoặc hỏi người dùng bổ sung ngày/mã phòng.
 `;
 
       const normalizedQuestion = normalizeVietnamese(message);
+      const roomCode = message.match(/\b([A-Za-z]\d{3})\b/)?.[1]?.toUpperCase();
+      const requestedRoomType = getRequestedRoomType(normalizedQuestion);
 
       // Câu hỏi đếm phòng theo sức chứa phải được xử lý trước câu hỏi đếm phòng
       // chung để không trả nhầm tổng số phòng toàn trường.
       const requestedCapacity = normalizedQuestion.match(
-        /(?:chua|suc chua|suc chua duoc|cho ngoi)[^0-9]{0,16}(\d{1,4})\s*(?:nguoi|cho)?/,
+        /(?:suc chua|chua|cho ngoi|phong cho)[^0-9]{0,20}(\d{1,4})\s*(?:nguoi|cho)?/,
       )?.[1];
       const asksRoomCapacity =
         normalizedQuestion.includes("phong") &&
         Boolean(requestedCapacity) &&
-        /(bao nhieu|co may|tong cong|tong so|so luong|may phong)/.test(
+        /(bao nhieu|co may|tong cong|tong so|so luong|may phong|liet ke|tim|nao)/.test(
           normalizedQuestion,
         );
 
       if (asksRoomCapacity) {
         const capacity = Number(requestedCapacity);
-        const buildingCodes = ["a", "b"].filter((code) =>
-          new RegExp(`toa\\s*${code}\\b`).test(normalizedQuestion),
-        );
-        const hasBothBuildings =
-          buildingCodes.length === 2 ||
-          /(toa a va b|toa b va a|ca hai toa|hai toa)/.test(
-            normalizedQuestion,
-          );
-        const filterBuildings = hasBothBuildings ? [] : buildingCodes;
+        const buildingScope = getBuildingScope(normalizedQuestion);
         const onlyAvailable = /(phong trong|con trong|dang trong)/.test(
           normalizedQuestion,
         );
         const conditions = ["r.capacity >= ?"];
         const params = [capacity];
 
-        if (filterBuildings.length) {
+        if (buildingScope.codes.length) {
           conditions.push(
-            `LOWER(b.code) IN (${filterBuildings.map(() => "?").join(", ")})`,
+            `UPPER(b.code) IN (${buildingScope.codes.map(() => "?").join(", ")})`,
           );
-          params.push(...filterBuildings);
+          params.push(...buildingScope.codes);
         }
 
         if (onlyAvailable) {
           conditions.push("r.status = 'trong'");
         }
+        if (requestedRoomType) {
+          conditions.push("r.type = ?");
+          params.push(requestedRoomType.value);
+        }
 
         const [matchingRooms] = await db.query(
           `
-            SELECT r.code, r.capacity, r.status, b.code AS building_code
+            SELECT r.code, r.capacity, r.type, r.status,
+                   b.code AS building_code
             FROM Rooms r
             JOIN Floors f ON r.floor_id = f.id
             JOIN Buildings b ON f.building_id = b.id
@@ -223,12 +294,9 @@ Số liệu hiện tại của hệ thống Smart Campus:
           params,
         );
 
-        const buildingLabel = hasBothBuildings
-          ? "ở cả Tòa A và Tòa B"
-          : filterBuildings.length
-            ? `ở Tòa ${filterBuildings.map((code) => code.toUpperCase()).join(" và Tòa ")}`
-            : "toàn khuôn viên";
-        const roomLabel = onlyAvailable ? "phòng trống" : "phòng";
+        const roomLabel = `phòng${
+          requestedRoomType ? ` ${requestedRoomType.label}` : ""
+        }${onlyAvailable ? " đang trống" : ""}`;
         const roomList = matchingRooms.length
           ? ` Danh sách: ${matchingRooms
               .map(
@@ -239,31 +307,81 @@ Số liệu hiện tại của hệ thống Smart Campus:
           : "";
         const responseText =
           matchingRooms.length
-            ? `Có ${matchingRooms.length} ${roomLabel} ${buildingLabel} có sức chứa từ ${capacity} người trở lên.${roomList}`
-            : `Không có ${roomLabel} ${buildingLabel} nào có sức chứa từ ${capacity} người trở lên theo dữ liệu hiện tại.`;
+            ? `Có ${matchingRooms.length} ${roomLabel} ${buildingScope.label} có sức chứa từ ${capacity} người trở lên.${roomList}`
+            : `Không có ${roomLabel} ${buildingScope.label} nào có sức chứa từ ${capacity} người trở lên theo dữ liệu hiện tại.`;
 
-        await db.query(
-          `
-            INSERT INTO AIAnalysis (user_id, prompt, response, type)
-            VALUES (?, ?, ?, 'chatbot')
-          `,
-          [req.user.id, message, responseText],
+        await saveChatAnswer(req.user.id, message, responseText);
+
+        return res.json({ response: responseText });
+      }
+
+      const asksRoomCapacityWithoutThreshold =
+        !roomCode &&
+        normalizedQuestion.includes("phong") &&
+        /(suc chua|cho ngoi|chua duoc|phong chua)/.test(normalizedQuestion) &&
+        /(bao nhieu|nao|toi da|cao nhat|lon nhat)/.test(normalizedQuestion);
+
+      if (asksRoomCapacityWithoutThreshold) {
+        const buildingScope = getBuildingScope(normalizedQuestion);
+        const isMaximumQuestion = /(toi da|cao nhat|lon nhat)/.test(
+          normalizedQuestion,
         );
+        const buildingCondition = buildingScope.codes.length
+          ? `AND UPPER(b.code) IN (${buildingScope.codes.map(() => "?").join(", ")})`
+          : "";
+        const [allRooms] = await db.query(
+          `
+            SELECT r.code, r.capacity, b.code AS building_code
+            FROM Rooms r
+            JOIN Floors f ON r.floor_id = f.id
+            JOIN Buildings b ON f.building_id = b.id
+            WHERE 1 = 1 ${buildingCondition}
+            ORDER BY r.capacity DESC, b.code, r.code
+          `,
+          buildingScope.codes,
+        );
+        const maxCapacity = allRooms[0]?.capacity;
+        const matchingRooms = isMaximumQuestion && maxCapacity
+          ? allRooms.filter((room) => room.capacity === maxCapacity)
+          : allRooms;
+        const details = matchingRooms
+          .map(
+            (room) =>
+              `${room.code}: ${room.capacity} chỗ (Tòa ${room.building_code})`,
+          )
+          .join("; ");
+        const responseText = matchingRooms.length
+          ? isMaximumQuestion
+            ? `Sức chứa lớn nhất ${buildingScope.label} là ${maxCapacity} người. Phòng đạt mức này: ${details}.`
+            : `Dữ liệu sức chứa của ${matchingRooms.length} phòng ${buildingScope.label}: ${details}.`
+          : `Chưa có dữ liệu phòng để xác định sức chứa ${buildingScope.label}.`;
 
+        await saveChatAnswer(req.user.id, message, responseText);
         return res.json({ response: responseText });
       }
 
       // Các câu hỏi có mã phòng phải tra đúng phòng và lịch hiện tại trong MySQL,
       // không suy luận từ số liệu tổng quan rồi giao cho Gemini đoán.
-      const roomCode = message.match(/\b([A-Za-z]\d{3})\b/)?.[1]?.toUpperCase();
+      const asksRoomCapacityByCode =
+        Boolean(roomCode) && /(suc chua|cho ngoi|chua duoc bao nhieu)/.test(normalizedQuestion);
+      const asksRoomScheduleByCode =
+        Boolean(roomCode) &&
+        /lich/.test(normalizedQuestion) &&
+        !/(dang hoc|luc nay|hien tai)/.test(normalizedQuestion);
       const asksRoomStatus =
         Boolean(roomCode) &&
-        /(phong|dang hoc|co lop|co buoi hoc|lich hoc|trong khong|dang su dung)/.test(
+        /(phong|dang hoc|co lop|co buoi hoc|lich|trong khong|dang su dung|suc chua|cho ngoi)/.test(
+          normalizedQuestion,
+        ) &&
+        !/(thiet bi|su co|phieu bao tri|bao tri thiet bi)/.test(
           normalizedQuestion,
         );
 
       if (asksRoomStatus) {
-        const { date, time } = getVietnamCurrentDateTime();
+        const { date: today, time } = getVietnamCurrentDateTime();
+        const date = asksRoomScheduleByCode
+          ? getRequestedDate(normalizedQuestion) || today
+          : today;
         const [rooms] = await db.query(
           `
             SELECT
@@ -288,17 +406,22 @@ Số liệu hiện tại của hệ thống Smart Campus:
           responseText = `Không tìm thấy phòng ${roomCode} trong dữ liệu hệ thống.`;
         } else {
           const room = rooms[0];
-          const [currentSchedules] = await db.query(
+          const scheduleTimeFilter = asksRoomScheduleByCode
+            ? ""
+            : "AND start_time <= ? AND end_time > ?";
+          const scheduleParams = asksRoomScheduleByCode
+            ? [room.id, date]
+            : [room.id, date, time, time];
+          const [roomSchedules] = await db.query(
             `
               SELECT subject, session_type, instructor, start_time, end_time
               FROM Schedules
               WHERE room_id = ?
                 AND class_date = ?
-                AND start_time <= ?
-                AND end_time > ?
+                ${scheduleTimeFilter}
               ORDER BY start_time
             `,
-            [room.id, date, time, time],
+            scheduleParams,
           );
 
           const location = `${room.building_code}, tầng ${room.floor_number}`;
@@ -309,8 +432,12 @@ Số liệu hiện tại của hệ thống Smart Campus:
             su_co: "đang được ghi nhận có sự cố",
           }[room.status] || `có trạng thái “${room.status}”`;
 
-          if (currentSchedules.length) {
-            const scheduleDetails = currentSchedules
+          if (asksRoomCapacityByCode) {
+            responseText =
+              `Phòng ${room.code} có sức chứa ${room.capacity} người (${location}). ` +
+              `Trạng thái hiện được ghi nhận là ${currentStatus}.`;
+          } else if (roomSchedules.length) {
+            const scheduleDetails = roomSchedules
               .map((schedule) => {
                 const sessionType = {
                   theory: "lý thuyết",
@@ -324,13 +451,13 @@ Số liệu hiện tại của hệ thống Smart Campus:
               })
               .join("; ");
 
-            responseText =
-              `Theo thời khóa biểu hôm nay (${date}), phòng ${room.code} hiện có buổi học: ${scheduleDetails}. ` +
-              `Trạng thái phòng trong hệ thống: ${currentStatus} (${location}).`;
+            responseText = asksRoomScheduleByCode
+              ? `Lịch học hôm nay (${date}) của phòng ${room.code}: ${scheduleDetails}. (${location})`
+              : `Theo thời khóa biểu hôm nay (${date}), phòng ${room.code} hiện có buổi học: ${scheduleDetails}. Trạng thái phòng trong hệ thống: ${currentStatus} (${location}).`;
           } else {
-            responseText =
-              `Hiện không có buổi học nào được xếp trong phòng ${room.code} vào lúc ${time} ngày ${date}. ` +
-              `Trạng thái phòng trong hệ thống: ${currentStatus} (${location}).`;
+            responseText = asksRoomScheduleByCode
+              ? `Hôm nay (${date}) chưa có buổi học nào được xếp trong phòng ${room.code} (${location}).`
+              : `Hiện không có buổi học nào được xếp trong phòng ${room.code} vào lúc ${time} ngày ${date}. Trạng thái phòng trong hệ thống: ${currentStatus} (${location}).`;
           }
         }
 
@@ -345,23 +472,100 @@ Số liệu hiện tại của hệ thống Smart Campus:
         return res.json({ response: responseText });
       }
 
+      const asksRoomList =
+        !roomCode &&
+        normalizedQuestion.includes("phong") &&
+        (Boolean(requestedRoomType) ||
+          /(tim|nao|danh sach|liet ke|trong khong|con trong)/.test(
+            normalizedQuestion,
+          )) &&
+        !/(thiet bi|phieu)/.test(normalizedQuestion);
+
+      if (asksRoomList) {
+        const buildingScope = getBuildingScope(normalizedQuestion);
+        const conditions = [];
+        const params = [];
+        const roomStatus = [
+          { value: "trong", pattern: /(phong trong|con trong|dang trong)/ },
+          { value: "dang_hoc", pattern: /(dang hoc|co lop|dang su dung)/ },
+          { value: "bao_tri", pattern: /bao tri/ },
+          { value: "su_co", pattern: /su co/ },
+        ].find((status) => status.pattern.test(normalizedQuestion));
+
+        if (roomStatus) {
+          conditions.push("r.status = ?");
+          params.push(roomStatus.value);
+        }
+        if (requestedRoomType) {
+          conditions.push("r.type = ?");
+          params.push(requestedRoomType.value);
+        }
+        if (buildingScope.codes.length) {
+          conditions.push(
+            `UPPER(b.code) IN (${buildingScope.codes.map(() => "?").join(", ")})`,
+          );
+          params.push(...buildingScope.codes);
+        }
+
+        const [rooms] = await db.query(
+          `
+            SELECT r.code, r.name, r.capacity, r.type, r.status,
+                   f.floor_number, b.code AS building_code
+            FROM Rooms r
+            JOIN Floors f ON r.floor_id = f.id
+            JOIN Buildings b ON f.building_id = b.id
+            WHERE ${conditions.length ? conditions.join(" AND ") : "1 = 1"}
+            ORDER BY b.code, f.floor_number, r.code
+          `,
+          params,
+        );
+        const statusLabels = {
+          trong: "trống",
+          dang_hoc: "đang học",
+          bao_tri: "đang bảo trì",
+          su_co: "có sự cố",
+        };
+        const roomList = rooms
+          .map(
+            (room) =>
+              `${room.code} (${room.capacity} chỗ, tầng ${room.floor_number}, Tòa ${room.building_code}, ${statusLabels[room.status] || room.status})`,
+          )
+          .join("; ");
+        const typeLabel = requestedRoomType
+          ? ` ${requestedRoomType.label}`
+          : "";
+        const statusLabel = roomStatus
+          ? ` ${statusLabels[roomStatus.value]}`
+          : "";
+        const responseText = rooms.length
+          ? `Có ${rooms.length} phòng${typeLabel}${statusLabel} ${buildingScope.label}: ${roomList}.`
+          : `Không tìm thấy phòng${typeLabel}${statusLabel} ${buildingScope.label} phù hợp trong dữ liệu hệ thống.`;
+
+        await saveChatAnswer(req.user.id, message, responseText);
+        return res.json({ response: responseText });
+      }
+
       const asksRoomCount =
         normalizedQuestion.includes("phong") &&
+        !/(thiet bi|phieu)/.test(normalizedQuestion) &&
         /(bao nhieu|co may|may phong|so luong|tong so)/.test(
           normalizedQuestion,
         );
 
       if (asksRoomCount) {
-        const total = Number(roomStats?.total) || 0;
-        const available = Number(roomStats?.available) || 0;
-        const occupied = Number(roomStats?.occupied) || 0;
-        const maintenance = Number(roomStats?.maintenance) || 0;
-        const incident = Number(roomStats?.incident) || 0;
+        const buildingScope = getBuildingScope(normalizedQuestion);
+        const stats = await RoomModel.getStats(buildingScope.codes);
+
+        const total = Number(stats?.total) || 0;
+        const available = Number(stats?.trong) || 0;
+        const occupied = Number(stats?.dang_hoc) || 0;
+        const maintenance = Number(stats?.bao_tri) || 0;
+        const incident = Number(stats?.su_co) || 0;
 
         let count = total;
         let label = "phòng";
 
-        if (normalizedQuestion.includes("trong")) {
+        if (/(phong trong|con trong|dang trong)/.test(normalizedQuestion)) {
           count = available;
           label = "phòng đang trống";
         } else if (normalizedQuestion.includes("dang hoc")) {
@@ -376,62 +580,357 @@ Số liệu hiện tại của hệ thống Smart Campus:
         }
 
         const responseText =
-          `Hiện có ${count} ${label}. ` +
-          `Tổng số ${total} phòng gồm ${available} phòng trống, ` +
+          `Hiện có ${count} ${label} ${buildingScope.label}. ` +
+          `Tổng số ${total} phòng ${buildingScope.label} gồm ${available} phòng trống, ` +
           `${occupied} phòng đang học, ${maintenance} phòng bảo trì ` +
           `và ${incident} phòng có sự cố.`;
 
-        await db.query(
-          `
-            INSERT INTO AIAnalysis (user_id, prompt, response, type)
-            VALUES (?, ?, ?, 'chatbot')
-          `,
-          [req.user.id, message, responseText],
-        );
+        await saveChatAnswer(req.user.id, message, responseText);
 
         return res.json({ response: responseText });
       }
 
-      const asksBrokenDevices =
+      const deviceStatus = [
+        { value: "hong", label: "bị hỏng", pattern: /(hong|loi|hu hong)/ },
+        {
+          value: "dang_sua",
+          label: "đang sửa",
+          pattern: /(dang sua|dang sua chua|sua chua)/,
+        },
+        { value: "tat", label: "đã tắt", pattern: /(tat|ngat|ngung hoat dong)/ },
+        {
+          value: "hoat_dong",
+          label: "đang hoạt động",
+          pattern: /(hoat dong|dang chay|binh thuong)/,
+        },
+      ].find((item) => item.pattern.test(normalizedQuestion));
+      const asksDeviceCount = /(bao nhieu|co may|tong so|so luong|thong ke)/.test(
+        normalizedQuestion,
+      );
+      const asksDeviceList = /(nao|danh sach|liet ke|thiet bi nao)/.test(
+        normalizedQuestion,
+      );
+      const asksDeviceQuestion =
         normalizedQuestion.includes("thiet bi") &&
-        /(hong|loi|hu hong)/.test(normalizedQuestion);
+        !/(bao tri|phieu)/.test(normalizedQuestion) &&
+        (Boolean(deviceStatus) || asksDeviceCount || asksDeviceList || Boolean(roomCode));
 
-      if (asksBrokenDevices) {
-        const [brokenDevices] = await db.query(`
-          SELECT d.name, r.code AS room_code
-          FROM Devices d
-          LEFT JOIN Rooms r ON d.room_id = r.id
-          WHERE d.status = 'hong'
-          ORDER BY r.code, d.name
-        `);
+      if (asksDeviceQuestion) {
+        const buildingScope = getBuildingScope(normalizedQuestion);
+        const conditions = [];
+        const params = [];
 
-        const total = Number(deviceStats?.total) || 0;
-        const active = Number(deviceStats?.active) || 0;
-        const off = Number(deviceStats?.off) || 0;
-        const repairing = Number(deviceStats?.repairing) || 0;
+        if (deviceStatus) {
+          conditions.push("d.status = ?");
+          params.push(deviceStatus.value);
+        }
+        if (roomCode) {
+          conditions.push("UPPER(r.code) = ?");
+          params.push(roomCode);
+        } else if (buildingScope.codes.length) {
+          conditions.push(
+            `UPPER(b.code) IN (${buildingScope.codes.map(() => "?").join(", ")})`,
+          );
+          params.push(...buildingScope.codes);
+        }
 
-        const brokenList = brokenDevices.length
-          ? brokenDevices
-              .map(
-                (device) =>
-                  `- ${device.name} — phòng ${device.room_code || "chưa rõ"}`,
-              )
-              .join("\n")
-          : "Hiện không có thiết bị nào được ghi nhận ở trạng thái hỏng.";
+        if (!deviceStatus && !roomCode && !buildingScope.codes.length) {
+          const total = Number(deviceStats?.total) || 0;
+          const active = Number(deviceStats?.active) || 0;
+          const off = Number(deviceStats?.off) || 0;
+          const broken = Number(deviceStats?.broken) || 0;
+          const repairing = Number(deviceStats?.repairing) || 0;
+          const responseText =
+            `Hệ thống ghi nhận ${total} thiết bị: ${active} đang hoạt động, ` +
+            `${off} đã tắt, ${broken} bị hỏng và ${repairing} đang sửa. ` +
+            `Thiết bị đã tắt không đồng nghĩa với thiết bị bị hỏng.`;
+          await saveChatAnswer(req.user.id, message, responseText);
+          return res.json({ response: responseText });
+        }
 
-        const responseText =
-          `${brokenList}\n\n` +
-          `Thống kê: ${brokenDevices.length}/${total} thiết bị hỏng, ` +
-          `${active} đang hoạt động, ${off} đã tắt và ${repairing} đang sửa.`;
-
-        await db.query(
+        const whereClause = conditions.length
+          ? `WHERE ${conditions.join(" AND ")}`
+          : "";
+        const [devices] = await db.query(
           `
-            INSERT INTO AIAnalysis (user_id, prompt, response, type)
-            VALUES (?, ?, ?, 'chatbot')
+            SELECT d.name, d.status, dt.name AS device_type,
+                   r.code AS room_code, b.code AS building_code
+            FROM Devices d
+            JOIN DeviceTypes dt ON d.device_type_id = dt.id
+            JOIN Rooms r ON d.room_id = r.id
+            JOIN Floors f ON r.floor_id = f.id
+            JOIN Buildings b ON f.building_id = b.id
+            ${whereClause}
+            ORDER BY b.code, r.code, d.name
           `,
-          [req.user.id, message, responseText],
+          params,
         );
+        const statusLabel = deviceStatus?.label || "";
+        const scopeLabel = roomCode
+          ? `trong phòng ${roomCode}`
+          : buildingScope.label;
+        const resultLabel = statusLabel
+          ? `thiết bị ${statusLabel}`
+          : "thiết bị";
+        const shouldList = asksDeviceList || Boolean(roomCode);
+        const visibleDevices = devices.slice(0, 20);
+        const deviceList = shouldList && visibleDevices.length
+          ? ` Danh sách: ${visibleDevices
+              .map((device) => `${device.name} (${device.room_code}, Tòa ${device.building_code})`)
+              .join("; ")}${devices.length > visibleDevices.length ? `; còn ${devices.length - visibleDevices.length} thiết bị khác` : ""}.`
+          : "";
+        const responseText = devices.length
+          ? `Có ${devices.length} ${resultLabel} ${scopeLabel}.${deviceList}`
+          : `Không tìm thấy ${resultLabel} ${scopeLabel} trong dữ liệu hiện tại.`;
 
+        await saveChatAnswer(req.user.id, message, responseText);
+        return res.json({ response: responseText });
+      }
+
+      const asksIncidentQuestion =
+        normalizedQuestion.includes("su co") &&
+        (Boolean(roomCode) ||
+          /(dang xay ra|dang xu ly|bao nhieu|co may|nao|danh sach|liet ke|hien tai|da giai quyet|co su co khong)/.test(
+            normalizedQuestion,
+          ));
+
+      if (asksIncidentQuestion) {
+        const buildingScope = getBuildingScope(normalizedQuestion);
+        const conditions = [];
+        const params = [];
+        const resolvedOnly = /(da giai quyet|da xu ly|da khac phuc)/.test(
+          normalizedQuestion,
+        );
+        const inProgressOnly = /dang xu ly/.test(normalizedQuestion);
+
+        if (resolvedOnly) {
+          conditions.push("i.status = ?");
+          params.push("da_giai_quyet");
+        } else if (inProgressOnly) {
+          conditions.push("i.status = ?");
+          params.push("dang_xu_ly");
+        } else if (!/(tong so|tat ca|lich su)/.test(normalizedQuestion)) {
+          conditions.push("i.status IN (?, ?)");
+          params.push("dang_xay_ra", "dang_xu_ly");
+        }
+
+        if (roomCode) {
+          conditions.push("UPPER(r.code) = ?");
+          params.push(roomCode);
+        } else if (buildingScope.codes.length) {
+          conditions.push(
+            `UPPER(b.code) IN (${buildingScope.codes.map(() => "?").join(", ")})`,
+          );
+          params.push(...buildingScope.codes);
+        }
+
+        const [incidents] = await db.query(
+          `
+            SELECT i.type, i.description, i.severity, i.status, i.occurred_at,
+                   r.code AS room_code, b.code AS building_code
+            FROM Incidents i
+            JOIN Rooms r ON i.room_id = r.id
+            JOIN Floors f ON r.floor_id = f.id
+            JOIN Buildings b ON f.building_id = b.id
+            WHERE ${conditions.length ? conditions.join(" AND ") : "1 = 1"}
+            ORDER BY i.occurred_at DESC
+          `,
+          params,
+        );
+        const scopeLabel = roomCode
+          ? `tại phòng ${roomCode}`
+          : buildingScope.label;
+        const incidentList = incidents.length
+          ? ` Chi tiết: ${incidents
+              .slice(0, 15)
+              .map((incident) => {
+                const incidentTypeLabels = {
+                  dieu_hoa_hong: "Điều hòa hỏng",
+                  may_chieu_hong: "Máy chiếu hỏng",
+                  mat_dien: "Mất điện",
+                };
+                const severityLabels = {
+                  thap: "thấp",
+                  trung: "trung bình",
+                  cao: "cao",
+                  nghiem_trong: "nghiêm trọng",
+                };
+                const status =
+                  incident.status === "dang_xay_ra"
+                    ? "đang xảy ra"
+                    : incident.status === "dang_xu_ly"
+                      ? "đang xử lý"
+                      : "đã giải quyết";
+                return `${incidentTypeLabels[incident.type] || incident.type}, phòng ${incident.room_code} (Tòa ${incident.building_code}), mức ${severityLabels[incident.severity] || incident.severity}, ${status}${incident.description ? `: ${incident.description}` : ""}`;
+              })
+              .join("; ")}${incidents.length > 15 ? `; còn ${incidents.length - 15} sự cố khác` : ""}.`
+          : "";
+        const openCount = incidents.filter((incident) =>
+          ["dang_xay_ra", "dang_xu_ly"].includes(incident.status),
+        ).length;
+        const responseText = incidents.length
+          ? `Tìm thấy ${incidents.length} sự cố ${scopeLabel}; trong đó ${openCount} sự cố chưa giải quyết.${incidentList}`
+          : `Hiện không có sự cố phù hợp ${scopeLabel} trong dữ liệu hệ thống.`;
+
+        await saveChatAnswer(req.user.id, message, responseText);
+        return res.json({ response: responseText });
+      }
+
+      const asksMaintenanceRecords =
+        /(bao tri|phieu)/.test(normalizedQuestion) &&
+        (Boolean(roomCode) ||
+          /(bao nhieu|co may|nao|danh sach|liet ke|cho xu ly|dang sua|dang mo|hien tai|thong ke|lich su)/.test(
+            normalizedQuestion,
+          ));
+
+      if (asksMaintenanceRecords) {
+        const buildingScope = getBuildingScope(normalizedQuestion);
+        const conditions = [];
+        const params = [];
+        const completedOnly = /(da xong|da hoan tat|da giai quyet)/.test(
+          normalizedQuestion,
+        );
+        const pendingOnly = /cho xu ly/.test(normalizedQuestion);
+        const repairingOnly = /dang sua/.test(normalizedQuestion);
+
+        if (completedOnly) {
+          conditions.push("m.status = ?");
+          params.push("da_xong");
+        } else if (pendingOnly) {
+          conditions.push("m.status = ?");
+          params.push("cho_xu_ly");
+        } else if (repairingOnly) {
+          conditions.push("m.status = ?");
+          params.push("dang_sua");
+        } else if (!/(tong so|tat ca|lich su)/.test(normalizedQuestion)) {
+          conditions.push("m.status IN (?, ?)");
+          params.push("cho_xu_ly", "dang_sua");
+        }
+
+        if (roomCode) {
+          conditions.push("UPPER(r.code) = ?");
+          params.push(roomCode);
+        } else if (buildingScope.codes.length) {
+          conditions.push(
+            `UPPER(b.code) IN (${buildingScope.codes.map(() => "?").join(", ")})`,
+          );
+          params.push(...buildingScope.codes);
+        }
+
+        const [maintenanceItems] = await db.query(
+          `
+            SELECT m.status, m.description, m.created_at,
+                   d.name AS device_name, dt.name AS device_type,
+                   r.code AS room_code, b.code AS building_code
+            FROM Maintenance m
+            JOIN Devices d ON m.device_id = d.id
+            JOIN DeviceTypes dt ON d.device_type_id = dt.id
+            JOIN Rooms r ON d.room_id = r.id
+            JOIN Floors f ON r.floor_id = f.id
+            JOIN Buildings b ON f.building_id = b.id
+            WHERE ${conditions.length ? conditions.join(" AND ") : "1 = 1"}
+            ORDER BY m.created_at DESC
+          `,
+          params,
+        );
+        const scopeLabel = roomCode
+          ? `tại phòng ${roomCode}`
+          : buildingScope.label;
+        const maintenanceList = maintenanceItems.length
+          ? ` Chi tiết: ${maintenanceItems
+              .slice(0, 15)
+              .map((item) => {
+                const status =
+                  item.status === "cho_xu_ly"
+                    ? "chờ xử lý"
+                    : item.status === "dang_sua"
+                      ? "đang sửa"
+                      : "đã xong";
+                return `${item.device_name} (${item.device_type}), phòng ${item.room_code} (Tòa ${item.building_code}), ${status}${item.description ? `: ${item.description}` : ""}`;
+              })
+              .join("; ")}${maintenanceItems.length > 15 ? `; còn ${maintenanceItems.length - 15} phiếu khác` : ""}.`
+          : "";
+        const openCount = maintenanceItems.filter((item) =>
+          ["cho_xu_ly", "dang_sua"].includes(item.status),
+        ).length;
+        const responseText = maintenanceItems.length
+          ? `Có ${maintenanceItems.length} phiếu bảo trì ${scopeLabel}; ${openCount} phiếu còn mở.${maintenanceList}`
+          : `Hiện không có phiếu bảo trì phù hợp ${scopeLabel} trong dữ liệu hệ thống.`;
+
+        await saveChatAnswer(req.user.id, message, responseText);
+        return res.json({ response: responseText });
+      }
+
+      const asksScheduleQuestion = /(lich hoc|thoi khoa bieu|lich thi)/.test(
+        normalizedQuestion,
+      );
+
+      if (asksScheduleQuestion) {
+        const requestedDate = getRequestedDate(normalizedQuestion);
+        if (!requestedDate) {
+          const responseText =
+            "Để tra đúng thời khóa biểu trong hệ thống, bạn cho mình ngày cụ thể (ví dụ 15/10/2026) hoặc nói ‘hôm nay’/‘ngày mai’ nhé.";
+          await saveChatAnswer(req.user.id, message, responseText);
+          return res.json({ response: responseText });
+        }
+
+        const buildingScope = getBuildingScope(normalizedQuestion);
+        const conditions = ["s.class_date = ?"];
+        const params = [requestedDate];
+        const time = getVietnamCurrentDateTime().time;
+        const asksCurrentSchedule = /(dang dien ra|hien tai)/.test(
+          normalizedQuestion,
+        );
+        const asksExamSchedule = /lich thi/.test(normalizedQuestion);
+
+        if (asksCurrentSchedule) {
+          conditions.push("s.start_time <= ?", "s.end_time > ?");
+          params.push(time, time);
+        }
+        if (asksExamSchedule) {
+          conditions.push("s.session_type = ?");
+          params.push("exam");
+        }
+        if (buildingScope.codes.length) {
+          conditions.push(
+            `UPPER(b.code) IN (${buildingScope.codes.map(() => "?").join(", ")})`,
+          );
+          params.push(...buildingScope.codes);
+        }
+
+        const [schedules] = await db.query(
+          `
+            SELECT s.subject, s.session_type, s.instructor,
+                   s.start_time, s.end_time, r.code AS room_code,
+                   r.capacity, b.code AS building_code, f.floor_number
+            FROM Schedules s
+            JOIN Rooms r ON s.room_id = r.id
+            JOIN Floors f ON r.floor_id = f.id
+            JOIN Buildings b ON f.building_id = b.id
+            WHERE ${conditions.join(" AND ")}
+            ORDER BY s.start_time, b.code, r.code
+          `,
+          params,
+        );
+        const sessionLabels = {
+          theory: "lý thuyết",
+          practical: "thực hành",
+          exam: "thi",
+        };
+        const scheduleDetails = schedules
+          .slice(0, 20)
+          .map(
+            (schedule) =>
+              `${formatTime(schedule.start_time)}–${formatTime(schedule.end_time)}: ${schedule.subject} (${sessionLabels[schedule.session_type] || schedule.session_type}), phòng ${schedule.room_code}, Tòa ${schedule.building_code} tầng ${schedule.floor_number}${schedule.instructor ? `, GV ${schedule.instructor}` : ""}`,
+          )
+          .join("; ");
+        const scheduleScope =
+          `${asksExamSchedule ? "Lịch thi" : "Thời khóa biểu"} ngày ${date} ${buildingScope.label}`;
+        const responseText = schedules.length
+          ? `${scheduleScope}: ${scheduleDetails}${schedules.length > 20 ? `; còn ${schedules.length - 20} buổi khác` : ""}.`
+          : `Không có ${asksExamSchedule ? "lịch thi" : "buổi học"} nào được ghi nhận ngày ${date} ${buildingScope.label}.`;
+
+        await saveChatAnswer(req.user.id, message, responseText);
         return res.json({ response: responseText });
       }
 

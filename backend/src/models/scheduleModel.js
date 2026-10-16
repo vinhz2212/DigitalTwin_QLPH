@@ -72,8 +72,8 @@ const ScheduleModel = {
     start_time,
     end_time,
     exclude_id = null,
-  }) => {
-    const [rows] = await db.query(
+  }, executor = db) => {
+    const [rows] = await executor.query(
       `SELECT s.id, s.room_id, s.subject, s.instructor, r.code AS room_code
        FROM Schedules s
        JOIN Rooms r ON r.id = s.room_id
@@ -101,7 +101,28 @@ const ScheduleModel = {
     return rows[0] || null;
   },
 
-  create: async (data) => {
+  findBookingConflict: async (
+    { room_id, class_date, start_time, end_time },
+    executor = db,
+  ) => {
+    const [rows] = await executor.query(
+      `SELECT b.id, b.purpose, b.status, b.start_time, b.end_time,
+              u.full_name AS user_name
+       FROM Bookings b
+       JOIN Users u ON u.id = b.user_id
+       WHERE b.room_id = ?
+         AND b.date = ?
+         AND b.status IN ('cho_duyet', 'da_duyet')
+         AND b.start_time < ?
+         AND b.end_time > ?
+       ORDER BY b.start_time ASC
+       LIMIT 1`,
+      [room_id, class_date, end_time, start_time],
+    );
+    return rows[0] || null;
+  },
+
+  create: async (data, executor = db) => {
     const {
       room_id,
       subject,
@@ -113,7 +134,7 @@ const ScheduleModel = {
       semester,
     } = data;
 
-    const [result] = await db.query(
+    const [result] = await executor.query(
       `
         INSERT INTO Schedules (
           room_id,
@@ -142,7 +163,7 @@ const ScheduleModel = {
     return result.insertId;
   },
 
-  update: async (id, data) => {
+  update: async (id, data, executor = db) => {
     const {
       room_id,
       subject,
@@ -154,7 +175,7 @@ const ScheduleModel = {
       semester,
     } = data;
 
-    const [result] = await db.query(
+    const [result] = await executor.query(
       `
         UPDATE Schedules
         SET

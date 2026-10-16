@@ -35,9 +35,13 @@ const BookingModel = {
     return rows;
   },
 
-  getById: async (id) => {
-    const [rows] = await db.query(
-      "SELECT * FROM Bookings WHERE id = ? LIMIT 1",
+  getById: async (id, executor = db, forUpdate = false) => {
+    const [rows] = await executor.query(
+      `SELECT b.*, r.code AS room_code
+       FROM Bookings b
+       JOIN Rooms r ON b.room_id = r.id
+       WHERE b.id = ?
+       LIMIT 1${forUpdate ? " FOR UPDATE" : ""}`,
       [id],
     );
     return rows[0] || null;
@@ -63,8 +67,8 @@ const BookingModel = {
     start_time,
     end_time,
     exclude_id,
-  }) => {
-    const [rows] = await db.query(
+  }, executor = db) => {
+    const [rows] = await executor.query(
       `SELECT id, room_id, \`date\`, start_time, end_time, status
        FROM Bookings
        WHERE room_id = ?
@@ -87,8 +91,11 @@ const BookingModel = {
     return rows[0] || null;
   },
 
-  findScheduleConflict: async ({ room_id, date, start_time, end_time }) => {
-    const [rows] = await db.query(
+  findScheduleConflict: async (
+    { room_id, date, start_time, end_time },
+    executor = db,
+  ) => {
+    const [rows] = await executor.query(
       `SELECT id, subject, start_time, end_time
        FROM Schedules
        WHERE room_id = ?
@@ -102,19 +109,19 @@ const BookingModel = {
     return rows[0] || null;
   },
 
-  getRoomStatus: async (roomId) => {
-    const [rows] = await db.query(
+  getRoomStatus: async (roomId, executor = db) => {
+    const [rows] = await executor.query(
       "SELECT status FROM Rooms WHERE id = ? LIMIT 1",
       [roomId],
     );
     return rows[0]?.status ?? null;
   },
 
-  create: async (data) => {
+  create: async (data, executor = db) => {
     const { user_id, room_id, date, start_time, end_time, purpose, note } =
       data;
 
-    const [result] = await db.query(
+    const [result] = await executor.query(
       `
         INSERT INTO Bookings
           (user_id, room_id, date, start_time, end_time, purpose, note)
@@ -126,8 +133,8 @@ const BookingModel = {
     return result.insertId;
   },
 
-  updateStatus: async (id, status) => {
-    const [result] = await db.query(
+  updateStatus: async (id, status, executor = db) => {
+    const [result] = await executor.query(
       "UPDATE Bookings SET status = ? WHERE id = ?",
       [status, id],
     );

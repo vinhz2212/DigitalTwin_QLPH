@@ -60,18 +60,48 @@ const RoomModel = {
     return rows;
   },
 
-  // Thống kê phòng
-  getStats: async () => {
-    const [rows] = await db.query(`
-      SELECT 
-        COUNT(*) as total,
-        SUM(status = 'trong') as available,
-        SUM(status = 'dang_hoc') as occupied,
-        SUM(status = 'bao_tri') as maintenance,
-        SUM(status = 'su_co') as incident
-      FROM Rooms
-    `);
-    return rows[0];
+  // Nguồn thống kê phòng dùng chung cho Dashboard, trang Phòng và AI.
+  getStats: async (buildingCodes = []) => {
+    const normalizedCodes = Array.isArray(buildingCodes)
+      ? buildingCodes
+          .map((code) => String(code).trim().toUpperCase())
+          .filter(Boolean)
+      : [];
+    const buildingFilter = normalizedCodes.length
+      ? `WHERE UPPER(b.code) IN (${normalizedCodes.map(() => "?").join(", ")})`
+      : "";
+    const [rows] = await db.query(
+      `
+        SELECT
+          COUNT(*) AS total,
+          COALESCE(SUM(r.status = 'trong'), 0) AS trong,
+          COALESCE(SUM(r.status = 'dang_hoc'), 0) AS dang_hoc,
+          COALESCE(SUM(r.status = 'bao_tri'), 0) AS bao_tri,
+          COALESCE(SUM(r.status = 'su_co'), 0) AS su_co
+        FROM Rooms r
+        JOIN Floors f ON r.floor_id = f.id
+        JOIN Buildings b ON f.building_id = b.id
+        ${buildingFilter}
+      `,
+      normalizedCodes,
+    );
+    const stats = rows[0] || {};
+    const result = {
+      total: Number(stats.total) || 0,
+      trong: Number(stats.trong) || 0,
+      dang_hoc: Number(stats.dang_hoc) || 0,
+      bao_tri: Number(stats.bao_tri) || 0,
+      su_co: Number(stats.su_co) || 0,
+    };
+
+    // Giữ các tên cũ để những nơi đang dùng API /rooms/stats không bị lỗi.
+    return {
+      ...result,
+      available: result.trong,
+      occupied: result.dang_hoc,
+      maintenance: result.bao_tri,
+      incident: result.su_co,
+    };
   },
 
   // Tạo phòng mới

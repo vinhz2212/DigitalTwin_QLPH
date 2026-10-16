@@ -273,7 +273,50 @@ export default function MainLayout() {
     }
   }, []);
 
-  useSocket({ notification_created: fetchUnreadCount });
+  const handleNotificationCreated = useCallback(
+    (notification) => {
+      fetchUnreadCount();
+
+      if (!("Notification" in window) || Notification.permission !== "granted") {
+        return;
+      }
+
+      try {
+        const preferenceId = user?.id || user?.username || "default";
+        const saved = JSON.parse(
+          localStorage.getItem(`smart-campus-notifications:${preferenceId}`) ||
+            "{}",
+        );
+        const preferenceByType = {
+          su_co: "incident",
+          bao_tri: "maintenance",
+          dat_phong: "booking",
+          he_thong: "system",
+        };
+        const typePreference = preferenceByType[notification?.type];
+
+        if (
+          saved.browser === false ||
+          (typePreference && saved[typePreference] === false)
+        ) {
+          return;
+        }
+
+        new Notification("SmartCampus", {
+          body: notification?.content || "Bạn có thông báo mới.",
+        });
+      } catch (error) {
+        console.error("Không thể hiển thị thông báo trình duyệt:", error);
+      }
+    },
+    [fetchUnreadCount, user?.id, user?.username],
+  );
+
+  useSocket({
+    notification_created: handleNotificationCreated,
+    notification_updated: fetchUnreadCount,
+    account_changed: () => window.location.reload(),
+  });
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);

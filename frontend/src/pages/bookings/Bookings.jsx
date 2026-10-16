@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
+import useSocket from "../../hooks/useSocket";
 import {
   CalendarDays,
   Check,
@@ -132,6 +133,12 @@ export default function Bookings() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useSocket({
+    booking_created: fetchAll,
+    booking_status_changed: fetchAll,
+    booking_deleted: fetchAll,
+  });
 
   const filteredBookings = useMemo(() => {
     const keyword = search.trim().toLocaleLowerCase("vi");

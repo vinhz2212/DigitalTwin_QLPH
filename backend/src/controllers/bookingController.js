@@ -1,4 +1,11 @@
 const BookingModel = require("../models/bookingModel");
+const {
+  withRoomAvailabilityLock,
+} = require("../services/roomAvailabilityService");
+const {
+  createForRoles,
+  createForUser,
+} = require("../services/notificationService");
 
 const isValidDate = (value) => {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -21,6 +28,22 @@ const isValidTime = (value) =>
 const timeToSeconds = (value) => {
   const [hours, minutes, seconds = 0] = value.split(":").map(Number);
   return hours * 3600 + minutes * 60 + seconds;
+};
+
+const formatDateForNotification = (value) => {
+  if (!value) return "không xác định";
+  const text = String(value);
+  const dateOnly = /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : null;
+
+  if (dateOnly) {
+    const [year, month, day] = dateOnly.split("-");
+    return `${day}/${month}/${year}`;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? text
+    : date.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
 };
 
 const validateBooking = (body = {}) => {
@@ -56,8 +79,12 @@ const validateBooking = (body = {}) => {
   };
 };
 
-const validateAvailability = async (booking, excludeId = null) => {
-  const roomStatus = await BookingModel.getRoomStatus(booking.room_id);
+const validateAvailability = async (
+  booking,
+  excludeId = null,
+  executor,
+) => {
+  const roomStatus = await BookingModel.getRoomStatus(booking.room_id, executor);
   if (!roomStatus) return "Phòng học không tồn tại.";
   if (["bao_tri", "su_co"].includes(roomStatus)) {
     return "Phòng đang bảo trì hoặc có sự cố, không thể đặt.";
@@ -66,12 +93,15 @@ const validateAvailability = async (booking, excludeId = null) => {
   const bookingConflict = await BookingModel.findRoomConflict({
     ...booking,
     exclude_id: excludeId,
-  });
+  }, executor);
   if (bookingConflict) {
     return "Phòng đã có yêu cầu đặt đang chờ duyệt hoặc đã được duyệt trong khung giờ này.";
   }
 
-  const scheduleConflict = await BookingModel.findScheduleConflict(booking);
+  const scheduleConflict = await BookingModel.findScheduleConflict(
+    booking,
+    executor,
+  );
   if (scheduleConflict) {
     return `Phòng đã có lịch “${scheduleConflict.subject}” trong khung giờ này.`;
   }
@@ -114,36 +144,83 @@ const bookingController = {
     }
 
     try {
-      const availabilityError = await validateAvailability(validation.value);
-      if (availabilityError) {
-        const statusCode = availabilityError === "Phòng học không tồn tại." ? 400 : 409;
-        return res.status(statusCode).json({ message: availabilityError });
-      }
-
       // authMiddleware đã xác thực người dùng trước khi vào controller
       const userId = req.user.id;
+      const result = await withRoomAvailabilityLock(
+        validation.value.room_id,
+        async (connection) => {
+          const availabilityError = await validateAvailability(
+            validation.value,
+            null,
+            connection,
+          );
 
-      const bookingId = await BookingModel.create({
-        user_id: userId,
-        ...validation.value,
-      });
+          if (availabilityError) return { availabilityError };
+
+          const bookingId = await BookingModel.create(
+            {
+              user_id: userId,
+              ...validation.value,
+            },
+            connection,
+          );
+          return { bookingId };
+        },
+      );
+
+      if (result.availabilityError) {
+        return res.status(409).json({ message: result.availabilityError });
+      }
 
       const io = req.app.get("io");
+      let booking = null;
+
+      try {
+        booking = await BookingModel.getById(result.bookingId);
+        await Promise.all([
+          createForUser({
+            io,
+            userId,
+            content: `Yêu cầu đặt phòng ${booking?.room_code || validation.value.room_id} ngày ${formatDateForNotification(validation.value.date)} đã được gửi và đang chờ duyệt.`,
+            type: "dat_phong",
+            severity: "info",
+          }),
+          createForRoles({
+            io,
+            roles: ["admin"],
+            excludeUserIds: [userId],
+            content: `Có yêu cầu mới đặt phòng ${booking?.room_code || validation.value.room_id} ngày ${formatDateForNotification(validation.value.date)}, từ ${validation.value.start_time.slice(0, 5)} đến ${validation.value.end_time.slice(0, 5)}.`,
+            type: "dat_phong",
+            severity: "info",
+          }),
+        ]);
+      } catch (notificationError) {
+        console.error("Không thể tạo thông báo đặt phòng:", notificationError);
+      }
+
       if (io) {
-        io.emit("booking_created", {
-          id: bookingId,
+        const payload = {
+          id: result.bookingId,
           room_id: validation.value.room_id,
           user_id: userId,
           date: validation.value.date,
-        });
+        };
+        io.to(`user:${userId}`).emit("booking_created", payload);
+        io.to("role:admin").emit("booking_created", payload);
+        io.to("role:ky_thuat_vien").emit("booking_created", payload);
       }
 
       res.status(201).json({
         message: "Tạo yêu cầu đặt phòng thành công",
-        id: bookingId,
+        id: result.bookingId,
       });
     } catch (error) {
       console.error("Lỗi tạo đặt phòng:", error);
+
+      if (error.code === "ROOM_NOT_FOUND") {
+        return res.status(400).json({ message: "Phòng học không tồn tại." });
+      }
+
       res.status(500).json({ message: "Lỗi server", error: error.message });
     }
   },
@@ -168,22 +245,82 @@ const bookingController = {
       }
 
       if (status === "da_duyet") {
-        const availabilityError = await validateAvailability(booking, id);
-        if (availabilityError) {
-          return res.status(409).json({ message: availabilityError });
+        const result = await withRoomAvailabilityLock(
+          booking.room_id,
+          async (connection) => {
+            const currentBooking = await BookingModel.getById(
+              id,
+              connection,
+              true,
+            );
+
+            if (!currentBooking) return { notFound: true };
+
+            const availabilityError = await validateAvailability(
+              currentBooking,
+              id,
+              connection,
+            );
+
+            if (availabilityError) return { availabilityError };
+
+            await BookingModel.updateStatus(id, status, connection);
+            return { updated: true };
+          },
+        );
+
+        if (result.notFound) {
+          return res
+            .status(404)
+            .json({ message: "Không tìm thấy yêu cầu đặt phòng." });
         }
+        if (result.availabilityError) {
+          return res.status(409).json({ message: result.availabilityError });
+        }
+      } else {
+        await BookingModel.updateStatus(id, status);
       }
 
-      await BookingModel.updateStatus(id, status);
-
       const io = req.app.get("io");
+      try {
+        const statusLabels = {
+          cho_duyet: "đang chờ duyệt",
+          da_duyet: "đã được duyệt",
+          tu_choi: "đã bị từ chối",
+          da_huy: "đã bị hủy",
+        };
+        await createForUser({
+          io,
+          userId: booking.user_id,
+          content: `Yêu cầu đặt phòng ${booking.room_code} ngày ${formatDateForNotification(booking.date)} ${statusLabels[status]}.`,
+          type: "dat_phong",
+          severity: status === "da_duyet" ? "info" : "warning",
+        });
+      } catch (notificationError) {
+        console.error("Không thể tạo thông báo đặt phòng:", notificationError);
+      }
+
       if (io) {
-        io.emit("booking_status_changed", { id, status });
+        const payload = { id, status, user_id: booking.user_id };
+        io.to(`user:${booking.user_id}`).emit(
+          "booking_status_changed",
+          payload,
+        );
+        io.to("role:admin").emit("booking_status_changed", payload);
+        io.to("role:ky_thuat_vien").emit(
+          "booking_status_changed",
+          payload,
+        );
       }
 
       res.json({ message: "Cập nhật trạng thái đặt phòng thành công." });
     } catch (error) {
       console.error("Lỗi cập nhật trạng thái đặt phòng:", error);
+
+      if (error.code === "ROOM_NOT_FOUND") {
+        return res.status(400).json({ message: "Phòng học không tồn tại." });
+      }
+
       res.status(500).json({ message: "Lỗi server", error: error.message });
     }
   },
@@ -195,9 +332,33 @@ const bookingController = {
     }
 
     try {
+      const booking = await BookingModel.getById(id);
+      if (!booking) {
+        return res.status(404).json({ message: "Không tìm thấy yêu cầu đặt phòng." });
+      }
       const affectedRows = await BookingModel.delete(id);
       if (affectedRows === 0) {
         return res.status(404).json({ message: "Không tìm thấy yêu cầu đặt phòng." });
+      }
+
+      const io = req.app.get("io");
+      try {
+        await createForUser({
+          io,
+          userId: booking.user_id,
+          content: `Yêu cầu đặt phòng ${booking.room_code} ngày ${formatDateForNotification(booking.date)} đã bị quản trị viên xóa.`,
+          type: "dat_phong",
+          severity: "warning",
+        });
+      } catch (notificationError) {
+        console.error("Không thể tạo thông báo đặt phòng:", notificationError);
+      }
+
+      if (io) {
+        const payload = { id, user_id: booking.user_id };
+        io.to(`user:${booking.user_id}`).emit("booking_deleted", payload);
+        io.to("role:admin").emit("booking_deleted", payload);
+        io.to("role:ky_thuat_vien").emit("booking_deleted", payload);
       }
       res.json({ message: "Xóa đặt phòng thành công." });
     } catch (error) {

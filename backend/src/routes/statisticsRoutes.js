@@ -2,47 +2,40 @@ const express = require("express");
 const router = express.Router();
 const authMiddleware = require("../middleware/auth");
 const db = require("../config/database");
+const RoomModel = require("../models/roomModel");
 
 // Thống kê tổng quan
 router.get("/overview", authMiddleware, async (req, res) => {
   try {
-    const [[roomStats]] = await db.query(`
+    const [roomStats, [[deviceStats]], [[incidentStats]], [[bookingStats]]] =
+      await Promise.all([
+        RoomModel.getStats(),
+        db.query(`
       SELECT
         COUNT(*) as total,
-        SUM(status = 'trong') as trong,
-        SUM(status = 'dang_hoc') as dang_hoc,
-        SUM(status = 'bao_tri') as bao_tri,
-        SUM(status = 'su_co') as su_co
-      FROM Rooms
-    `);
-
-    const [[deviceStats]] = await db.query(`
-      SELECT
-        COUNT(*) as total,
-        SUM(status = 'hoat_dong') as hoat_dong,
-        SUM(status = 'hong') as hong,
-        SUM(status = 'dang_sua') as dang_sua,
-        SUM(status = 'tat') as tat
+        COALESCE(SUM(status = 'hoat_dong'), 0) as hoat_dong,
+        COALESCE(SUM(status = 'hong'), 0) as hong,
+        COALESCE(SUM(status = 'dang_sua'), 0) as dang_sua,
+        COALESCE(SUM(status = 'tat'), 0) as tat
       FROM Devices
-    `);
-
-    const [[incidentStats]] = await db.query(`
+    `),
+        db.query(`
       SELECT
         COUNT(*) as total,
-        SUM(status = 'dang_xay_ra') as dang_xay_ra,
-        SUM(status = 'dang_xu_ly') as dang_xu_ly,
-        SUM(status = 'da_giai_quyet') as da_giai_quyet
+        COALESCE(SUM(status = 'dang_xay_ra'), 0) as dang_xay_ra,
+        COALESCE(SUM(status = 'dang_xu_ly'), 0) as dang_xu_ly,
+        COALESCE(SUM(status = 'da_giai_quyet'), 0) as da_giai_quyet
       FROM Incidents
-    `);
-
-    const [[bookingStats]] = await db.query(`
+    `),
+        db.query(`
       SELECT
         COUNT(*) as total,
-        SUM(status = 'cho_duyet') as cho_duyet,
-        SUM(status = 'da_duyet') as da_duyet,
-        SUM(status = 'tu_choi') as tu_choi
+        COALESCE(SUM(status = 'cho_duyet'), 0) as cho_duyet,
+        COALESCE(SUM(status = 'da_duyet'), 0) as da_duyet,
+        COALESCE(SUM(status = 'tu_choi'), 0) as tu_choi
       FROM Bookings
-    `);
+    `),
+      ]);
 
     res.json({ roomStats, deviceStats, incidentStats, bookingStats });
   } catch (error) {

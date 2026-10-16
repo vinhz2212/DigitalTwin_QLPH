@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 
 let socket = null;
+let socketToken = null;
 
 const socketUrl =
   import.meta.env.VITE_SOCKET_URL ||
@@ -10,28 +11,38 @@ const socketUrl =
 
 export const useSocket = (events = {}) => {
   const eventsRef = useRef(events);
+  eventsRef.current = events;
 
   useEffect(() => {
-    // Kết nối socket
-    if (!socket) {
-      socket = io(socketUrl);
-      console.log("✅ Socket.IO đã kết nối");
+    const token = localStorage.getItem("token");
+    if (!token) return undefined;
+
+    if (!socket || socketToken !== token) {
+      if (socket) socket.disconnect();
+      socketToken = token;
+      socket = io(socketUrl, { auth: { token } });
     }
 
-    // Đăng ký các sự kiện
-    Object.entries(eventsRef.current).forEach(([event, handler]) => {
-      socket.on(event, handler);
+    const listeners = Object.keys(eventsRef.current).map((event) => {
+      const listener = (...args) => eventsRef.current[event]?.(...args);
+      socket.on(event, listener);
+      return [event, listener];
     });
 
     return () => {
-      // Hủy đăng ký khi component unmount
-      Object.entries(eventsRef.current).forEach(([event, handler]) => {
-        socket.off(event, handler);
+      listeners.forEach(([event, listener]) => {
+        socket?.off(event, listener);
       });
     };
   }, []);
 
   return socket;
+};
+
+export const disconnectSocket = () => {
+  if (socket) socket.disconnect();
+  socket = null;
+  socketToken = null;
 };
 
 export default useSocket;

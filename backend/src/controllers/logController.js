@@ -1,10 +1,36 @@
 const LogModel = require("../models/logModel");
 
+const isValidDate = (value) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+};
+
 const logController = {
   getAll: async (req, res) => {
     try {
-      const limit = req.query.limit ? parseInt(req.query.limit, 10) : 100;
-      const logs = await LogModel.getAll(limit);
+      const requestedLimit = Number.parseInt(req.query.limit, 10);
+      const limit = Number.isInteger(requestedLimit)
+        ? Math.min(Math.max(requestedLimit, 1), 500)
+        : 100;
+      const from = String(req.query.from || "").trim();
+      const to = String(req.query.to || "").trim();
+
+      if ((from && !isValidDate(from)) || (to && !isValidDate(to))) {
+        return res.status(400).json({ message: "Khoảng ngày không hợp lệ." });
+      }
+      if (from && to && from > to) {
+        return res.status(400).json({
+          message: "Ngày bắt đầu không được sau ngày kết thúc.",
+        });
+      }
+
+      const logs = await LogModel.getAll({ limit, from, to });
       res.json(logs);
     } catch (error) {
       res.status(500).json({

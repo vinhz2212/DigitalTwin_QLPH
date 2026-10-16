@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../../services/api";
+import { useAuth } from "../../context/AuthContext";
+import useSocket from "../../hooks/useSocket";
 import {
   AlertTriangle,
   Check,
@@ -126,12 +128,12 @@ const MAINTENANCE_STATUS = {
     bg: "#f0fdf4",
     border: "#bbf7d0",
   },
-  huy: {
-    label: "Đã hủy",
-    color: "#475569",
-    bg: "#f8fafc",
-    border: "#e2e8f0",
-  },
+};
+
+const MAINTENANCE_TRANSITIONS = {
+  cho_xu_ly: ["cho_xu_ly", "dang_sua"],
+  dang_sua: ["dang_sua", "da_xong"],
+  da_xong: ["da_xong"],
 };
 
 const EMPTY_INCIDENT_FORM = {
@@ -216,6 +218,8 @@ function EmptyState({ icon: Icon, title, description }) {
 }
 
 export default function Incidents() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [tab, setTab] = useState("incidents");
   const [incidents, setIncidents] = useState([]);
   const [maintenance, setMaintenance] = useState([]);
@@ -271,6 +275,13 @@ export default function Incidents() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useSocket({
+    incident_created: fetchAll,
+    incident_updated: fetchAll,
+    incident_deleted: fetchAll,
+    maintenance_changed: fetchAll,
+  });
 
   const visibleIncidents = useMemo(() => {
     const keyword = search.trim().toLocaleLowerCase("vi");
@@ -406,6 +417,7 @@ export default function Incidents() {
   };
 
   const handleDelete = async (kind, id) => {
+    if (!isAdmin) return;
     const isIncident = kind === "incident";
     const confirmed = window.confirm(
       isIncident
@@ -631,7 +643,7 @@ export default function Incidents() {
                       "Mức độ",
                       "Thời gian",
                       "Trạng thái",
-                      "",
+                      ...(isAdmin ? [""] : []),
                     ].map((heading) => (
                       <th
                         key={heading}
@@ -729,27 +741,29 @@ export default function Incidents() {
                             />
                           </div>
                         </td>
-                        <td className="px-5 py-4">
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() =>
-                              handleDelete("incident", incident.id)
-                            }
-                            className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                            title="Xóa sự cố"
-                            aria-label="Xóa sự cố"
-                          >
-                            {busy ? (
-                              <LoaderCircle
-                                size={16}
-                                className="animate-spin"
-                              />
-                            ) : (
-                              <Trash2 size={16} />
-                            )}
-                          </button>
-                        </td>
+                        {isAdmin && (
+                          <td className="px-5 py-4">
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() =>
+                                handleDelete("incident", incident.id)
+                              }
+                              className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                              title="Xóa sự cố"
+                              aria-label="Xóa sự cố"
+                            >
+                              {busy ? (
+                                <LoaderCircle
+                                  size={16}
+                                  className="animate-spin"
+                                />
+                              ) : (
+                                <Trash2 size={16} />
+                              )}
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -779,7 +793,7 @@ export default function Incidents() {
                     "Người báo",
                     "Thời gian",
                     "Trạng thái",
-                    "",
+                    ...(isAdmin ? [""] : []),
                   ].map((heading) => (
                     <th
                       key={heading}
@@ -833,7 +847,7 @@ export default function Incidents() {
                         <div className="relative w-fit">
                           <select
                             value={item.status}
-                            disabled={busy}
+                            disabled={busy || item.status === "da_xong"}
                             onChange={(event) =>
                               handleMaintenanceStatus(
                                 item.id,
@@ -851,13 +865,17 @@ export default function Incidents() {
                                 "#f8fafc",
                             }}
                           >
-                            {Object.entries(MAINTENANCE_STATUS).map(
-                              ([key, value]) => (
+                            {Object.entries(MAINTENANCE_STATUS)
+                              .filter(([key]) =>
+                                MAINTENANCE_TRANSITIONS[item.status]?.includes(
+                                  key,
+                                ),
+                              )
+                              .map(([key, value]) => (
                                 <option key={key} value={key}>
                                   {value.label}
                                 </option>
-                              ),
-                            )}
+                              ))}
                           </select>
                           <ChevronDown
                             size={13}
@@ -865,22 +883,33 @@ export default function Incidents() {
                           />
                         </div>
                       </td>
-                      <td className="px-5 py-4">
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => handleDelete("maintenance", item.id)}
-                          className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                          title="Xóa yêu cầu"
-                          aria-label="Xóa yêu cầu bảo trì"
-                        >
-                          {busy ? (
-                            <LoaderCircle size={16} className="animate-spin" />
-                          ) : (
-                            <Trash2 size={16} />
-                          )}
-                        </button>
-                      </td>
+                      {isAdmin && (
+                        <td className="px-5 py-4">
+                          <button
+                            type="button"
+                            disabled={busy || item.status !== "da_xong"}
+                            onClick={() =>
+                              handleDelete("maintenance", item.id)
+                            }
+                            className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                            title={
+                              item.status === "da_xong"
+                                ? "Xóa yêu cầu"
+                                : "Chỉ xóa được phiếu đã hoàn tất"
+                            }
+                            aria-label="Xóa yêu cầu bảo trì"
+                          >
+                            {busy ? (
+                              <LoaderCircle
+                                size={16}
+                                className="animate-spin"
+                              />
+                            ) : (
+                              <Trash2 size={16} />
+                            )}
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 import api from "../../services/api";
+import useSocket from "../../hooks/useSocket";
 
 const STATUS_MAP = {
   hoat_dong: {
@@ -173,6 +174,12 @@ export default function Devices() {
       console.error("Không thể tải loại thiết bị:", error);
     }
   };
+
+  useSocket({
+    device_status_changed: fetchDevices,
+    devices_changed: fetchDevices,
+    maintenance_changed: fetchDevices,
+  });
 
   const handleOpenModal = (device = null) => {
     setFormError("");

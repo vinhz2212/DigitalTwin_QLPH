@@ -1,5 +1,10 @@
 const RoomModel = require("../models/roomModel");
 
+function emitRoomsChanged(req, payload) {
+  const io = req.app.get("io");
+  if (io) io.emit("rooms_changed", payload);
+}
+
 const roomController = {
   getAll: async (req, res) => {
     try {
@@ -61,6 +66,7 @@ const roomController = {
     try {
       const id = await RoomModel.create(req.body);
       const room = await RoomModel.getById(id);
+      emitRoomsChanged(req, { action: "created", roomId: id });
       res.status(201).json({ message: "Tạo phòng thành công", room });
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
@@ -71,6 +77,7 @@ const roomController = {
     try {
       await RoomModel.update(req.params.id, req.body);
       const room = await RoomModel.getById(req.params.id);
+      emitRoomsChanged(req, { action: "updated", roomId: req.params.id });
       res.json({ message: "Cập nhật thành công", room });
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
@@ -84,7 +91,14 @@ const roomController = {
 
       // Gửi socket realtime
       const io = req.app.get("io");
-      io.emit("room_status_changed", { roomId: req.params.id, status });
+      if (io) {
+        io.emit("room_status_changed", { roomId: req.params.id, status });
+        io.emit("rooms_changed", {
+          action: "status_changed",
+          roomId: req.params.id,
+          status,
+        });
+      }
 
       res.json({ message: "Cập nhật trạng thái thành công" });
     } catch (error) {
@@ -95,6 +109,7 @@ const roomController = {
   delete: async (req, res) => {
     try {
       await RoomModel.delete(req.params.id);
+      emitRoomsChanged(req, { action: "deleted", roomId: req.params.id });
       res.json({ message: "Xóa phòng thành công" });
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });

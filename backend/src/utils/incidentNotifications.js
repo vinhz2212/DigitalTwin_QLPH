@@ -1,4 +1,5 @@
 const db = require("../config/database");
+const { createForRoles } = require("../services/notificationService");
 
 const INCIDENT_LABELS = {
   chay: "cháy",
@@ -16,7 +17,14 @@ function getNotificationSeverity(severity) {
   return "warning";
 }
 
-async function notifyIncident({ io, roomId, type, severity, description }) {
+async function notifyIncident({
+  io,
+  roomId,
+  type,
+  severity,
+  description,
+  excludeUserId,
+}) {
   const [rooms] = await db.query(
     `SELECT code FROM Rooms WHERE id = ? LIMIT 1`,
     [roomId],
@@ -26,25 +34,14 @@ async function notifyIncident({ io, roomId, type, severity, description }) {
   const content = `Sự cố ${label} tại phòng ${roomCode}${description ? `: ${description}` : "."}`;
   const notificationSeverity = getNotificationSeverity(severity);
 
-  await db.query(
-    `
-      INSERT INTO Notifications (user_id, content, type, severity)
-      SELECT u.id, ?, 'su_co', ?
-      FROM Users u
-      JOIN Roles r ON r.id = u.role_id
-      WHERE u.is_active = TRUE
-        AND r.name IN ('admin', 'ky_thuat_vien')
-    `,
-    [content, notificationSeverity],
-  );
-
-  if (io) {
-    io.emit("notification_created", {
-      type: "su_co",
-      severity: notificationSeverity,
-      roomCode,
-    });
-  }
+  await createForRoles({
+    io,
+    roles: ["admin", "ky_thuat_vien"],
+    excludeUserIds: excludeUserId ? [excludeUserId] : [],
+    content,
+    type: "su_co",
+    severity: notificationSeverity,
+  });
 }
 
 module.exports = { notifyIncident };

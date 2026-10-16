@@ -20,6 +20,9 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("ai_messages");
+      sessionStorage.removeItem("ai_workspace_state");
       window.location.href = "/login";
     }
     return Promise.reject(error);

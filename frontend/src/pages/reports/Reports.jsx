@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../../services/api";
+import useSocket from "../../hooks/useSocket";
 import {
   Bar,
   BarChart,
@@ -15,7 +16,9 @@ import {
 import {
   AlertTriangle,
   Building2,
+  CalendarDays,
   CheckCircle2,
+  ClipboardList,
   Download,
   FileText,
   LoaderCircle,
@@ -25,6 +28,86 @@ import {
 
 const ROOM_COLORS = ["#16a34a", "#2563eb", "#d97706", "#dc2626"];
 const DEVICE_COLORS = ["#16a34a", "#64748b", "#dc2626", "#d97706"];
+
+const ROOM_TYPE_LABELS = {
+  ly_thuyet: "Lý thuyết",
+  thuc_hanh: "Thực hành",
+  hoi_truong: "Hội trường",
+};
+const ROOM_STATUS_LABELS = {
+  trong: "Đang trống",
+  dang_hoc: "Đang sử dụng",
+  bao_tri: "Bảo trì",
+  su_co: "Sự cố",
+};
+const DEVICE_STATUS_LABELS = {
+  hoat_dong: "Hoạt động",
+  tat: "Đã tắt",
+  hong: "Hỏng",
+  dang_sua: "Đang sửa",
+};
+const DEVICE_TYPE_LABELS = {
+  den: "Đèn",
+  dieu_hoa: "Điều hòa",
+  may_chieu: "Máy chiếu",
+  quat: "Quạt",
+  loa: "Loa",
+  may_tinh: "Máy tính",
+};
+const INCIDENT_TYPE_LABELS = {
+  mat_dien: "Mất điện",
+  dieu_hoa_hong: "Điều hòa hỏng",
+  may_chieu_hong: "Máy chiếu hỏng",
+  hong_thiet_bi: "Hỏng thiết bị",
+  nhiet_do_cao: "Nhiệt độ cao",
+  chay_no: "Cháy nổ",
+  ngap_nuoc: "Ngập nước",
+  an_ninh: "An ninh",
+  khac: "Khác",
+};
+const INCIDENT_STATUS_LABELS = {
+  dang_xay_ra: "Đang xảy ra",
+  dang_xu_ly: "Đang xử lý",
+  da_giai_quyet: "Đã giải quyết",
+};
+const INCIDENT_SEVERITY_LABELS = {
+  thap: "Thấp",
+  trung: "Trung bình",
+  cao: "Cao",
+  nghiem_trong: "Nghiêm trọng",
+};
+const MAINTENANCE_STATUS_LABELS = {
+  cho_xu_ly: "Chờ xử lý",
+  dang_sua: "Đang sửa",
+  da_xong: "Đã xong",
+};
+const BOOKING_STATUS_LABELS = {
+  cho_duyet: "Chờ duyệt",
+  da_duyet: "Đã duyệt",
+  tu_choi: "Từ chối",
+  da_huy: "Đã hủy",
+};
+const SESSION_TYPE_LABELS = {
+  theory: "Lý thuyết",
+  practical: "Thực hành",
+  exam: "Thi",
+};
+
+function formatDateValue(value, includeTime = false) {
+  if (!value) return "--";
+  const text = String(value);
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
+
+  if (dateOnly && !includeTime) {
+    return `${dateOnly[3]}/${dateOnly[2]}/${dateOnly[1]}`;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return text;
+  return includeTime
+    ? date.toLocaleString("vi-VN")
+    : date.toLocaleDateString("vi-VN");
+}
 
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
@@ -70,7 +153,8 @@ function downloadCSV(data, filename) {
   const headers = Object.keys(data[0]);
 
   const escapeCSV = (value) => {
-    const text = String(value ?? "");
+    let text = String(value ?? "");
+    if (/^[=+\-@]/.test(text)) text = `'${text}`;
     return `"${text.replace(/"/g, '""')}"`;
   };
 
@@ -78,15 +162,13 @@ function downloadCSV(data, filename) {
     headers.map((header) => escapeCSV(row[header])).join(","),
   );
 
-  const csv = `\uFEFF${headers.map(escapeCSV).join(",")}\n${rows.join("\n")}`;
+  const csv = `\uFEFF${headers.map(escapeCSV).join(",")}\r\n${rows.join("\r\n")}`;
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
 
   link.href = url;
-  link.download = `${filename}_${new Date()
-    .toLocaleDateString("vi-VN")
-    .replace(/\//g, "-")}.csv`;
+  link.download = `${filename}_${new Date().toISOString().slice(0, 10)}.csv`;
 
   document.body.appendChild(link);
   link.click();
@@ -306,31 +388,40 @@ export default function Reports() {
   const [rooms, setRooms] = useState([]);
   const [devices, setDevices] = useState([]);
   const [incidents, setIncidents] = useState([]);
+  const [maintenance, setMaintenance] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [generatedAt, setGeneratedAt] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [appliedRange, setAppliedRange] = useState({ from: "", to: "" });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const fetchData = useCallback(async (isRefresh = false) => {
+  const fetchData = useCallback(async (mode = "initial") => {
     try {
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
+      if (mode === "refresh") setRefreshing(true);
+      if (mode === "initial") setLoading(true);
 
       setErrorMessage("");
 
-      const [roomsRes, devicesRes, incidentsRes, bookingsRes] =
-        await Promise.all([
-          api.get("/rooms"),
-          api.get("/devices"),
-          api.get("/incidents"),
-          api.get("/bookings"),
-        ]);
+      const response = await api.get("/reports/data", {
+        params: {
+          ...(appliedRange.from ? { from: appliedRange.from } : {}),
+          ...(appliedRange.to ? { to: appliedRange.to } : {}),
+        },
+      });
+      const data = response.data || {};
 
-      setRooms(Array.isArray(roomsRes.data) ? roomsRes.data : []);
-      setDevices(Array.isArray(devicesRes.data) ? devicesRes.data : []);
-      setIncidents(Array.isArray(incidentsRes.data) ? incidentsRes.data : []);
-      setBookings(Array.isArray(bookingsRes.data) ? bookingsRes.data : []);
+      setRooms(Array.isArray(data.rooms) ? data.rooms : []);
+      setDevices(Array.isArray(data.devices) ? data.devices : []);
+      setIncidents(Array.isArray(data.incidents) ? data.incidents : []);
+      setMaintenance(Array.isArray(data.maintenance) ? data.maintenance : []);
+      setBookings(Array.isArray(data.bookings) ? data.bookings : []);
+      setSchedules(Array.isArray(data.schedules) ? data.schedules : []);
+      setGeneratedAt(data.generated_at || "");
     } catch (error) {
       console.error("Không thể tải dữ liệu báo cáo:", error);
       setErrorMessage(
@@ -341,11 +432,53 @@ export default function Reports() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [appliedRange]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useSocket({
+    rooms_changed: () => fetchData("silent"),
+    devices_changed: () => fetchData("silent"),
+    device_status_changed: () => fetchData("silent"),
+    incident_created: () => fetchData("silent"),
+    incident_updated: () => fetchData("silent"),
+    incident_deleted: () => fetchData("silent"),
+    incident_simulated: () => fetchData("silent"),
+    incident_resolved: () => fetchData("silent"),
+    maintenance_changed: () => fetchData("silent"),
+    booking_created: () => fetchData("silent"),
+    booking_status_changed: () => fetchData("silent"),
+    booking_deleted: () => fetchData("silent"),
+    schedule_changed: () => fetchData("silent"),
+  });
+
+  const applyDateRange = () => {
+    if (fromDate && toDate && fromDate > toDate) {
+      setErrorMessage("Ngày bắt đầu không được sau ngày kết thúc.");
+      return;
+    }
+    const nextRange = { from: fromDate, to: toDate };
+    if (
+      nextRange.from === appliedRange.from &&
+      nextRange.to === appliedRange.to
+    ) {
+      fetchData("refresh");
+      return;
+    }
+    setAppliedRange(nextRange);
+  };
+
+  const clearDateRange = () => {
+    setFromDate("");
+    setToDate("");
+    if (!appliedRange.from && !appliedRange.to) {
+      fetchData("refresh");
+      return;
+    }
+    setAppliedRange({ from: "", to: "" });
+  };
 
   const exportMap = useMemo(
     () => ({
@@ -358,8 +491,8 @@ export default function Reports() {
           "Tòa nhà": room.building_name,
           Tầng: room.floor_number,
           "Sức chứa": room.capacity,
-          Loại: room.type,
-          "Trạng thái": room.status,
+          Loại: ROOM_TYPE_LABELS[room.type] || room.type,
+          "Trạng thái": ROOM_STATUS_LABELS[room.status] || room.status,
         })),
       },
       devices: {
@@ -367,13 +500,12 @@ export default function Reports() {
         filename: "bao_cao_thiet_bi",
         data: devices.map((device) => ({
           "Tên thiết bị": device.name,
-          Loại: device.type_name,
+          Loại: DEVICE_TYPE_LABELS[device.type_name] || device.type_name,
           Phòng: device.room_code,
           "Tòa nhà": device.building_name,
-          "Trạng thái": device.status,
-          "Ngày lắp": device.installed_at
-            ? new Date(device.installed_at).toLocaleDateString("vi-VN")
-            : "--",
+          "Trạng thái": DEVICE_STATUS_LABELS[device.status] || device.status,
+          "Ngày lắp": formatDateValue(device.installed_at),
+          "Bảo trì gần nhất": formatDateValue(device.last_maintenance),
         })),
       },
       incidents: {
@@ -382,13 +514,31 @@ export default function Reports() {
         data: incidents.map((incident) => ({
           Phòng: incident.room_code,
           "Tòa nhà": incident.building_name,
-          "Loại sự cố": incident.type,
-          "Mức độ": incident.severity,
-          "Trạng thái": incident.status,
-          "Thời gian": incident.occurred_at
-            ? new Date(incident.occurred_at).toLocaleString("vi-VN")
-            : "--",
+          "Loại sự cố": INCIDENT_TYPE_LABELS[incident.type] || incident.type,
+          "Mức độ":
+            INCIDENT_SEVERITY_LABELS[incident.severity] || incident.severity,
+          "Trạng thái":
+            INCIDENT_STATUS_LABELS[incident.status] || incident.status,
+          "Thời gian": formatDateValue(incident.occurred_at, true),
+          "Hoàn tất": formatDateValue(incident.resolved_at, true),
           "Mô tả": incident.description || "--",
+        })),
+      },
+      maintenance: {
+        title: "Báo cáo bảo trì",
+        filename: "bao_cao_bao_tri",
+        data: maintenance.map((item) => ({
+          "Thiết bị": item.device_name,
+          Loại: DEVICE_TYPE_LABELS[item.device_type] || item.device_type,
+          Phòng: item.room_code,
+          "Tòa nhà": item.building_name,
+          "Người báo": item.reported_by_name,
+          "Người xử lý": item.resolved_by_name || "--",
+          "Trạng thái":
+            MAINTENANCE_STATUS_LABELS[item.status] || item.status,
+          "Ngày tạo": formatDateValue(item.created_at, true),
+          "Ngày hoàn tất": formatDateValue(item.resolved_at, true),
+          "Mô tả": item.description || "--",
         })),
       },
       bookings: {
@@ -397,17 +547,33 @@ export default function Reports() {
         data: bookings.map((booking) => ({
           Phòng: booking.room_code,
           "Người đặt": booking.user_name,
-          Ngày: booking.date
-            ? new Date(booking.date).toLocaleDateString("vi-VN")
-            : "--",
-          "Giờ bắt đầu": booking.start_time,
-          "Giờ kết thúc": booking.end_time,
+          Ngày: formatDateValue(booking.date),
+          "Giờ bắt đầu": String(booking.start_time || "--").slice(0, 5),
+          "Giờ kết thúc": String(booking.end_time || "--").slice(0, 5),
           "Mục đích": booking.purpose || "--",
-          "Trạng thái": booking.status,
+          "Trạng thái":
+            BOOKING_STATUS_LABELS[booking.status] || booking.status,
+        })),
+      },
+      schedules: {
+        title: "Báo cáo lịch học và lịch thi",
+        filename: "bao_cao_lich_hoc_lich_thi",
+        data: schedules.map((schedule) => ({
+          Phòng: schedule.room_code,
+          "Tòa nhà": schedule.building_name,
+          "Môn học": schedule.subject,
+          "Loại buổi":
+            SESSION_TYPE_LABELS[schedule.session_type] ||
+            schedule.session_type,
+          "Giảng viên": schedule.instructor || "--",
+          Ngày: formatDateValue(schedule.class_date),
+          "Giờ bắt đầu": String(schedule.start_time || "--").slice(0, 5),
+          "Giờ kết thúc": String(schedule.end_time || "--").slice(0, 5),
+          "Học kỳ": schedule.semester || "--",
         })),
       },
     }),
-    [rooms, devices, incidents, bookings],
+    [rooms, devices, incidents, maintenance, bookings, schedules],
   );
 
   const handleExport = (type, format) => {
@@ -454,19 +620,23 @@ export default function Reports() {
     },
   ];
 
-  const buildingData = ["A", "B"].map((buildingCode) => {
-    const buildingRooms = rooms.filter(
-      (room) => room.building_code === buildingCode,
-    );
+  const buildingData = [
+    ...new Set(rooms.map((room) => room.building_code).filter(Boolean)),
+  ]
+    .sort()
+    .map((buildingCode) => {
+      const buildingRooms = rooms.filter(
+        (room) => room.building_code === buildingCode,
+      );
 
-    return {
-      name: `Tòa ${buildingCode}`,
-      total: buildingRooms.length,
-      trong: buildingRooms.filter((room) => room.status === "trong").length,
-      dang_hoc: buildingRooms.filter((room) => room.status === "dang_hoc")
-        .length,
-    };
-  });
+      return {
+        name: `Tòa ${buildingCode}`,
+        total: buildingRooms.length,
+        trong: buildingRooms.filter((room) => room.status === "trong").length,
+        dang_hoc: buildingRooms.filter((room) => room.status === "dang_hoc")
+          .length,
+      };
+    });
 
   const devicePieData = [
     {
@@ -609,6 +779,68 @@ export default function Reports() {
             .length,
           color: "#dc2626",
         },
+        {
+          label: "Đã hủy",
+          value: bookings.filter((booking) => booking.status === "da_huy")
+            .length,
+          color: "#64748b",
+        },
+      ],
+    },
+    {
+      id: "maintenance",
+      title: "Báo cáo bảo trì",
+      description: `${maintenance.length} phiếu bảo trì`,
+      icon: ClipboardList,
+      color: "#7c3aed",
+      background: "#f5f3ff",
+      stats: [
+        {
+          label: "Chờ xử lý",
+          value: maintenance.filter((item) => item.status === "cho_xu_ly")
+            .length,
+          color: "#d97706",
+        },
+        {
+          label: "Đang sửa",
+          value: maintenance.filter((item) => item.status === "dang_sua")
+            .length,
+          color: "#2563eb",
+        },
+        {
+          label: "Đã xong",
+          value: maintenance.filter((item) => item.status === "da_xong")
+            .length,
+          color: "#16a34a",
+        },
+      ],
+    },
+    {
+      id: "schedules",
+      title: "Báo cáo lịch học và lịch thi",
+      description: `${schedules.length} buổi học hoặc thi`,
+      icon: CalendarDays,
+      color: "#0891b2",
+      background: "#ecfeff",
+      stats: [
+        {
+          label: "Lý thuyết",
+          value: schedules.filter((item) => item.session_type === "theory")
+            .length,
+          color: "#64748b",
+        },
+        {
+          label: "Thực hành",
+          value: schedules.filter((item) => item.session_type === "practical")
+            .length,
+          color: "#16a34a",
+        },
+        {
+          label: "Thi",
+          value: schedules.filter((item) => item.session_type === "exam")
+            .length,
+          color: "#d97706",
+        },
       ],
     },
   ];
@@ -629,11 +861,16 @@ export default function Reports() {
           <p className="mt-1 text-sm text-slate-500">
             Xem thống kê và xuất dữ liệu hệ thống.
           </p>
+          {generatedAt && (
+            <p className="mt-1 text-xs text-slate-400">
+              Cập nhật lúc {formatDateValue(generatedAt, true)}
+            </p>
+          )}
         </div>
 
         <button
           type="button"
-          onClick={() => fetchData(true)}
+          onClick={() => fetchData("refresh")}
           disabled={refreshing}
           className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -650,7 +887,7 @@ export default function Reports() {
           <span>{errorMessage}</span>
           <button
             type="button"
-            onClick={() => fetchData(true)}
+            onClick={() => fetchData("refresh")}
             className="self-start rounded-lg bg-white px-3 py-2 font-semibold text-red-700 shadow-sm hover:bg-red-100 sm:self-auto"
           >
             Thử lại
@@ -658,7 +895,77 @@ export default function Reports() {
         </div>
       )}
 
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <div className="flex items-center gap-2 font-semibold text-slate-900">
+              <CalendarDays size={18} className="text-blue-600" />
+              Lọc dữ liệu theo thời gian
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Áp dụng cho sự cố, bảo trì, đặt phòng và lịch học/lịch thi.
+              Phòng học và thiết bị luôn hiển thị trạng thái hiện tại.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:flex xl:items-end">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+                Từ ngày
+              </span>
+              <input
+                type="date"
+                value={fromDate}
+                max={toDate || undefined}
+                onChange={(event) => setFromDate(event.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 xl:w-44"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+                Đến ngày
+              </span>
+              <input
+                type="date"
+                value={toDate}
+                min={fromDate || undefined}
+                onChange={(event) => setToDate(event.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 xl:w-44"
+              />
+            </label>
+            <div className="flex gap-2 sm:col-span-2 xl:col-span-1">
+              <button
+                type="button"
+                onClick={applyDateRange}
+                disabled={loading || refreshing}
+                className="flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Áp dụng
+              </button>
+              <button
+                type="button"
+                onClick={clearDateRange}
+                disabled={loading || refreshing}
+                className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Xóa lọc
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {(appliedRange.from || appliedRange.to) && (
+          <p className="mt-3 rounded-xl bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700">
+            Đang xem dữ liệu từ {appliedRange.from
+              ? formatDateValue(appliedRange.from)
+              : "đầu kỳ"}
+            {" đến "}
+            {appliedRange.to ? formatDateValue(appliedRange.to) : "hiện tại"}.
+          </p>
+        )}
+      </section>
+
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-6">
         {[
           {
             label: "Phòng học",
@@ -687,6 +994,20 @@ export default function Reports() {
             icon: CheckCircle2,
             color: "#d97706",
             background: "#fffbeb",
+          },
+          {
+            label: "Bảo trì",
+            value: maintenance.length,
+            icon: ClipboardList,
+            color: "#7c3aed",
+            background: "#f5f3ff",
+          },
+          {
+            label: "Lịch học / thi",
+            value: schedules.length,
+            icon: CalendarDays,
+            color: "#0891b2",
+            background: "#ecfeff",
           },
         ].map((item) => {
           const Icon = item.icon;

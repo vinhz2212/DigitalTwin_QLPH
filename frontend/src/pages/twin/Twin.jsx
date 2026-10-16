@@ -22,6 +22,7 @@ import {
 
 import api from "../../services/api";
 import useSocket from "../../hooks/useSocket";
+import { useAuth } from "../../context/AuthContext";
 
 const STATUS_COLORS = {
   trong: "#22c55e",
@@ -709,6 +710,8 @@ function Scene({
 }
 
 export default function Twin() {
+  const { user } = useAuth();
+  const canChangeRoomStatus = ["admin", "ky_thuat_vien"].includes(user?.role);
   const [rooms, setRooms] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [selectedBuilding, setSelectedBuilding] = useState("A");
@@ -740,7 +743,7 @@ export default function Twin() {
   useSocket({
     incident_simulated: fetchRooms,
     incident_resolved: fetchRooms,
-    room_status_changed: fetchRooms,
+    rooms_changed: fetchRooms,
   });
 
   const floorRooms = rooms.filter(
@@ -770,7 +773,7 @@ export default function Twin() {
   };
 
   const handleStatusChange = async (status) => {
-    if (!selectedRoom) return;
+    if (!selectedRoom || !canChangeRoomStatus) return;
 
     try {
       await api.patch(`/rooms/${selectedRoom.id}/status`, { status });
@@ -1197,22 +1200,26 @@ export default function Twin() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-1.5">
-                  {Object.entries(STATUS_COLORS).map(([status, color]) => (
-                    <button
-                      key={status}
-                      type="button"
-                      onClick={() => handleStatusChange(status)}
-                      className="rounded-lg px-2 py-1.5 text-[11px] font-bold text-white transition-opacity hover:opacity-85"
-                      style={{
-                        background:
-                          selectedRoom.status === status ? color : `${color}a8`,
-                      }}
-                    >
-                      {STATUS_LABELS[status]}
-                    </button>
-                  ))}
-                </div>
+                {canChangeRoomStatus && (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {Object.entries(STATUS_COLORS).map(([status, color]) => (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => handleStatusChange(status)}
+                        className="rounded-lg px-2 py-1.5 text-[11px] font-bold text-white transition-opacity hover:opacity-85"
+                        style={{
+                          background:
+                            selectedRoom.status === status
+                              ? color
+                              : `${color}a8`,
+                        }}
+                      >
+                        {STATUS_LABELS[status]}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

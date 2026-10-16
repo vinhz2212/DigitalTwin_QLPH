@@ -1,27 +1,61 @@
 const pool = require("../config/database");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const LogModel = require("../models/logModel");
+
+const emitLogCreated = (req, id, action) => {
+  const io = req.app.get("io");
+  if (!io || !id) return;
+  const payload = { id, action };
+  io.to("role:admin").emit("activity_log_created", payload);
+  io.to("role:ky_thuat_vien").emit("activity_log_created", payload);
+};
+
+const recordAuthLog = async (req, data) => {
+  try {
+    const logId = await LogModel.create({ ...data, ip_address: req.ip });
+    emitLogCreated(req, logId, data.action);
+    return logId;
+  } catch (error) {
+    console.error("Không thể ghi nhật ký xác thực:", error.message);
+    return null;
+  }
+};
 
 // Đăng nhập
 const login = async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    if (!username || !password) {
+    if (
+      typeof username !== "string" ||
+      typeof password !== "string" ||
+      !username.trim() ||
+      !password
+    ) {
       return res
         .status(400)
         .json({ message: "Vui lòng nhập tên đăng nhập và mật khẩu!" });
     }
+
+    const cleanUsername = username.trim();
 
     const [users] = await pool.query(
       `SELECT u.*, r.name AS role_name
        FROM Users u
        JOIN Roles r ON u.role_id = r.id
        WHERE u.username = ? AND u.is_active = 1`,
-      [username.trim()],
+      [cleanUsername],
     );
 
     if (users.length === 0) {
+      await recordAuthLog(req, {
+        user_id: null,
+        action: "USER_LOGIN_FAILED",
+        entity_type: "User",
+        entity_id: null,
+        details: { username: cleanUsername, reason: "account_not_found" },
+      });
       return res
         .status(401)
         .json({ message: "Tên đăng nhập hoặc mật khẩu không đúng!" });
@@ -31,6 +65,13 @@ const login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password_hash);
 
     if (!isMatch) {
+      await recordAuthLog(req, {
+        user_id: user.id,
+        action: "USER_LOGIN_FAILED",
+        entity_type: "User",
+        entity_id: user.id,
+        details: { username: user.username, reason: "invalid_password" },
+      });
       return res
         .status(401)
         .json({ message: "Tên đăng nhập hoặc mật khẩu không đúng!" });
@@ -42,10 +83,13 @@ const login = async (req, res) => {
       { expiresIn: "7d" },
     );
 
-    await pool.query(
-      "INSERT INTO ActivityLogs (user_id, action, entity_type) VALUES (?, ?, ?)",
-      [user.id, "USER_LOGIN", "User"],
-    );
+    await recordAuthLog(req, {
+      user_id: user.id,
+      action: "USER_LOGIN",
+      entity_type: "User",
+      entity_id: user.id,
+      details: { username: user.username },
+    });
 
     return res.json({
       token,
@@ -118,20 +162,38 @@ const register = async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // 2 là vai trò Giảng viên theo Roles trong database.
+    const [lecturerRoles] = await pool.query(
+      "SELECT id FROM Roles WHERE name = 'giang_vien' LIMIT 1",
+    );
+
+    if (lecturerRoles.length === 0) {
+      return res.status(500).json({
+        message: "Hệ thống chưa cấu hình vai trò Giảng viên.",
+      });
+    }
+
+    // Tài khoản tự đăng ký luôn là Giảng viên. Chỉ admin mới được đổi vai trò.
     const [result] = await pool.query(
       `INSERT INTO Users
         (role_id, username, email, password_hash, full_name, phone)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [2, cleanUsername, cleanEmail, passwordHash, cleanFullName, cleanPhone],
+      [
+        lecturerRoles[0].id,
+        cleanUsername,
+        cleanEmail,
+        passwordHash,
+        cleanFullName,
+        cleanPhone,
+      ],
     );
 
-    await pool.query(
-      `INSERT INTO ActivityLogs
-        (user_id, action, entity_type, entity_id)
-       VALUES (?, ?, ?, ?)`,
-      [result.insertId, "USER_REGISTER", "User", result.insertId],
-    );
+    await recordAuthLog(req, {
+      user_id: result.insertId,
+      action: "USER_REGISTER",
+      entity_type: "User",
+      entity_id: result.insertId,
+      details: { username: cleanUsername, email: cleanEmail },
+    });
 
     return res
       .status(201)
@@ -165,11 +227,31 @@ const getMe = async (req, res) => {
       return res.status(404).json({ message: "Không tìm thấy user!" });
     }
 
-    return res.json(users[0]);
+    const user = users[0];
+    return res.json({
+      id: user.id,
+      username: user.username,
+      full_name: user.full_name,
+      email: user.email,
+      phone: user.phone,
+      role_id: user.role_id,
+      role: user.role_name,
+    });
   } catch (error) {
     console.error("Lỗi lấy thông tin user:", error);
     return res.status(500).json({ message: "Lỗi server!" });
   }
 };
 
-module.exports = { login, register, getMe };
+const logout = async (req, res) => {
+  await recordAuthLog(req, {
+    user_id: req.user.id,
+    action: "USER_LOGOUT",
+    entity_type: "User",
+    entity_id: req.user.id,
+    details: null,
+  });
+  return res.json({ message: "Đăng xuất thành công." });
+};
+
+module.exports = { login, register, getMe, logout };

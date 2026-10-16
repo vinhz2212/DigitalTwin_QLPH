@@ -1,5 +1,10 @@
 const DeviceModel = require("../models/deviceModel");
 
+const emitDeviceChange = (req, payload) => {
+  const io = req.app.get("io");
+  if (io) io.emit("devices_changed", payload);
+};
+
 const deviceController = {
   getAll: async (req, res) => {
     try {
@@ -52,6 +57,7 @@ const deviceController = {
     try {
       const id = await DeviceModel.create(req.body);
       const device = await DeviceModel.getById(id);
+      emitDeviceChange(req, { action: "created", deviceId: id });
       res.status(201).json({ message: "Thêm thiết bị thành công", device });
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
@@ -62,6 +68,10 @@ const deviceController = {
     try {
       await DeviceModel.update(req.params.id, req.body);
       const device = await DeviceModel.getById(req.params.id);
+      emitDeviceChange(req, {
+        action: "updated",
+        deviceId: Number(req.params.id),
+      });
       res.json({ message: "Cập nhật thành công", device });
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
@@ -74,7 +84,9 @@ const deviceController = {
       await DeviceModel.updateStatus(req.params.id, status);
 
       const io = req.app.get("io");
-      io.emit("device_status_changed", { deviceId: req.params.id, status });
+      if (io) {
+        io.emit("device_status_changed", { deviceId: req.params.id, status });
+      }
 
       res.json({ message: "Cập nhật trạng thái thành công" });
     } catch (error) {
@@ -85,6 +97,10 @@ const deviceController = {
   delete: async (req, res) => {
     try {
       await DeviceModel.delete(req.params.id);
+      emitDeviceChange(req, {
+        action: "deleted",
+        deviceId: Number(req.params.id),
+      });
       res.json({ message: "Xóa thiết bị thành công" });
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });

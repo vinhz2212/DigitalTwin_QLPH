@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
+import useSocket from "../../hooks/useSocket";
 import {
   CalendarDays,
   Check,
@@ -197,6 +198,8 @@ export default function Schedules() {
     fetchSchedules();
     fetchRooms();
   }, [fetchSchedules, fetchRooms]);
+
+  useSocket({ schedule_changed: fetchSchedules });
 
   const weekDates = useMemo(
     () => DAYS.map((_, index) => addDays(weekStart, index)),

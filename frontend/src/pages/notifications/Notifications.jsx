@@ -103,7 +103,10 @@ export default function Notifications() {
     }
   }, []);
 
-  useSocket({ notification_created: fetchNotifications });
+  useSocket({
+    notification_created: fetchNotifications,
+    notification_updated: fetchNotifications,
+  });
 
   useEffect(() => {
     fetchNotifications();

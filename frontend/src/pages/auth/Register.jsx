@@ -10,7 +10,6 @@ const initialForm = {
   password: "",
   confirm_password: "",
   phone: "",
-  role_id: 2,
 };
 
 export default function Register() {
@@ -22,10 +21,7 @@ export default function Register() {
   const navigate = useNavigate();
 
   const updateField = (field) => (event) => {
-    const value =
-      field === "role_id" ? Number(event.target.value) : event.target.value;
-
-    setForm((current) => ({ ...current, [field]: value }));
+    setForm((current) => ({ ...current, [field]: event.target.value }));
 
     if (error) setError("");
   };
@@ -53,7 +49,6 @@ export default function Register() {
         email: form.email.trim(),
         password: form.password,
         phone: form.phone.trim(),
-        role_id: form.role_id,
       });
 
       navigate("/login", { state: { registered: true } });
@@ -166,19 +161,9 @@ export default function Register() {
                 />
               </div>
 
-              <div>
-                <label htmlFor="role_id" className={labelClass}>
-                  Vai trò
-                </label>
-                <select
-                  id="role_id"
-                  value={form.role_id}
-                  onChange={updateField("role_id")}
-                  className={inputClass}
-                >
-                  <option value={2}>Giảng viên</option>
-                  <option value={3}>Kỹ thuật viên</option>
-                </select>
+              <div className="flex items-center rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                Tài khoản mới được cấp vai trò Giảng viên. Quản trị viên có thể
+                thay đổi vai trò sau khi đăng ký.
               </div>
 
               <div>

@@ -709,8 +709,9 @@ export default function Dashboard() {
     incident_resolved: fetchAll,
     incident_created: fetchAll,
     incident_updated: fetchAll,
-    room_status_changed: fetchAll,
+    rooms_changed: fetchAll,
     device_status_changed: fetchAll,
+    devices_changed: fetchAll,
   });
 
   const floorRooms = rooms.filter(

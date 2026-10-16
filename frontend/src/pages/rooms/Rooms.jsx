@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Building2,
   Check,
@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 
 import api from "../../services/api";
+import useSocket from "../../hooks/useSocket";
+import { useAuth } from "../../context/AuthContext";
 
 const STATUS_MAP = {
   trong: {
@@ -116,6 +118,9 @@ function StatusBadge({ status }) {
 }
 
 export default function Rooms() {
+  const { user } = useAuth();
+  const canManageRooms = user?.role === "admin";
+  const canChangeRoomStatus = ["admin", "ky_thuat_vien"].includes(user?.role);
   const [rooms, setRooms] = useState([]);
   const [buildings, setBuildings] = useState([]);
   const [floors, setFloors] = useState([]);
@@ -135,12 +140,7 @@ export default function Rooms() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState("");
 
-  useEffect(() => {
-    fetchRooms();
-    fetchBuildings();
-  }, []);
-
-  const fetchRooms = async () => {
+  const fetchRooms = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get("/rooms");
@@ -150,7 +150,7 @@ export default function Rooms() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const fetchBuildings = async () => {
     try {
@@ -160,6 +160,22 @@ export default function Rooms() {
       console.error("Không thể tải danh sách tòa nhà:", error);
     }
   };
+
+  useEffect(() => {
+    fetchRooms();
+    fetchBuildings();
+
+    const interval = setInterval(fetchRooms, 15000);
+    return () => clearInterval(interval);
+  }, [fetchRooms]);
+
+  useSocket({
+    rooms_changed: fetchRooms,
+    incident_simulated: fetchRooms,
+    incident_resolved: fetchRooms,
+    incident_created: fetchRooms,
+    incident_updated: fetchRooms,
+  });
 
   const fetchFloors = async (buildingId) => {
     if (!buildingId) {
@@ -177,6 +193,7 @@ export default function Rooms() {
   };
 
   const handleOpenModal = async (room = null) => {
+    if (!canManageRooms) return;
     setFormError("");
 
     if (room) {
@@ -260,6 +277,7 @@ export default function Rooms() {
   };
 
   const handleDelete = async (room) => {
+    if (!canManageRooms) return;
     const confirmed = window.confirm(
       `Bạn có chắc muốn xóa phòng ${room.code} không?`,
     );
@@ -275,6 +293,7 @@ export default function Rooms() {
   };
 
   const handleStatusChange = async (roomId, status) => {
+    if (!canChangeRoomStatus) return;
     try {
       await api.patch(`/rooms/${roomId}/status`, { status });
       await fetchRooms();
@@ -342,18 +361,20 @@ export default function Rooms() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => handleOpenModal()}
-          className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition-all hover:-translate-y-0.5 hover:shadow-lg"
-          style={{
-            background: "linear-gradient(135deg, #1768e8, #4b8df4)",
-            boxShadow: "0 7px 18px rgba(35, 105, 225, .2)",
-          }}
-        >
-          <Plus size={17} />
-          Thêm phòng
-        </button>
+        {canManageRooms && (
+          <button
+            type="button"
+            onClick={() => handleOpenModal()}
+            className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition-all hover:-translate-y-0.5 hover:shadow-lg"
+            style={{
+              background: "linear-gradient(135deg, #1768e8, #4b8df4)",
+              boxShadow: "0 7px 18px rgba(35, 105, 225, .2)",
+            }}
+          >
+            <Plus size={17} />
+            Thêm phòng
+          </button>
+        )}
       </header>
 
       {/* Thẻ thống kê */}
@@ -601,7 +622,7 @@ export default function Rooms() {
                     "Loại phòng",
                     "Sức chứa",
                     "Trạng thái",
-                    "Thao tác",
+                    ...(canManageRooms ? ["Thao tác"] : []),
                   ].map((heading) => (
                     <th
                       key={heading}
@@ -663,47 +684,54 @@ export default function Rooms() {
                       </td>
 
                       <td className="px-5 py-4">
-                        <select
-                          value={room.status}
-                          onChange={(event) =>
-                            handleStatusChange(room.id, event.target.value)
-                          }
-                          aria-label={`Trạng thái phòng ${room.code}`}
-                          className="cursor-pointer appearance-none rounded-full border-0 py-1.5 pl-3 pr-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-200"
-                          style={{
-                            color: STATUS_MAP[room.status]?.color || "#64748b",
-                            background:
-                              STATUS_MAP[room.status]?.bg || "#f1f5f9",
-                          }}
-                        >
-                          {Object.entries(STATUS_MAP).map(([key, status]) => (
-                            <option key={key} value={key}>
-                              {status.label}
-                            </option>
-                          ))}
-                        </select>
+                        {canChangeRoomStatus ? (
+                          <select
+                            value={room.status}
+                            onChange={(event) =>
+                              handleStatusChange(room.id, event.target.value)
+                            }
+                            aria-label={`Trạng thái phòng ${room.code}`}
+                            className="cursor-pointer appearance-none rounded-full border-0 py-1.5 pl-3 pr-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-200"
+                            style={{
+                              color:
+                                STATUS_MAP[room.status]?.color || "#64748b",
+                              background:
+                                STATUS_MAP[room.status]?.bg || "#f1f5f9",
+                            }}
+                          >
+                            {Object.entries(STATUS_MAP).map(([key, status]) => (
+                              <option key={key} value={key}>
+                                {status.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <StatusBadge status={room.status} />
+                        )}
                       </td>
 
-                      <td className="px-5 py-4">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenModal(room)}
-                            title="Chỉnh sửa phòng"
-                            className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
-                          >
-                            <Edit2 size={15} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(room)}
-                            title="Xóa phòng"
-                            className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </td>
+                      {canManageRooms && (
+                        <td className="px-5 py-4">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenModal(room)}
+                              title="Chỉnh sửa phòng"
+                              className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                            >
+                              <Edit2 size={15} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(room)}
+                              title="Xóa phòng"
+                              className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -755,24 +783,26 @@ export default function Rooms() {
                     </p>
                   </div>
 
-                  <div className="mt-4 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenModal(room)}
-                      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-50 py-2 text-xs font-bold text-blue-600 transition-colors hover:bg-blue-100"
-                    >
-                      <Edit2 size={13} />
-                      Chỉnh sửa
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(room)}
-                      className="flex items-center justify-center rounded-lg bg-red-50 px-3 py-2 text-red-600 transition-colors hover:bg-red-100"
-                      aria-label={`Xóa phòng ${room.code}`}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+                  {canManageRooms && (
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenModal(room)}
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-50 py-2 text-xs font-bold text-blue-600 transition-colors hover:bg-blue-100"
+                      >
+                        <Edit2 size={13} />
+                        Chỉnh sửa
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(room)}
+                        className="flex items-center justify-center rounded-lg bg-red-50 px-3 py-2 text-red-600 transition-colors hover:bg-red-100"
+                        aria-label={`Xóa phòng ${room.code}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </article>
             );
@@ -781,7 +811,7 @@ export default function Rooms() {
       )}
 
       {/* Hộp thoại thêm / sửa */}
-      {showModal && (
+      {showModal && canManageRooms && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/45 p-4 backdrop-blur-sm"
           onMouseDown={(event) => {

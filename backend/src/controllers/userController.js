@@ -47,6 +47,10 @@ const userController = {
   update: async (req, res) => {
     try {
       await UserModel.update(req.params.id, req.body);
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`user:${req.params.id}`).emit("account_changed");
+      }
       res.json({ message: "Cập nhật thành công" });
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
@@ -122,6 +126,10 @@ const userController = {
         return res.status(400).json({ message: "Không thể xóa tài khoản đang đăng nhập!" });
       }
       await UserModel.delete(req.params.id);
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`user:${req.params.id}`).emit("account_changed");
+      }
       res.json({ message: "Xóa người dùng thành công" });
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });

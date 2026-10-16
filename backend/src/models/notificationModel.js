@@ -25,31 +25,38 @@ const NotificationModel = {
 
   // Đánh dấu đã đọc 1 thông báo
   markAsRead: async (id, userId) => {
-    await db.query(
+    const [result] = await db.query(
       "UPDATE Notifications SET is_read = TRUE WHERE id = ? AND user_id = ?",
       [id, userId],
     );
+    return result.affectedRows;
   },
 
   // Đánh dấu tất cả là đã đọc
   markAllAsRead: async (userId) => {
-    await db.query(
+    const [result] = await db.query(
       "UPDATE Notifications SET is_read = TRUE WHERE user_id = ?",
       [userId],
     );
+    return result.affectedRows;
   },
 
   // Xóa 1 thông báo
   delete: async (id, userId) => {
-    await db.query("DELETE FROM Notifications WHERE id = ? AND user_id = ?", [
-      id,
-      userId,
-    ]);
+    const [result] = await db.query(
+      "DELETE FROM Notifications WHERE id = ? AND user_id = ?",
+      [id, userId],
+    );
+    return result.affectedRows;
   },
 
   // Xóa tất cả thông báo
   deleteAll: async (userId) => {
-    await db.query("DELETE FROM Notifications WHERE user_id = ?", [userId]);
+    const [result] = await db.query(
+      "DELETE FROM Notifications WHERE user_id = ?",
+      [userId],
+    );
+    return result.affectedRows;
   },
 
   // Tạo thông báo mới

@@ -258,16 +258,30 @@ export default function Settings() {
     }
   };
 
-  const handleSavePreferences = () => {
+  const handleSavePreferences = async () => {
     setLoadingPreferences(true);
     setPreferencesError("");
     setPreferencesSuccess("");
 
     try {
       if (activeTab === "notifications") {
+        let savedNotifications = notifications;
+
+        if (
+          notifications.browser &&
+          "Notification" in window &&
+          Notification.permission === "default"
+        ) {
+          const permission = await Notification.requestPermission();
+          if (permission !== "granted") {
+            savedNotifications = { ...notifications, browser: false };
+            setNotifications(savedNotifications);
+          }
+        }
+
         localStorage.setItem(
           notificationStorageKey,
-          JSON.stringify(notifications),
+          JSON.stringify(savedNotifications),
         );
       } else {
         localStorage.setItem(appearanceStorageKey, JSON.stringify(appearance));
@@ -565,9 +579,9 @@ export default function Settings() {
             {activeTab === "notifications" && (
               <div className="space-y-4">
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  Các lựa chọn này hiện được lưu trong trình duyệt trên thiết bị
-                  đang dùng. Gửi email và thông báo trình duyệt cần được kết nối
-                  thêm với backend.
+                  Các lựa chọn được lưu trên trình duyệt đang dùng. Thông báo
+                  trong hệ thống và thông báo trình duyệt đã hoạt động; gửi
+                  email sẽ được bổ sung khi cấu hình dịch vụ email.
                 </div>
 
                 {preferencesError && (

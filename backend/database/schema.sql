@@ -252,7 +252,9 @@ SELECT
     WHEN 6 THEN CONCAT('Máy tính giáo viên ', r.code)
   END,
   CASE
-    WHEN (dt.id = 2 AND r.id IN (15, 36)) OR (dt.id = 3 AND r.id = 30)
+    WHEN dt.id = 3 AND r.id = 30
+      THEN 'dang_sua'
+    WHEN dt.id = 2 AND r.id IN (8, 15, 36)
       THEN 'hong'
     ELSE 'hoat_dong'
   END,
@@ -324,8 +326,9 @@ CREATE TABLE `Maintenance` (
 INSERT INTO `Maintenance`
   (`id`, `device_id`, `reported_by`, `status`, `description`, `created_at`)
 VALUES
-(1, 86, 2, 'dang_sua', 'Sửa chữa bóng đèn máy chiếu phòng B302', NOW() - INTERVAL 1 DAY),
-(2, 44, 2, 'cho_xu_ly', 'Bảo trì dàn lạnh điều hòa phòng A204', NOW() - INTERVAL 3 HOUR);
+(1, 177, 2, 'dang_sua', 'Sửa chữa bóng đèn máy chiếu phòng B302', NOW() - INTERVAL 1 DAY),
+(2, 44, 2, 'cho_xu_ly', 'Bảo trì dàn lạnh điều hòa phòng A204', NOW() - INTERVAL 3 HOUR),
+(3, 212, 2, 'cho_xu_ly', 'Kiểm tra hệ thống lạnh phòng B404', NOW() - INTERVAL 2 HOUR);
 
 -- ------------------------------------------------------------
 -- 10. Table: Schedules

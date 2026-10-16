@@ -1,16 +1,29 @@
 const db = require("../config/database");
 
 const LogModel = {
-  getAll: async (limit = 100) => {
+  getAll: async ({ limit = 100, from = "", to = "" } = {}) => {
+    const conditions = [];
+    const params = [];
+
+    if (from) {
+      conditions.push("l.created_at >= ?");
+      params.push(`${from} 00:00:00`);
+    }
+    if (to) {
+      conditions.push("l.created_at < DATE_ADD(?, INTERVAL 1 DAY)");
+      params.push(`${to} 00:00:00`);
+    }
+
     const [rows] = await db.query(
       `
       SELECT l.*, u.full_name, u.username
       FROM ActivityLogs l
       LEFT JOIN Users u ON l.user_id = u.id
+      ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
       ORDER BY l.created_at DESC
       LIMIT ?
       `,
-      [limit],
+      [...params, limit],
     );
 
     return rows;
@@ -20,7 +33,7 @@ const LogModel = {
     const { user_id, action, entity_type, entity_id, details, ip_address } =
       data;
 
-    await db.query(
+    const [result] = await db.query(
       `
       INSERT INTO ActivityLogs
         (user_id, action, entity_type, entity_id, details, ip_address)
@@ -35,6 +48,7 @@ const LogModel = {
         ip_address,
       ],
     );
+    return result.insertId;
   },
 
   removeById: async (id) => {

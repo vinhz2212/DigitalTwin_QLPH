@@ -1,6 +1,14 @@
 const ScheduleModel = require("../models/scheduleModel");
+const {
+  withRoomAvailabilityLock,
+} = require("../services/roomAvailabilityService");
 
 const VALID_SESSION_TYPES = ["theory", "practical", "exam"];
+
+const emitScheduleChange = (req, payload) => {
+  const io = req.app.get("io");
+  if (io) io.emit("schedule_changed", payload);
+};
 
 const isValidDate = (value) => {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -79,6 +87,41 @@ const validateSchedule = (body = {}) => {
   };
 };
 
+const findAvailabilityConflict = async (
+  schedule,
+  excludeId = null,
+  executor,
+) => {
+  const scheduleConflict = await ScheduleModel.findConflict(
+    { ...schedule, exclude_id: excludeId },
+    executor,
+  );
+
+  if (scheduleConflict) {
+    const resource =
+      scheduleConflict.room_id === schedule.room_id
+        ? `Phòng ${scheduleConflict.room_code}`
+        : `Giảng viên ${scheduleConflict.instructor}`;
+    return `${resource} đã có lịch trùng khung giờ với “${scheduleConflict.subject}”.`;
+  }
+
+  const bookingConflict = await ScheduleModel.findBookingConflict(
+    schedule,
+    executor,
+  );
+
+  if (bookingConflict) {
+    const statusLabel =
+      bookingConflict.status === "da_duyet" ? "đã được duyệt" : "đang chờ duyệt";
+    const purpose = bookingConflict.purpose
+      ? ` cho “${bookingConflict.purpose}”`
+      : "";
+    return `Phòng đã có yêu cầu đặt ${statusLabel}${purpose} trong khung giờ này.`;
+  }
+
+  return null;
+};
+
 const scheduleController = {
   getAll: async (req, res) => {
     try {
@@ -114,25 +157,45 @@ const scheduleController = {
     }
 
     try {
-      const conflict = await ScheduleModel.findConflict(validation.value);
-      if (conflict) {
-        const resource = conflict.room_id === validation.value.room_id
-          ? `Phòng ${conflict.room_code}`
-          : `Giảng viên ${conflict.instructor}`;
+      const result = await withRoomAvailabilityLock(
+        validation.value.room_id,
+        async (connection) => {
+          const conflictMessage = await findAvailabilityConflict(
+            validation.value,
+            null,
+            connection,
+          );
+
+          if (conflictMessage) return { conflictMessage };
+
+          const id = await ScheduleModel.create(validation.value, connection);
+          return { id };
+        },
+      );
+
+      if (result.conflictMessage) {
         return res.status(409).json({
-          message: `${resource} đã có lịch trùng khung giờ với “${conflict.subject}”.`,
+          message: result.conflictMessage,
         });
       }
 
-      const id = await ScheduleModel.create(validation.value);
+      emitScheduleChange(req, {
+        action: "created",
+        scheduleId: result.id,
+        roomId: validation.value.room_id,
+      });
+
       return res.status(201).json({
         message: "Thêm lịch thành công",
-        id,
+        id: result.id,
       });
     } catch (error) {
       console.error("Không thể tạo lịch:", error);
 
-      if (error.code === "ER_NO_REFERENCED_ROW_2") {
+      if (
+        error.code === "ROOM_NOT_FOUND" ||
+        error.code === "ER_NO_REFERENCED_ROW_2"
+      ) {
         return res.status(400).json({ message: "Phòng học không tồn tại." });
       }
 
@@ -158,26 +221,50 @@ const scheduleController = {
         return res.status(404).json({ message: "Không tìm thấy lịch học." });
       }
 
-      const conflict = await ScheduleModel.findConflict({
-        ...validation.value,
-        exclude_id: id,
-      });
-      if (conflict) {
-        const resource = conflict.room_id === validation.value.room_id
-          ? `Phòng ${conflict.room_code}`
-          : `Giảng viên ${conflict.instructor}`;
+      const result = await withRoomAvailabilityLock(
+        validation.value.room_id,
+        async (connection) => {
+          const conflictMessage = await findAvailabilityConflict(
+            validation.value,
+            id,
+            connection,
+          );
+
+          if (conflictMessage) return { conflictMessage };
+
+          const affectedRows = await ScheduleModel.update(
+            id,
+            validation.value,
+            connection,
+          );
+          return { affectedRows };
+        },
+      );
+
+      if (result.conflictMessage) {
         return res.status(409).json({
-          message: `${resource} đã có lịch trùng khung giờ với “${conflict.subject}”.`,
+          message: result.conflictMessage,
         });
       }
 
-      await ScheduleModel.update(id, validation.value);
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: "Không tìm thấy lịch học." });
+      }
+
+      emitScheduleChange(req, {
+        action: "updated",
+        scheduleId: id,
+        roomId: validation.value.room_id,
+      });
 
       return res.json({ message: "Cập nhật lịch thành công." });
     } catch (error) {
       console.error("Không thể cập nhật lịch:", error);
 
-      if (error.code === "ER_NO_REFERENCED_ROW_2") {
+      if (
+        error.code === "ROOM_NOT_FOUND" ||
+        error.code === "ER_NO_REFERENCED_ROW_2"
+      ) {
         return res.status(400).json({ message: "Phòng học không tồn tại." });
       }
 
@@ -197,6 +284,8 @@ const scheduleController = {
       if (affectedRows === 0) {
         return res.status(404).json({ message: "Không tìm thấy lịch học." });
       }
+
+      emitScheduleChange(req, { action: "deleted", scheduleId: id });
 
       return res.json({ message: "Xóa lịch học thành công." });
     } catch (error) {
