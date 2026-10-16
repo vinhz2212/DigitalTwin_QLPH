@@ -259,7 +259,7 @@ export default function Notifications() {
     <div className="space-y-5">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="flex items-center gap-3 text-2xl font-black text-gray-800">
+          <h1 className="flex items-center gap-3 text-2xl font-black text-slate-800">
             Thông báo
             {unreadCount > 0 && (
               <span
@@ -272,7 +272,7 @@ export default function Notifications() {
               </span>
             )}
           </h1>
-          <p className="mt-0.5 text-sm text-gray-400">
+          <p className="mt-0.5 text-sm text-slate-400">
             {unreadCount} thông báo chưa đọc
           </p>
         </div>
@@ -282,7 +282,7 @@ export default function Notifications() {
             type="button"
             onClick={markAllRead}
             disabled={unreadCount === 0}
-            className="flex items-center gap-2 rounded-xl border-2 border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl border-2 border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <CheckCheck size={15} />
             Đánh dấu đã đọc
@@ -320,7 +320,7 @@ export default function Notifications() {
         {stats.map((stat) => (
           <div
             key={stat.label}
-            className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:shadow-md"
+            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md"
           >
             <div
               className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xl"
@@ -329,7 +329,7 @@ export default function Notifications() {
               {stat.icon}
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-400">{stat.label}</p>
+              <p className="text-xs font-medium text-slate-400">{stat.label}</p>
               <p className="text-2xl font-black" style={{ color: stat.color }}>
                 {stat.value}
               </p>
@@ -338,9 +338,9 @@ export default function Notifications() {
         ))}
       </div>
 
-      <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="mr-1 flex items-center gap-1.5 text-xs font-bold text-gray-400">
+          <div className="mr-1 flex items-center gap-1.5 text-xs font-bold text-slate-400">
             <Filter size={13} />
             Lọc:
           </div>
@@ -368,7 +368,7 @@ export default function Notifications() {
             ))}
           </div>
 
-          <div className="mx-1 hidden h-6 w-px bg-gray-200 sm:block" />
+          <div className="mx-1 hidden h-6 w-px bg-slate-200 sm:block" />
 
           <div className="flex flex-wrap gap-1.5">
             <button
@@ -410,7 +410,7 @@ export default function Notifications() {
             id="notification-severity"
             value={filterSeverity}
             onChange={(event) => setFilterSeverity(event.target.value)}
-            className="rounded-xl border-2 border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 outline-none focus:border-blue-400"
+            className="rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 outline-none focus:border-blue-400"
           >
             <option value="">Tất cả mức độ</option>
             {Object.entries(SEVERITY_MAP).map(([key, severity]) => (
@@ -424,14 +424,14 @@ export default function Notifications() {
 
       <div className="space-y-3">
         {filtered.length === 0 ? (
-          <div className="rounded-2xl border border-gray-100 bg-white p-12 text-center shadow-sm">
-            <Bell size={56} className="mx-auto mb-4 text-gray-200" />
-            <p className="text-base font-bold text-gray-500">
+          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+            <Bell size={56} className="mx-auto mb-4 text-slate-200" />
+            <p className="text-base font-bold text-slate-500">
               {notifications.length === 0
                 ? "Chưa có thông báo"
                 : "Không có thông báo phù hợp"}
             </p>
-            <p className="mt-1 text-sm text-gray-400">
+            <p className="mt-1 text-sm text-slate-400">
               Thông báo mới sẽ xuất hiện tại đây.
             </p>
           </div>
@@ -499,14 +499,14 @@ export default function Notifications() {
                     <p
                       className={`text-sm leading-relaxed ${
                         !notification.is_read
-                          ? "font-bold text-gray-800"
-                          : "font-medium text-gray-600"
+                          ? "font-bold text-slate-800"
+                          : "font-medium text-slate-600"
                       }`}
                     >
                       {notification.content}
                     </p>
 
-                    <p className="mt-1.5 text-xs font-medium text-gray-400">
+                    <p className="mt-1.5 text-xs font-medium text-slate-400">
                       🕐 {getTimeAgo(notification.created_at)}
                       {notification.created_at && (
                         <>

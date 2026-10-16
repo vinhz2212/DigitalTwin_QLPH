@@ -795,7 +795,7 @@ export default function Twin() {
             key={status}
             type="button"
             onClick={() => navigate("/rooms")}
-            className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
           >
             <span
               className="flex h-11 w-11 items-center justify-center rounded-2xl"
@@ -811,7 +811,7 @@ export default function Twin() {
             </span>
 
             <span>
-              <span className="block text-xs font-medium text-gray-400">
+              <span className="block text-xs font-medium text-slate-400">
                 {STATUS_LABELS[status]}
               </span>
               <span
@@ -829,10 +829,10 @@ export default function Twin() {
       <div className="grid grid-cols-12 gap-4">
         {/* Điều khiển bên trái */}
         <aside className="col-span-12 space-y-3 lg:col-span-2">
-          <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center gap-2">
               <Grid3X3 size={15} className="text-blue-600" />
-              <h2 className="text-sm font-bold text-gray-700">Tòa nhà</h2>
+              <h2 className="text-sm font-bold text-slate-700">Tòa nhà</h2>
             </div>
 
             <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
@@ -865,12 +865,12 @@ export default function Twin() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-50 text-xs font-black text-blue-600">
                 {selectedFloor}
               </span>
-              <h2 className="text-sm font-bold text-gray-700">Chọn tầng</h2>
+              <h2 className="text-sm font-bold text-slate-700">Chọn tầng</h2>
             </div>
 
             <div className="grid grid-cols-5 gap-1.5 lg:grid-cols-1">
@@ -913,8 +913,8 @@ export default function Twin() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-            <h2 className="mb-3 text-sm font-bold text-gray-700">Góc nhìn</h2>
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="mb-3 text-sm font-bold text-slate-700">Góc nhìn</h2>
 
             <div className="grid grid-cols-2 gap-2">
               {[
@@ -945,7 +945,7 @@ export default function Twin() {
         {/* Khu vực mô hình */}
         <section className="col-span-12 lg:col-span-7">
           <div
-            className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
+            className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
             style={{ height: 540 }}
           >
             {viewMode === "3d" ? (
@@ -975,10 +975,10 @@ export default function Twin() {
                   {["A", "B"].map((building) => (
                     <section
                       key={building}
-                      className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm"
+                      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
                     >
                       <div className="mb-4 flex items-center justify-between">
-                        <h3 className="font-bold text-gray-800">
+                        <h3 className="font-bold text-slate-800">
                           Tòa {building}
                         </h3>
                         <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-600">
@@ -992,7 +992,7 @@ export default function Twin() {
                             key={`${building}-${floor}`}
                             className="rounded-xl bg-slate-50 p-3"
                           >
-                            <p className="mb-2 text-xs font-bold text-gray-400">
+                            <p className="mb-2 text-xs font-bold text-slate-400">
                               Tầng {floor}
                             </p>
 
@@ -1037,7 +1037,7 @@ export default function Twin() {
               <button
                 type="button"
                 onClick={() => setResetSignal((value) => value + 1)}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-600"
                 title="Đặt lại góc nhìn"
               >
                 <RotateCcw size={16} />
@@ -1046,7 +1046,7 @@ export default function Twin() {
               <button
                 type="button"
                 onClick={() => setViewMode(viewMode === "3d" ? "2d" : "3d")}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-600"
                 title="Đổi chế độ xem"
               >
                 <Maximize2 size={16} />
@@ -1061,7 +1061,7 @@ export default function Twin() {
                     className="h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{ background: color }}
                   />
-                  <span className="whitespace-nowrap font-medium text-gray-600">
+                  <span className="whitespace-nowrap font-medium text-slate-600">
                     {STATUS_LABELS[status]}
                   </span>
                 </div>
@@ -1070,7 +1070,7 @@ export default function Twin() {
 
             {loading && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/55 backdrop-blur-sm">
-                <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-gray-600 shadow">
+                <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow">
                   Đang tải mô hình...
                 </span>
               </div>
@@ -1081,16 +1081,16 @@ export default function Twin() {
         {/* Danh sách và chi tiết phòng */}
         <aside className="col-span-12 lg:col-span-3">
           <section
-            className="flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
+            className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
             style={{ height: 540 }}
           >
-            <div className="border-b border-gray-100 bg-gradient-to-r from-slate-50 to-blue-50 px-4 py-3">
+            <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50 px-4 py-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-black text-gray-700">
+                  <h2 className="text-sm font-black text-slate-700">
                     Danh sách phòng
                   </h2>
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-slate-500">
                     Tầng {selectedFloor} · Tòa {selectedBuilding}
                   </p>
                 </div>
@@ -1103,7 +1103,7 @@ export default function Twin() {
 
             <div className="flex-1 space-y-2 overflow-y-auto p-3">
               {floorRooms.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center text-center text-gray-400">
+                <div className="flex h-full flex-col items-center justify-center text-center text-slate-400">
                   <Grid3X3 size={28} className="mb-2 opacity-40" />
                   <p className="text-sm font-semibold">
                     {loading ? "Đang tải phòng..." : "Chưa có phòng ở tầng này"}
@@ -1126,7 +1126,7 @@ export default function Twin() {
                       }}
                     >
                       <span className="mb-2 flex items-center justify-between gap-2">
-                        <span className="text-sm font-black text-gray-800">
+                        <span className="text-sm font-black text-slate-800">
                           {room.code}
                         </span>
 
@@ -1141,7 +1141,7 @@ export default function Twin() {
                         </span>
                       </span>
 
-                      <span className="flex items-center gap-3 text-xs text-gray-500">
+                      <span className="flex items-center gap-3 text-xs text-slate-500">
                         <span className="flex items-center gap-1">
                           <Users size={12} />
                           {room.capacity} chỗ
@@ -1162,9 +1162,9 @@ export default function Twin() {
             </div>
 
             {selectedRoom && (
-              <div className="border-t border-gray-100 bg-slate-50/80 p-3">
+              <div className="border-t border-slate-200 bg-slate-50/80 p-3">
                 <div className="mb-2 flex items-center justify-between">
-                  <p className="text-xs font-black uppercase tracking-wide text-gray-500">
+                  <p className="text-xs font-black uppercase tracking-wide text-slate-500">
                     Chi tiết phòng
                   </p>
                   <span
@@ -1179,23 +1179,23 @@ export default function Twin() {
                 </div>
 
                 <div className="mb-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-                  <span className="text-gray-400">Mã phòng</span>
-                  <span className="text-right font-bold text-gray-700">
+                  <span className="text-slate-400">Mã phòng</span>
+                  <span className="text-right font-bold text-slate-700">
                     {selectedRoom.code}
                   </span>
 
-                  <span className="text-gray-400">Tòa nhà</span>
-                  <span className="text-right font-bold text-gray-700">
+                  <span className="text-slate-400">Tòa nhà</span>
+                  <span className="text-right font-bold text-slate-700">
                     {selectedRoom.building_name || `Tòa ${selectedBuilding}`}
                   </span>
 
-                  <span className="text-gray-400">Tầng</span>
-                  <span className="text-right font-bold text-gray-700">
+                  <span className="text-slate-400">Tầng</span>
+                  <span className="text-right font-bold text-slate-700">
                     Tầng {selectedRoom.floor_number}
                   </span>
 
-                  <span className="text-gray-400">Sức chứa</span>
-                  <span className="text-right font-bold text-gray-700">
+                  <span className="text-slate-400">Sức chứa</span>
+                  <span className="text-right font-bold text-slate-700">
                     {selectedRoom.capacity} chỗ
                   </span>
                 </div>
@@ -1223,7 +1223,7 @@ export default function Twin() {
               </div>
             )}
 
-            <div className="border-t border-gray-100 p-3">
+            <div className="border-t border-slate-200 p-3">
               <button
                 type="button"
                 onClick={() => navigate("/rooms")}

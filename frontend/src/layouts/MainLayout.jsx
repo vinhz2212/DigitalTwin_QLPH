@@ -422,13 +422,13 @@ export default function MainLayout() {
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-[#f4f7fb]">
       <aside
         className="z-20 flex flex-col shadow-lg transition-all duration-300"
         style={{
-          width: collapsed ? "64px" : "240px",
-          background: "linear-gradient(180deg, #0f172a 0%, #1e293b 100%)",
-          borderRight: "1px solid #334155",
+          width: collapsed ? "68px" : "252px",
+          background: "linear-gradient(180deg, #071a39 0%, #0b2447 55%, #10294a 100%)",
+          borderRight: "1px solid rgba(96,165,250,0.16)",
         }}
       >
         <div className="flex items-center gap-3 border-b border-slate-700 px-4 py-4">
@@ -463,8 +463,8 @@ export default function MainLayout() {
                   className={({ isActive }) =>
                     `relative mb-0.5 flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all ${
                       isActive
-                        ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50"
-                        : "text-slate-400 hover:bg-slate-700 hover:text-white"
+                        ? "bg-gradient-to-r from-blue-600 to-sky-500 text-white shadow-lg shadow-blue-950/40"
+                        : "text-slate-300 hover:bg-white/10 hover:text-white"
                     }`
                   }
                 >
@@ -539,7 +539,7 @@ export default function MainLayout() {
       </aside>
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 shadow-sm md:px-6">
+        <header className="flex items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 py-3 backdrop-blur md:px-6">
           <div className="min-w-0">
             <h1 className="text-lg font-bold text-gray-800">
               {currentPage.title}
@@ -613,7 +613,7 @@ export default function MainLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto bg-gray-50 p-4 md:p-6">
+        <main className="flex-1 overflow-auto bg-[#f4f7fb] p-4 md:p-6">
           <Outlet />
         </main>
       </div>

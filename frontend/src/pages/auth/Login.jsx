@@ -112,7 +112,7 @@ function LoginBridge() {
   );
 }
 
-function LoginScene() {
+export function LoginScene() {
   return (
     <>
       <ambientLight intensity={0.8} />
@@ -181,6 +181,7 @@ function getTimeForDisplay(date) {
 export default function Login() {
   const [form, setForm] = useState({ username: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberLogin, setRememberLogin] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [time, setTime] = useState(new Date());
@@ -221,15 +222,15 @@ export default function Login() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 lg:grid lg:grid-cols-[1.1fr_0.9fr]">
+    <main className="min-h-screen bg-[#f7faff] lg:grid lg:grid-cols-[1.2fr_0.8fr]">
       {/* Khu vực giới thiệu và mô hình 3D */}
-      <section className="relative hidden min-h-screen overflow-hidden bg-slate-950 text-white lg:flex lg:flex-col lg:items-center lg:justify-center lg:px-10 lg:py-8">
+      <section className="relative hidden min-h-screen overflow-hidden bg-[#061632] text-white lg:flex lg:flex-col lg:items-center lg:justify-center lg:px-10 lg:py-7">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(circle at 20% 20%, rgba(37,99,235,0.3), transparent 34%), radial-gradient(circle at 85% 75%, rgba(14,165,233,0.2), transparent 32%)",
+              "radial-gradient(circle at 18% 18%, rgba(37,99,235,0.38), transparent 35%), radial-gradient(circle at 82% 78%, rgba(14,165,233,0.2), transparent 32%), linear-gradient(145deg, #061632 0%, #08265a 100%)",
           }}
         />
 
@@ -242,16 +243,20 @@ export default function Login() {
           className="pointer-events-none absolute -left-20 top-[29%] h-56 w-56 rounded-full border border-blue-300/10"
         />
 
-        <div className="relative z-10 w-full max-w-none">
-          <div className="mb-3 flex items-center justify-center gap-3 text-center">
-            <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-3xl">🎓</span>
+        <div className="relative z-10 w-full max-w-5xl">
+          <div className="mb-3 flex items-center justify-center gap-4 text-center">
+            <span className="flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-300/30 bg-blue-500/15 text-3xl shadow-lg shadow-blue-950/40">🎓</span>
             <div>
-              <p className="text-2xl font-bold tracking-tight">SmartCampus</p>
+              <p className="text-3xl font-extrabold tracking-tight">Smart<span className="text-sky-400">Campus</span></p>
               <p className="text-sm text-blue-200/70">Digital Twin Management System</p>
             </div>
           </div>
 
-          <div className="mt-6 h-[min(65vh,600px)] min-h-[400px] overflow-hidden rounded-3xl border border-white/10 bg-slate-900/55 shadow-2xl shadow-blue-950/40">
+          <h1 className="mx-auto mt-5 max-w-2xl text-center text-3xl font-extrabold leading-tight tracking-tight xl:text-4xl">
+            Quản lý khuôn viên thông minh trong một không gian số
+          </h1>
+
+          <div className="mt-5 h-[min(52vh,500px)] min-h-[360px] overflow-hidden rounded-[28px] border border-blue-300/20 bg-slate-950/35 shadow-2xl shadow-blue-950/50">
             <Canvas
               camera={{ position: [0, 1.6, 8.5], fov: 43 }}
               shadows
@@ -262,7 +267,7 @@ export default function Login() {
             </Canvas>
           </div>
 
-          <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-4">
+          <div className="mt-4 flex items-center justify-between rounded-2xl border border-blue-300/20 bg-blue-950/45 px-5 py-4 backdrop-blur">
             <div>
               <p className="font-mono text-2xl font-semibold tracking-wider">
                 {getTimeForDisplay(time)}
@@ -276,20 +281,21 @@ export default function Login() {
                 })}
               </p>
             </div>
-            <div className="hidden text-right sm:block">
-              <p className="text-xs font-semibold text-blue-100">
-                SMART CAMPUS
-              </p>
-              <p className="mt-1 text-xs text-slate-400">
-                Không gian học tập thông minh
-              </p>
+            <div className="hidden items-center gap-3 text-right sm:flex">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.9)]" />
+              <div>
+                <p className="text-xs font-semibold text-blue-100">Hệ thống đang hoạt động</p>
+                <p className="mt-1 text-xs text-slate-400">Tất cả dịch vụ vận hành ổn định</p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Khu vực đăng nhập */}
-      <section className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-8 lg:px-10">
+      <section className="relative flex min-h-screen items-center justify-center overflow-hidden px-5 py-10 sm:px-8 lg:px-10">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-28 top-10 h-64 w-64 rounded-full border border-blue-100" />
+        <div aria-hidden="true" className="pointer-events-none absolute -right-12 top-24 h-40 w-40 rounded-full border border-blue-100" />
         <div className="w-full max-w-md">
           <div className="mb-8 text-center lg:hidden">
             <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-2xl text-white shadow-lg shadow-blue-200">
@@ -299,13 +305,13 @@ export default function Login() {
             <p className="text-xs text-slate-500">Digital Twin System</p>
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 sm:p-9">
+          <div className="relative rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_24px_70px_-30px_rgba(15,23,42,0.35)] sm:p-9">
             <div className="mb-8 text-center">
               <h2 className="text-3xl font-bold tracking-tight text-slate-900">
                 Đăng nhập
               </h2>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Nhập thông tin tài khoản để tiếp tục vào hệ thống.
+                Chào mừng bạn trở lại SmartCampus
               </p>
             </div>
 
@@ -379,10 +385,23 @@ export default function Login() {
                 </span>
               </label>
 
+              <div className="flex items-center justify-between gap-4 text-sm">
+                <label className="flex cursor-pointer items-center gap-2 text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={rememberLogin}
+                    onChange={(event) => setRememberLogin(event.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Ghi nhớ đăng nhập
+                </label>
+                <span className="font-semibold text-blue-600">Quên mật khẩu?</span>
+              </div>
+
               <button
                 type="submit"
                 disabled={loading || !form.username.trim() || !form.password}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-200 transition hover:from-blue-700 hover:to-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? (
                   <>

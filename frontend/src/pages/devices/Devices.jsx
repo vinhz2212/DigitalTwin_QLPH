@@ -110,7 +110,7 @@ function StatCard({ label, value, color, bg, icon: Icon, active, onClick }) {
       </span>
 
       <span className="min-w-0">
-        <span className="block truncate text-xs font-medium text-gray-500">
+        <span className="block truncate text-xs font-medium text-slate-500">
           {label}
         </span>
         <span className="mt-0.5 block text-2xl font-black" style={{ color }}>
@@ -326,14 +326,14 @@ export default function Devices() {
         <div>
           <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-blue-600">
             <Cpu size={14} />
-            QUẢN LÝ CƠ SỞ VẬT CHẤT
+            Quản lý cơ sở vật chất
           </div>
 
-          <h1 className="text-2xl font-black tracking-tight text-gray-900">
+          <h1 className="text-2xl font-black tracking-tight text-slate-900">
             Thiết bị
           </h1>
 
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-slate-500">
             Theo dõi vị trí, tình trạng và lịch sử lắp đặt thiết bị.
           </p>
         </div>
@@ -410,19 +410,19 @@ export default function Devices() {
       </section>
 
       {/* Tìm kiếm, bộ lọc và chế độ xem */}
-      <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
           <label className="relative min-w-0 flex-1">
             <Search
               size={17}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
             />
             <input
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Tìm thiết bị hoặc mã phòng..."
-              className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
             />
           </label>
 
@@ -430,12 +430,12 @@ export default function Devices() {
             <label className="relative">
               <Cpu
                 size={15}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
               />
               <select
                 value={filterType}
                 onChange={(event) => setFilterType(event.target.value)}
-                className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-9 text-sm font-medium text-gray-600 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50 xl:min-w-44"
+                className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-9 text-sm font-medium text-slate-600 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50 xl:min-w-44"
               >
                 <option value="">Tất cả loại thiết bị</option>
                 {types.map((type) => {
@@ -449,19 +449,19 @@ export default function Devices() {
               </select>
               <ChevronDown
                 size={14}
-                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
               />
             </label>
 
             <label className="relative">
               <Filter
                 size={15}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
               />
               <select
                 value={filterStatus}
                 onChange={(event) => setFilterStatus(event.target.value)}
-                className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-9 text-sm font-medium text-gray-600 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50 xl:min-w-44"
+                className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-9 text-sm font-medium text-slate-600 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50 xl:min-w-44"
               >
                 <option value="">Tất cả trạng thái</option>
                 {Object.entries(STATUS_MAP).map(([key, status]) => (
@@ -472,7 +472,7 @@ export default function Devices() {
               </select>
               <ChevronDown
                 size={14}
-                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
               />
             </label>
           </div>
@@ -488,7 +488,7 @@ export default function Devices() {
               </button>
             )}
 
-            <div className="flex gap-1 rounded-xl bg-gray-100 p-1">
+            <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
               <button
                 type="button"
                 onClick={() => setViewMode("table")}
@@ -496,7 +496,7 @@ export default function Devices() {
                 className={`rounded-lg p-2 transition-all ${
                   viewMode === "table"
                     ? "bg-white text-blue-600 shadow-sm"
-                    : "text-gray-400 hover:text-gray-600"
+                    : "text-slate-400 hover:text-slate-600"
                 }`}
               >
                 <List size={17} />
@@ -509,7 +509,7 @@ export default function Devices() {
                 className={`rounded-lg p-2 transition-all ${
                   viewMode === "grid"
                     ? "bg-white text-blue-600 shadow-sm"
-                    : "text-gray-400 hover:text-gray-600"
+                    : "text-slate-400 hover:text-slate-600"
                 }`}
               >
                 <Grid2X2 size={17} />
@@ -518,10 +518,10 @@ export default function Devices() {
           </div>
         </div>
 
-        <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-500">
+        <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 text-xs text-slate-500">
           <span>
             Hiển thị{" "}
-            <strong className="text-gray-700">{filteredDevices.length}</strong>{" "}
+            <strong className="text-slate-700">{filteredDevices.length}</strong>{" "}
             trong {devices.length} thiết bị
           </span>
 
@@ -535,23 +535,23 @@ export default function Devices() {
 
       {/* Nội dung danh sách */}
       {loading ? (
-        <section className="flex h-56 flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <section className="flex h-56 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
           <span className="h-9 w-9 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600" />
-          <p className="mt-3 text-sm font-medium text-gray-500">
+          <p className="mt-3 text-sm font-medium text-slate-500">
             Đang tải danh sách thiết bị...
           </p>
         </section>
       ) : filteredDevices.length === 0 ? (
-        <section className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white px-5 text-center shadow-sm">
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-gray-400">
+        <section className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-center shadow-sm">
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-400">
             <Search size={25} />
           </span>
 
-          <h2 className="mt-4 font-bold text-gray-700">
+          <h2 className="mt-4 font-bold text-slate-700">
             Không tìm thấy thiết bị phù hợp
           </h2>
 
-          <p className="mt-1 max-w-sm text-sm text-gray-500">
+          <p className="mt-1 max-w-sm text-sm text-slate-500">
             Thử đổi từ khóa hoặc xóa bớt bộ lọc để xem thêm thiết bị.
           </p>
 
@@ -566,7 +566,7 @@ export default function Devices() {
           )}
         </section>
       ) : viewMode === "table" ? (
-        <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[980px] border-collapse">
               <thead>
@@ -582,7 +582,7 @@ export default function Devices() {
                   ].map((heading) => (
                     <th
                       key={heading}
-                      className="border-b border-gray-100 px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500"
+                      className="border-b border-slate-200 px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500"
                     >
                       {heading}
                     </th>
@@ -597,7 +597,7 @@ export default function Devices() {
                   return (
                     <tr
                       key={device.id}
-                      className="group border-b border-gray-50 last:border-0 hover:bg-blue-50/30"
+                      className="group border-b border-slate-100 last:border-0 hover:bg-blue-50/30"
                     >
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
@@ -614,11 +614,11 @@ export default function Devices() {
                           </span>
 
                           <span>
-                            <span className="block text-sm font-bold text-gray-800">
+                            <span className="block text-sm font-bold text-slate-800">
                               {device.name}
                             </span>
                             {device.notes && (
-                              <span className="mt-0.5 block max-w-56 truncate text-xs text-gray-500">
+                              <span className="mt-0.5 block max-w-56 truncate text-xs text-slate-500">
                                 {device.notes}
                               </span>
                             )}
@@ -626,7 +626,7 @@ export default function Devices() {
                         </div>
                       </td>
 
-                      <td className="px-5 py-4 text-sm text-gray-600">
+                      <td className="px-5 py-4 text-sm text-slate-600">
                         {label}
                       </td>
 
@@ -637,20 +637,20 @@ export default function Devices() {
                       </td>
 
                       <td className="px-5 py-4">
-                        <span className="block text-sm font-semibold text-gray-700">
+                        <span className="block text-sm font-semibold text-slate-700">
                           {device.building_name ||
                             (device.building_code
                               ? `Tòa ${device.building_code}`
                               : "--")}
                         </span>
-                        <span className="mt-0.5 block text-xs text-gray-500">
+                        <span className="mt-0.5 block text-xs text-slate-500">
                           {device.floor_number
                             ? `Tầng ${device.floor_number}`
                             : ""}
                         </span>
                       </td>
 
-                      <td className="px-5 py-4 text-sm text-gray-500">
+                      <td className="px-5 py-4 text-sm text-slate-500">
                         {device.installed_at
                           ? new Date(device.installed_at).toLocaleDateString(
                               "vi-VN",
@@ -687,7 +687,7 @@ export default function Devices() {
                             type="button"
                             onClick={() => handleOpenModal(device)}
                             title="Chỉnh sửa thiết bị"
-                            className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
                           >
                             <Edit2 size={15} />
                           </button>
@@ -696,7 +696,7 @@ export default function Devices() {
                             type="button"
                             onClick={() => handleDelete(device)}
                             title="Xóa thiết bị"
-                            className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
                           >
                             <Trash2 size={15} />
                           </button>
@@ -718,7 +718,7 @@ export default function Devices() {
             return (
               <article
                 key={device.id}
-                className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div
                   className="h-1"
@@ -739,7 +739,7 @@ export default function Devices() {
                     <StatusBadge status={device.status} />
                   </div>
 
-                  <h3 className="mt-4 truncate text-base font-black text-gray-800">
+                  <h3 className="mt-4 truncate text-base font-black text-slate-800">
                     {device.name}
                   </h3>
 
@@ -747,10 +747,10 @@ export default function Devices() {
                     {device.room_code || "Chưa gán phòng"} · {label}
                   </p>
 
-                  <div className="mt-4 space-y-2 border-t border-gray-100 pt-3 text-xs text-gray-500">
+                  <div className="mt-4 space-y-2 border-t border-slate-200 pt-3 text-xs text-slate-500">
                     <p>
                       Vị trí:{" "}
-                      <span className="font-semibold text-gray-700">
+                      <span className="font-semibold text-slate-700">
                         {device.building_name ||
                           (device.building_code
                             ? `Tòa ${device.building_code}`
@@ -762,7 +762,7 @@ export default function Devices() {
                     </p>
                     <p>
                       Ngày lắp:{" "}
-                      <span className="font-semibold text-gray-700">
+                      <span className="font-semibold text-slate-700">
                         {device.installed_at
                           ? new Date(device.installed_at).toLocaleDateString(
                               "vi-VN",
@@ -809,12 +809,12 @@ export default function Devices() {
           }}
         >
           <section className="my-auto w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <header className="flex items-center justify-between border-b border-gray-100 bg-gradient-to-r from-slate-50 to-blue-50 px-5 py-4 sm:px-6">
+            <header className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50 px-5 py-4 sm:px-6">
               <div>
                 <p className="text-xs font-bold text-blue-600">
-                  QUẢN LÝ THIẾT BỊ
+                  Quản lý thiết bị
                 </p>
-                <h2 className="mt-1 text-lg font-black text-gray-800">
+                <h2 className="mt-1 text-lg font-black text-slate-800">
                   {editDevice ? "Chỉnh sửa thiết bị" : "Thêm thiết bị mới"}
                 </h2>
               </div>
@@ -824,7 +824,7 @@ export default function Devices() {
                 onClick={() => setShowModal(false)}
                 disabled={saving}
                 aria-label="Đóng hộp thoại"
-                className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-white hover:text-gray-700 disabled:opacity-50"
+                className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-white hover:text-slate-700 disabled:opacity-50"
               >
                 <X size={19} />
               </button>
@@ -839,7 +839,7 @@ export default function Devices() {
               )}
 
               <label className="block">
-                <span className="mb-1.5 block text-sm font-semibold text-gray-700">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">
                   Phòng lắp đặt
                 </span>
                 <select
@@ -850,7 +850,7 @@ export default function Devices() {
                       room_id: event.target.value,
                     }))
                   }
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none transition-colors focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition-colors focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
                   required
                 >
                   <option value="">Chọn phòng</option>
@@ -864,7 +864,7 @@ export default function Devices() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-semibold text-gray-700">
+                  <span className="mb-1.5 block text-sm font-semibold text-slate-700">
                     Loại thiết bị
                   </span>
                   <select
@@ -875,7 +875,7 @@ export default function Devices() {
                         device_type_id: event.target.value,
                       }))
                     }
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none transition-colors focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition-colors focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
                     required
                   >
                     <option value="">Chọn loại thiết bị</option>
@@ -888,7 +888,7 @@ export default function Devices() {
                 </label>
 
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-semibold text-gray-700">
+                  <span className="mb-1.5 block text-sm font-semibold text-slate-700">
                     Trạng thái
                   </span>
                   <select
@@ -899,7 +899,7 @@ export default function Devices() {
                         status: event.target.value,
                       }))
                     }
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none transition-colors focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition-colors focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
                   >
                     {Object.entries(STATUS_MAP).map(([key, status]) => (
                       <option key={key} value={key}>
@@ -911,7 +911,7 @@ export default function Devices() {
               </div>
 
               <label className="block">
-                <span className="mb-1.5 block text-sm font-semibold text-gray-700">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">
                   Tên thiết bị
                 </span>
                 <input
@@ -924,13 +924,13 @@ export default function Devices() {
                     }))
                   }
                   placeholder="Ví dụ: Điều hòa phòng A101"
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none transition-colors focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition-colors focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
                   required
                 />
               </label>
 
               <label className="block">
-                <span className="mb-1.5 block text-sm font-semibold text-gray-700">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">
                   Ngày lắp đặt
                 </span>
                 <input
@@ -942,12 +942,12 @@ export default function Devices() {
                       installed_at: event.target.value,
                     }))
                   }
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none transition-colors focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition-colors focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
                 />
               </label>
 
               <label className="block">
-                <span className="mb-1.5 block text-sm font-semibold text-gray-700">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">
                   Ghi chú
                 </span>
                 <textarea
@@ -960,16 +960,16 @@ export default function Devices() {
                     }))
                   }
                   placeholder="Thông tin thêm về thiết bị..."
-                  className="w-full resize-y rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none transition-colors focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                  className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition-colors focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
                 />
               </label>
 
-              <footer className="flex flex-col-reverse gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:justify-end">
+              <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
                   disabled={saving}
-                  className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
                 >
                   Hủy
                 </button>

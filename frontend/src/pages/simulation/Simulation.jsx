@@ -364,7 +364,7 @@ export default function Simulation() {
   ];
 
   return (
-    <div className="min-h-screen space-y-6 bg-slate-50/70 p-4 md:p-6">
+    <div className="space-y-6 pb-6">
       <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-600">

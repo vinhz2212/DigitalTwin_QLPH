@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   CheckCircle,
   ChevronRight,
-  Thermometer,
   Zap,
 } from "lucide-react";
 import {
@@ -756,11 +755,11 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-4 text-sm">
-      <div className="grid grid-cols-12 gap-4">
-        <aside className="col-span-2 space-y-3">
-          <div className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
-            <p className="mb-2 text-xs font-bold text-gray-500">Chọn tòa nhà</p>
+    <div className="space-y-5 text-sm">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+        <aside className="space-y-4 xl:col-span-2">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="mb-3 text-sm font-bold text-slate-700">Chọn tòa nhà</p>
 
             <div className="flex gap-2">
               {["A", "B"].map((building) => (
@@ -788,8 +787,8 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
-            <p className="mb-2 text-xs font-bold text-gray-500">Chọn tầng</p>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="mb-3 text-sm font-bold text-slate-700">Chọn tầng</p>
 
             <div className="space-y-1.5">
               {[5, 4, 3, 2, 1].map((floor) => {
@@ -831,12 +830,12 @@ export default function Dashboard() {
           </div>
         </aside>
 
-        <section className="col-span-7">
+        <section className="xl:col-span-7">
           <div
-            className="relative overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm"
-            style={{ height: 460 }}
+            className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+            style={{ height: 520 }}
           >
-            <div className="absolute left-3 top-3 z-10 flex gap-1 rounded-lg border border-gray-100 bg-white p-1 shadow-md">
+            <div className="absolute left-3 top-3 z-10 flex gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-md">
               {["2D", "3D"].map((mode) => (
                 <button
                   key={mode}
@@ -892,7 +891,7 @@ export default function Dashboard() {
                             key={`${building}-${floor}`}
                             className="flex items-center gap-2"
                           >
-                            <span className="w-6 text-xs font-medium text-gray-400">
+                            <span className="w-6 text-xs font-medium text-slate-400">
                               T{floor}
                             </span>
 
@@ -932,14 +931,14 @@ export default function Dashboard() {
               </div>
             )}
 
-            <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-4 rounded-full border border-gray-100 bg-white/95 px-4 py-2 text-xs shadow-md">
+            <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-4 rounded-full border border-slate-200 bg-white/95 px-4 py-2 text-xs shadow-md">
               {Object.entries(STATUS_COLORS).map(([key, color]) => (
                 <div key={key} className="flex items-center gap-1.5">
                   <span
                     className="h-2.5 w-2.5 rounded-full"
                     style={{ background: color }}
                   />
-                  <span className="whitespace-nowrap font-medium text-gray-600">
+                  <span className="whitespace-nowrap font-medium text-slate-600">
                     {STATUS_LABELS[key]}
                   </span>
                 </div>
@@ -948,20 +947,23 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <aside className="col-span-3">
+        <aside className="xl:col-span-3">
           <div
-            className="flex flex-col rounded-xl border border-gray-100 bg-white shadow-sm"
-            style={{ height: 460 }}
+            className="flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm"
+            style={{ height: 520 }}
           >
-            <div className="border-b border-gray-100 px-4 py-3">
-              <p className="text-xs font-bold text-gray-700">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+              <p className="text-sm font-bold text-slate-800">
                 Danh sách phòng — Tầng {selectedFloor} (Tòa {selectedBuilding})
               </p>
+              <span className="shrink-0 rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-600">
+                {floorRooms.length} phòng
+              </span>
             </div>
 
-            <div className="flex-1 space-y-2 overflow-y-auto p-3">
+            <div className="flex-1 divide-y divide-slate-100 overflow-y-auto px-4">
               {floorRooms.length === 0 ? (
-                <div className="py-8 text-center text-xs text-gray-400">
+                <div className="py-8 text-center text-xs text-slate-400">
                   {loading ? "Đang tải phòng..." : "Không có phòng ở tầng này"}
                 </div>
               ) : (
@@ -973,48 +975,30 @@ export default function Dashboard() {
                       key={room.id}
                       type="button"
                       onClick={() => handleRoomClick(room)}
-                      className="w-full rounded-xl border-2 p-3 text-left transition-all hover:shadow-md"
+                      className="flex w-full items-center gap-3 px-1 py-3.5 text-left transition-colors hover:bg-slate-50"
                       style={{
-                        borderColor:
-                          selectedRoom?.id === room.id ? "#1a56db" : "#f3f4f6",
                         background:
                           selectedRoom?.id === room.id ? "#eff6ff" : "white",
                       }}
                     >
-                      <span className="mb-1.5 flex items-center justify-between gap-2">
-                        <span className="text-sm font-bold text-gray-800">
-                          {room.code}
-                        </span>
-
-                        <span
-                          className="rounded-full px-2 py-0.5 text-xs font-bold"
-                          style={{
-                            color,
-                            background: `${color}18`,
-                          }}
-                        >
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-bold text-slate-800">{room.code}</span>
+                        <span className="mt-1 block truncate text-xs text-slate-500">
                           {STATUS_LABELS[room.status] || "Chưa rõ"}
                         </span>
                       </span>
-
-                      <span className="flex items-center gap-3 text-xs text-gray-500">
-                        <span>👥 {room.capacity} chỗ</span>
-                        <span>
-                          <Thermometer className="mr-0.5 inline" size={12} />
-                          25°C
-                        </span>
-                        <span>
-                          <CheckCircle className="mr-0.5 inline" size={12} />
-                          Tốt
-                        </span>
+                      <span className="shrink-0 rounded-lg bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">
+                        👥 {room.capacity}
                       </span>
+                      <ChevronRight size={15} className="shrink-0 text-slate-400" />
                     </button>
                   );
                 })
               )}
             </div>
 
-            <div className="border-t border-gray-100 p-3">
+            <div className="border-t border-slate-200 p-3">
               <button
                 type="button"
                 onClick={() => navigate("/rooms")}
@@ -1027,9 +1011,9 @@ export default function Dashboard() {
         </aside>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <section className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-          <p className="mb-3 text-xs font-bold text-gray-600">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="mb-3 text-xs font-bold text-slate-600">
             Tổng quan phòng
           </p>
 
@@ -1060,7 +1044,7 @@ export default function Dashboard() {
                 key={item.name}
                 className="flex items-center justify-between text-xs"
               >
-                <span className="flex items-center gap-1.5 text-gray-500">
+                <span className="flex items-center gap-1.5 text-slate-500">
                   <span
                     className="h-2 w-2 rounded-full"
                     style={{ background: item.color }}
@@ -1075,8 +1059,8 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-          <p className="mb-3 text-xs font-bold text-gray-600">Thiết bị</p>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="mb-3 text-xs font-bold text-slate-600">Thiết bị</p>
 
           <div className="mt-2 space-y-3">
             {[
@@ -1115,7 +1099,7 @@ export default function Dashboard() {
                 key={item.label}
                 className="flex items-center justify-between text-xs"
               >
-                <span className="flex items-center gap-1.5 text-gray-500">
+                <span className="flex items-center gap-1.5 text-slate-500">
                   <span>{item.icon}</span>
                   {item.label}
                 </span>
@@ -1127,10 +1111,10 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-xs font-bold text-gray-600">Nhiệt độ TB</p>
-            <span className="text-xs italic text-gray-400">Mô phỏng</span>
+            <p className="text-xs font-bold text-slate-600">Nhiệt độ TB</p>
+            <span className="text-xs italic text-slate-400">Mô phỏng</span>
           </div>
 
           <ResponsiveContainer width="100%" height={100}>
@@ -1153,10 +1137,10 @@ export default function Dashboard() {
           </p>
         </section>
 
-        <section className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-xs font-bold text-gray-600">Điện năng</p>
-            <span className="text-xs italic text-gray-400">Mô phỏng</span>
+            <p className="text-xs font-bold text-slate-600">Điện năng</p>
+            <span className="text-xs italic text-slate-400">Mô phỏng</span>
           </div>
 
           <ResponsiveContainer width="100%" height={100}>
@@ -1174,11 +1158,11 @@ export default function Dashboard() {
           </p>
         </section>
 
-        <section className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-2 flex items-start justify-between gap-2">
             <div>
-              <p className="text-xs font-bold text-gray-600">Cảnh báo</p>
-              <p className="mt-1 text-xs text-gray-400">
+              <p className="text-xs font-bold text-slate-600">Cảnh báo</p>
+              <p className="mt-1 text-xs text-slate-400">
                 {incidents.length} sự cố đang xảy ra
               </p>
             </div>
@@ -1193,11 +1177,11 @@ export default function Dashboard() {
           </div>
 
           {loading ? (
-            <div className="flex h-24 items-center justify-center text-xs text-gray-400">
+            <div className="flex h-24 items-center justify-center text-xs text-slate-400">
               Đang tải sự cố...
             </div>
           ) : incidents.length === 0 ? (
-            <div className="flex h-24 flex-col items-center justify-center text-gray-400">
+            <div className="flex h-24 flex-col items-center justify-center text-slate-400">
               <CheckCircle size={28} className="mb-1 text-green-400" />
               <p className="text-xs">Không có cảnh báo</p>
             </div>
@@ -1223,14 +1207,14 @@ export default function Dashboard() {
                     />
 
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-semibold text-gray-700">
+                      <p className="truncate text-xs font-semibold text-slate-700">
                         {INCIDENT_LABELS[incident.type] || incident.type}
                         {incident.room_code
                           ? ` — Phòng ${incident.room_code}`
                           : ""}
                       </p>
 
-                      <p className="truncate text-xs text-gray-500">
+                      <p className="truncate text-xs text-slate-500">
                         {incident.description ||
                           `Mức độ: ${
                             SEVERITY_LABELS[incident.severity] ||
@@ -1239,7 +1223,7 @@ export default function Dashboard() {
                           }`}
                       </p>
 
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-slate-400">
                         {incident.occurred_at
                           ? new Date(incident.occurred_at).toLocaleTimeString(
                               "vi-VN",
