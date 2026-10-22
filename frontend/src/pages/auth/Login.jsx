@@ -395,7 +395,7 @@ export default function Login() {
                   />
                   Ghi nhớ đăng nhập
                 </label>
-                <span className="font-semibold text-blue-600">Quên mật khẩu?</span>
+                <Link to="/forgot-password" className="font-semibold text-blue-600 hover:text-blue-700 hover:underline">Quên mật khẩu?</Link>
               </div>
 
               <button

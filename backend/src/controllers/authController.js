@@ -2,6 +2,32 @@ const pool = require("../config/database");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const LogModel = require("../models/logModel");
+const {
+  passwordVersion,
+  createResetToken,
+  readResetUserId,
+  verifyResetToken,
+  isMailConfigured,
+  sendResetEmail,
+} = require("../services/passwordResetService");
+
+const RESET_MESSAGE =
+  "Nếu email thuộc tài khoản đang hoạt động, bạn sẽ nhận được liên kết đặt lại mật khẩu.";
+const resetRequestsByIp = new Map();
+const resetRequestsByEmail = new Map();
+const RESET_WINDOW_MS = 15 * 60 * 1000;
+
+// Giới hạn yêu cầu để tránh gửi mail liên tục. Không lưu mật khẩu hay token.
+const resetCleanup = setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of resetRequestsByIp) {
+    if (now - entry.startedAt >= RESET_WINDOW_MS) resetRequestsByIp.delete(ip);
+  }
+  for (const [email, sentAt] of resetRequestsByEmail) {
+    if (now - sentAt >= 60 * 1000) resetRequestsByEmail.delete(email);
+  }
+}, RESET_WINDOW_MS);
+resetCleanup.unref();
 
 const emitLogCreated = (req, id, action) => {
   const io = req.app.get("io");
@@ -78,7 +104,11 @@ const login = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, role: user.role_name },
+      {
+        id: user.id,
+        role: user.role_name,
+        pwdv: passwordVersion(user.password_hash),
+      },
       process.env.JWT_SECRET,
       { expiresIn: "7d" },
     );
@@ -105,6 +135,109 @@ const login = async (req, res) => {
   } catch (error) {
     console.error("Lỗi đăng nhập:", error);
     return res.status(500).json({ message: "Lỗi server!" });
+  }
+};
+
+const forgotPassword = async (req, res) => {
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ message: "Vui lòng nhập email hợp lệ." });
+  }
+  if (!isMailConfigured()) {
+    return res.status(503).json({ message: "Hệ thống chưa cấu hình email gửi mật khẩu." });
+  }
+
+  const now = Date.now();
+  const ip = req.ip;
+  let attempts = resetRequestsByIp.get(ip);
+  if (!attempts || now - attempts.startedAt >= RESET_WINDOW_MS) {
+    attempts = { startedAt: now, count: 0 };
+  }
+  attempts.count += 1;
+  resetRequestsByIp.set(ip, attempts);
+  if (attempts.count > 5) {
+    return res.status(429).json({ message: "Bạn đã yêu cầu quá nhiều lần. Vui lòng thử lại sau." });
+  }
+
+  if (now - (resetRequestsByEmail.get(email) || 0) < 60 * 1000) {
+    return res.json({ message: RESET_MESSAGE });
+  }
+  resetRequestsByEmail.set(email, now);
+
+  try {
+    const [users] = await pool.query(
+      "SELECT id, email, password_hash FROM Users WHERE email = ? AND is_active = 1 LIMIT 1",
+      [email],
+    );
+    if (users.length > 0) {
+      await sendResetEmail(users[0].email, createResetToken(users[0]));
+      await recordAuthLog(req, {
+        user_id: users[0].id,
+        action: "PASSWORD_RESET_REQUESTED",
+        entity_type: "User",
+        entity_id: users[0].id,
+        details: null,
+      });
+    }
+    return res.json({ message: RESET_MESSAGE });
+  } catch (error) {
+    resetRequestsByEmail.delete(email);
+    console.error("Không thể gửi email đặt lại mật khẩu:", error);
+    return res.status(503).json({ message: "Không thể gửi email lúc này. Vui lòng thử lại sau." });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  const { token, new_password: newPassword, confirm_password: confirmPassword } = req.body || {};
+  if (
+    typeof newPassword !== "string" ||
+    newPassword.length < 8 ||
+    Buffer.byteLength(newPassword, "utf8") > 72 ||
+    newPassword !== confirmPassword
+  ) {
+    return res.status(400).json({
+      message: "Mật khẩu cần từ 8 ký tự, tối đa 72 byte và hai ô phải trùng nhau.",
+    });
+  }
+
+  const userId = readResetUserId(token);
+  if (!userId) {
+    return res.status(400).json({ message: "Liên kết không hợp lệ hoặc đã hết hạn." });
+  }
+
+  try {
+    const [users] = await pool.query(
+      "SELECT id, password_hash FROM Users WHERE id = ? AND is_active = 1 LIMIT 1",
+      [userId],
+    );
+    if (!users.length || !verifyResetToken(token, users[0])) {
+      return res.status(400).json({ message: "Liên kết không hợp lệ hoặc đã hết hạn." });
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 10);
+    const [result] = await pool.query(
+      "UPDATE Users SET password_hash = ?, updated_at = NOW() WHERE id = ? AND password_hash = ? AND is_active = 1",
+      [newHash, userId, users[0].password_hash],
+    );
+    if (result.affectedRows !== 1) {
+      return res.status(400).json({ message: "Liên kết không hợp lệ hoặc đã được sử dụng." });
+    }
+
+    await recordAuthLog(req, {
+      user_id: userId,
+      action: "PASSWORD_RESET_COMPLETED",
+      entity_type: "User",
+      entity_id: userId,
+      details: null,
+    });
+    req.app.get("io")?.to(`user:${userId}`).emit("account_changed");
+    return res.json({ message: "Đặt lại mật khẩu thành công. Vui lòng đăng nhập." });
+  } catch (error) {
+    if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
+      return res.status(400).json({ message: "Liên kết không hợp lệ hoặc đã hết hạn." });
+    }
+    console.error("Lỗi đặt lại mật khẩu:", error);
+    return res.status(500).json({ message: "Không thể đặt lại mật khẩu lúc này." });
   }
 };
 
@@ -254,4 +387,4 @@ const logout = async (req, res) => {
   return res.json({ message: "Đăng xuất thành công." });
 };
 
-module.exports = { login, register, getMe, logout };
+module.exports = { login, register, getMe, logout, forgotPassword, resetPassword };

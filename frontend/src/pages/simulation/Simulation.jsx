@@ -11,8 +11,6 @@ import {
   RefreshCw,
   Shuffle,
   Siren,
-  Trash2,
-  X,
   Zap,
 } from "lucide-react";
 

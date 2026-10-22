@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -139,13 +139,7 @@ export default function Devices() {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [formError, setFormError] = useState("");
 
-  useEffect(() => {
-    fetchDevices();
-    fetchRooms();
-    fetchTypes();
-  }, []);
-
-  const fetchDevices = async () => {
+  const fetchDevices = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get("/devices");
@@ -155,25 +149,31 @@ export default function Devices() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchRooms = async () => {
+  const fetchRooms = useCallback(async () => {
     try {
       const response = await api.get("/rooms");
       setRooms(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error("Không thể tải danh sách phòng:", error);
     }
-  };
+  }, []);
 
-  const fetchTypes = async () => {
+  const fetchTypes = useCallback(async () => {
     try {
       const response = await api.get("/devices/types");
       setTypes(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error("Không thể tải loại thiết bị:", error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchDevices();
+    fetchRooms();
+    fetchTypes();
+  }, [fetchDevices, fetchRooms, fetchTypes]);
 
   useSocket({
     device_status_changed: fetchDevices,

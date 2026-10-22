@@ -263,6 +263,8 @@ export default function MainLayout() {
   const [time, setTime] = useState(new Date());
   const [notifications, setNotifications] = useState(0);
   const role = user?.role;
+  const userId = user?.id;
+  const username = user?.username;
 
   const fetchUnreadCount = useCallback(async () => {
     try {
@@ -282,7 +284,7 @@ export default function MainLayout() {
       }
 
       try {
-        const preferenceId = user?.id || user?.username || "default";
+        const preferenceId = userId || username || "default";
         const saved = JSON.parse(
           localStorage.getItem(`smart-campus-notifications:${preferenceId}`) ||
             "{}",
@@ -309,7 +311,7 @@ export default function MainLayout() {
         console.error("Không thể hiển thị thông báo trình duyệt:", error);
       }
     },
-    [fetchUnreadCount, user?.id, user?.username],
+    [fetchUnreadCount, userId, username],
   );
 
   useSocket({

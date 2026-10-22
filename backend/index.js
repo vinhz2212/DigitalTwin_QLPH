@@ -28,6 +28,7 @@ const notificationRoutes = require("./src/routes/notificationRoutes");
 const statisticsRoutes = require("./src/routes/statisticsRoutes");
 const reportRoutes = require("./src/routes/reportRoutes");
 const auditLog = require("./src/middleware/auditLog");
+const { passwordVersion } = require("./src/services/passwordResetService");
 const {
   reconcileOpenMaintenanceState,
 } = require("./src/services/maintenanceStateService");
@@ -64,7 +65,7 @@ io.use(async (socket, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const [users] = await db.query(
-      `SELECT u.id, r.name AS role
+      `SELECT u.id, u.password_hash, r.name AS role
        FROM Users u
        JOIN Roles r ON r.id = u.role_id
        WHERE u.id = ? AND u.is_active = TRUE
@@ -74,6 +75,10 @@ io.use(async (socket, next) => {
 
     if (users.length === 0) {
       return next(new Error("Tài khoản không còn hoạt động"));
+    }
+
+    if (decoded.pwdv !== passwordVersion(users[0].password_hash)) {
+      return next(new Error("Phiên đăng nhập đã hết hiệu lực"));
     }
 
     socket.user = users[0];

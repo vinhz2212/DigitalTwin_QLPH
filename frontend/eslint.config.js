@@ -17,5 +17,15 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // Dự án tải dữ liệu API trong effect và chưa bật React Compiler.
+      // Quy tắc này thuộc nhóm chẩn đoán tối ưu của Compiler và đánh dấu
+      // nhầm các effect tải dữ liệu hiện có là lỗi.
+      'react-hooks/set-state-in-effect': 'off',
+      'react-refresh/only-export-components': [
+        'error',
+        { allowExportNames: ['useAuth'] },
+      ],
+    },
   },
 ])

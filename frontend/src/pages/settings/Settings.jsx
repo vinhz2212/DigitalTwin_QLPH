@@ -3,7 +3,6 @@ import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import {
   Bell,
-  Check,
   CheckCircle2,
   Clock3,
   Database,
@@ -247,6 +246,9 @@ export default function Settings() {
         new_password: passwords.new,
       });
 
+      if (response.data?.token) {
+        localStorage.setItem("token", response.data.token);
+      }
       setPasswordSuccess(response.data?.message || "Đổi mật khẩu thành công.");
       setPasswords({ current: "", new: "", confirm: "" });
     } catch (error) {

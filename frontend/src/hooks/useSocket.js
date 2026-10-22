@@ -11,7 +11,10 @@ const socketUrl =
 
 export const useSocket = (events = {}) => {
   const eventsRef = useRef(events);
-  eventsRef.current = events;
+
+  useEffect(() => {
+    eventsRef.current = events;
+  }, [events]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");

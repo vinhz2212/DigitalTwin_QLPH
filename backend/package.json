@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "db:migrate": "node scripts/migrate.js",
+    "db:migrate:status": "node scripts/migrate.js --status"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +23,7 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
     "mysql2": "^3.23.2",
+    "nodemailer": "^10.2.1",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {

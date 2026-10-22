@@ -28,6 +28,7 @@ import {
 
 const ROOM_COLORS = ["#16a34a", "#2563eb", "#d97706", "#dc2626"];
 const DEVICE_COLORS = ["#16a34a", "#64748b", "#dc2626", "#d97706"];
+const EMPTY_STATS = Object.freeze({});
 
 const numberValue = (value) => Number(value) || 0;
 
@@ -171,10 +172,10 @@ export default function Statistics() {
     fetchAll();
   }, [fetchAll]);
 
-  const roomStats = overview?.roomStats || {};
-  const deviceStats = overview?.deviceStats || {};
-  const incidentStats = overview?.incidentStats || {};
-  const bookingStats = overview?.bookingStats || {};
+  const roomStats = overview?.roomStats || EMPTY_STATS;
+  const deviceStats = overview?.deviceStats || EMPTY_STATS;
+  const incidentStats = overview?.incidentStats || EMPTY_STATS;
+  const bookingStats = overview?.bookingStats || EMPTY_STATS;
 
   const roomTotal = numberValue(roomStats.total);
   const deviceTotal = numberValue(deviceStats.total);

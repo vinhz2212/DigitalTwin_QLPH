@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const db = require("../config/database");
+const { passwordVersion } = require("../services/passwordResetService");
 
 const authMiddleware = async (req, res, next) => {
   const authorization = req.headers.authorization;
@@ -27,7 +28,7 @@ const authMiddleware = async (req, res, next) => {
     // Đọc role và trạng thái mới nhất để role đã bị đổi/khóa có hiệu lực ngay,
     // không tiếp tục dùng quyền cũ còn nằm trong JWT đến hết hạn.
     const [users] = await db.query(
-      `SELECT u.id, u.role_id, r.name AS role
+      `SELECT u.id, u.role_id, u.password_hash, r.name AS role
        FROM Users u
        JOIN Roles r ON r.id = u.role_id
        WHERE u.id = ? AND u.is_active = 1
@@ -37,6 +38,10 @@ const authMiddleware = async (req, res, next) => {
 
     if (users.length === 0) {
       return res.status(401).json({ message: "Tài khoản không còn hoạt động" });
+    }
+
+    if (decoded.pwdv !== passwordVersion(users[0].password_hash)) {
+      return res.status(401).json({ message: "Phiên đăng nhập đã hết hiệu lực. Vui lòng đăng nhập lại." });
     }
 
     req.user = {

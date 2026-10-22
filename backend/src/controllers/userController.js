@@ -1,5 +1,7 @@
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const UserModel = require("../models/userModel");
+const { passwordVersion } = require("../services/passwordResetService");
 
 const userController = {
   getAll: async (req, res) => {
@@ -114,7 +116,12 @@ const userController = {
 
       const newHash = await bcrypt.hash(new_password, 10);
       await UserModel.updatePassword(userId, newHash);
-      res.json({ message: "Đổi mật khẩu thành công" });
+      const token = jwt.sign(
+        { id: userId, role: req.user.role, pwdv: passwordVersion(newHash) },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" },
+      );
+      res.json({ message: "Đổi mật khẩu thành công", token });
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
     }

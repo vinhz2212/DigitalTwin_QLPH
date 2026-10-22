@@ -142,7 +142,7 @@ function RoomBox({ position, room, onClick, isSelected }) {
       }}
     >
       <RoundedBox
-        args={[1.04, 0.62, 0.24]}
+        args={[1.15, 0.62, 0.24]}
         radius={0.045}
         smoothness={4}
         castShadow
@@ -162,7 +162,7 @@ function RoomBox({ position, room, onClick, isSelected }) {
       </RoundedBox>
 
       <RoundedBox
-        args={[0.88, 0.3, 0.025]}
+        args={[0.99, 0.3, 0.025]}
         radius={0.018}
         smoothness={3}
         position={[0, 0.075, 0.132]}
@@ -176,7 +176,7 @@ function RoomBox({ position, room, onClick, isSelected }) {
       </RoundedBox>
 
       <mesh position={[0, 0.075, 0.15]}>
-        <boxGeometry args={[0.88, 0.018, 0.012]} />
+        <boxGeometry args={[0.99, 0.018, 0.012]} />
         <meshStandardMaterial
           color="#315d70"
           metalness={0.28}
@@ -194,7 +194,7 @@ function RoomBox({ position, room, onClick, isSelected }) {
       </mesh>
 
       <RoundedBox
-        args={[0.67, 0.17, 0.025]}
+        args={[0.76, 0.17, 0.025]}
         radius={0.025}
         smoothness={3}
         position={[0, -0.19, 0.143]}
@@ -216,7 +216,7 @@ function RoomBox({ position, room, onClick, isSelected }) {
       </Text>
 
       <mesh position={[0, -0.285, 0.14]}>
-        <boxGeometry args={[0.88, 0.045, 0.025]} />
+        <boxGeometry args={[0.99, 0.045, 0.025]} />
         <meshStandardMaterial
           color={statusColor}
           emissive={room.status === "su_co" ? statusColor : "#000000"}
@@ -225,7 +225,7 @@ function RoomBox({ position, room, onClick, isSelected }) {
         />
       </mesh>
 
-      <mesh ref={pulseRef} position={[0.39, 0.22, 0.15]}>
+      <mesh ref={pulseRef} position={[0.44, 0.22, 0.15]}>
         <sphereGeometry args={[0.035, 12, 12]} />
         <meshStandardMaterial
           color={statusColor}
@@ -236,7 +236,7 @@ function RoomBox({ position, room, onClick, isSelected }) {
 
       {isSelected && (
         <RoundedBox
-          args={[1.13, 0.7, 0.28]}
+          args={[1.24, 0.7, 0.28]}
           radius={0.06}
           smoothness={3}
           position={[0, 0, 0.01]}
@@ -289,7 +289,7 @@ function FloorGroup({
         <meshStandardMaterial color="#376c80" metalness={0.2} roughness={0.38} />
       </mesh>
 
-      {[1.135, 2.285, 3.435].map((x) => (
+      {[1.225, 2.475, 3.725].map((x) => (
         <mesh key={`mullion-${floorNumber}-${x}`} position={[x, 0.38, 3.14]}>
           <boxGeometry args={[0.045, 0.61, 0.085]} />
           <meshStandardMaterial color="#7798a4" metalness={0.2} roughness={0.4} />
@@ -299,7 +299,7 @@ function FloorGroup({
       {floorRooms.map((room, index) => (
         <RoomBox
           key={room.id}
-          position={[0.56 + index * 1.15, 0.38, 2.98]}
+          position={[0.6 + index * 1.25, 0.38, 2.98]}
           room={room}
           onClick={onRoomClick}
           isSelected={selectedRoom?.id === room.id}

@@ -9,8 +9,6 @@ import {
 } from "@react-three/drei";
 import { useNavigate } from "react-router-dom";
 import {
-  AlertTriangle,
-  Bell,
   CheckCircle,
   ChevronRight,
   Grid3X3,
@@ -52,22 +50,22 @@ function Tree({ position, scale = 1 }) {
     <group position={position} scale={scale}>
       <mesh position={[0, 0.35, 0]} castShadow>
         <cylinderGeometry args={[0.07, 0.12, 0.7, 10]} />
-        <meshStandardMaterial color="#806247" roughness={0.9} />
+        <meshStandardMaterial color="#806247" roughness={0.92} />
       </mesh>
 
       <mesh position={[0, 0.9, 0]} castShadow>
         <sphereGeometry args={[0.38, 14, 12]} />
-        <meshStandardMaterial color="#69a976" roughness={0.9} />
+        <meshStandardMaterial color="#67a875" roughness={0.9} />
       </mesh>
 
       <mesh position={[-0.22, 0.81, 0.08]} castShadow>
         <sphereGeometry args={[0.26, 12, 10]} />
-        <meshStandardMaterial color="#83b98a" roughness={0.9} />
+        <meshStandardMaterial color="#82b987" roughness={0.9} />
       </mesh>
 
       <mesh position={[0.22, 0.82, -0.06]} castShadow>
         <sphereGeometry args={[0.27, 12, 10]} />
-        <meshStandardMaterial color="#559567" roughness={0.9} />
+        <meshStandardMaterial color="#559767" roughness={0.9} />
       </mesh>
     </group>
   );
@@ -102,7 +100,7 @@ function Room3D({ position, room, onClick, isSelected }) {
     >
       {/* Thân phòng */}
       <RoundedBox
-        args={[1.03, 0.62, 0.24]}
+        args={[1.15, 0.62, 0.24]}
         radius={0.045}
         smoothness={4}
         castShadow
@@ -123,7 +121,7 @@ function Room3D({ position, room, onClick, isSelected }) {
 
       {/* Cửa kính mặt tiền */}
       <RoundedBox
-        args={[0.86, 0.29, 0.025]}
+        args={[0.99, 0.29, 0.025]}
         radius={0.018}
         smoothness={3}
         position={[0, 0.085, 0.132]}
@@ -147,7 +145,7 @@ function Room3D({ position, room, onClick, isSelected }) {
       </mesh>
 
       <mesh position={[0, 0.085, 0.15]}>
-        <boxGeometry args={[0.86, 0.018, 0.012]} />
+        <boxGeometry args={[0.99, 0.018, 0.012]} />
         <meshStandardMaterial
           color="#315d70"
           metalness={0.28}
@@ -157,12 +155,12 @@ function Room3D({ position, room, onClick, isSelected }) {
 
       {/* Bảng mã phòng */}
       <RoundedBox
-        args={[0.66, 0.17, 0.025]}
+        args={[0.76, 0.17, 0.025]}
         radius={0.025}
         smoothness={3}
         position={[0, -0.19, 0.14]}
       >
-        <meshStandardMaterial color="#ffffff" roughness={0.48} />
+        <meshStandardMaterial color="#ffffff" roughness={0.5} />
       </RoundedBox>
 
       <Text
@@ -180,7 +178,7 @@ function Room3D({ position, room, onClick, isSelected }) {
 
       {/* Thanh trạng thái */}
       <mesh position={[0, -0.285, 0.14]}>
-        <boxGeometry args={[0.86, 0.045, 0.025]} />
+        <boxGeometry args={[0.99, 0.045, 0.025]} />
         <meshStandardMaterial
           color={statusColor}
           emissive={room.status === "su_co" ? statusColor : "#000000"}
@@ -190,7 +188,7 @@ function Room3D({ position, room, onClick, isSelected }) {
       </mesh>
 
       {/* Đèn báo nhỏ ở góc phòng */}
-      <mesh ref={alertLightRef} position={[0.39, 0.22, 0.15]}>
+      <mesh ref={alertLightRef} position={[0.44, 0.22, 0.15]}>
         <sphereGeometry args={[0.035, 12, 12]} />
         <meshStandardMaterial
           color={statusColor}
@@ -202,7 +200,7 @@ function Room3D({ position, room, onClick, isSelected }) {
       {/* Viền chọn phòng */}
       {isSelected && (
         <RoundedBox
-          args={[1.12, 0.71, 0.28]}
+          args={[1.24, 0.71, 0.28]}
           radius={0.06}
           smoothness={3}
           position={[0, 0, 0.01]}
@@ -261,7 +259,7 @@ function Floor3D({
         />
       </mesh>
 
-      {[1.135, 2.285, 3.435].map((x) => (
+      {[1.225, 2.475, 3.725].map((x) => (
         <mesh key={`mullion-${floorNumber}-${x}`} position={[x, 0.38, 3.14]}>
           <boxGeometry args={[0.045, 0.61, 0.085]} />
           <meshStandardMaterial
@@ -276,7 +274,7 @@ function Floor3D({
       {floorRooms.map((room, index) => (
         <Room3D
           key={room.id}
-          position={[0.56 + index * 1.15, 0.38, 2.98]}
+          position={[0.6 + index * 1.25, 0.38, 2.98]}
           room={room}
           onClick={onRoomClick}
           isSelected={selectedRoom?.id === room.id}
@@ -487,18 +485,18 @@ function Building3D({
 
       {/* Bảng tên tòa nhà */}
       <RoundedBox
-        args={[1.5, 0.32, 0.12]}
+        args={[1.4, 0.35, 0.12]}
         radius={0.06}
         smoothness={4}
         position={[offset + 2.5, 4.68, 1.55]}
       >
-        <meshStandardMaterial color="#17445d" roughness={0.38} />
+        <meshStandardMaterial color="#1768e8" roughness={0.4} />
       </RoundedBox>
 
       <Text
         position={[offset + 2.5, 4.68, 1.62]}
         fontSize={0.19}
-        color="#f5fbfc"
+        color="white"
         anchorX="center"
         anchorY="middle"
         fontWeight="bold"
@@ -611,7 +609,7 @@ function Scene({
       <hemisphereLight args={["#f5fbff", "#718777", 1.35]} />
 
       <directionalLight
-        position={[8, 11, 7]}
+        position={[7, 12, 9]}
         intensity={1.65}
         castShadow
         shadow-mapSize-width={2048}
@@ -654,8 +652,8 @@ function Scene({
         rotation={[-Math.PI / 2, 0, 0]}
         receiveShadow
       >
-        <planeGeometry args={[38, 24]} />
-        <meshStandardMaterial color="#aabd9f" roughness={0.96} />
+        <planeGeometry args={[36, 23]} />
+        <meshStandardMaterial color="#b7d5b0" roughness={0.96} />
       </mesh>
 
       {/* Lối đi giữa hai tòa */}
@@ -664,8 +662,8 @@ function Scene({
         rotation={[-Math.PI / 2, 0, 0]}
         receiveShadow
       >
-        <planeGeometry args={[1.7, 13]} />
-        <meshStandardMaterial color="#cbd4d2" roughness={0.84} />
+        <planeGeometry args={[1.45, 12]} />
+        <meshStandardMaterial color="#d8e0df" roughness={0.88} />
       </mesh>
 
       {/* Sân phía trước */}
@@ -674,16 +672,16 @@ function Scene({
         rotation={[-Math.PI / 2, 0, 0]}
         receiveShadow
       >
-        <planeGeometry args={[14, 1.4]} />
-        <meshStandardMaterial color="#d8dfdc" roughness={0.86} />
+        <planeGeometry args={[13, 1.15]} />
+        <meshStandardMaterial color="#e6ece8" roughness={0.9} />
       </mesh>
 
-      <Tree position={[-6.45, -0.27, 3.95]} scale={1.05} />
-      <Tree position={[-5.9, -0.27, -0.75]} scale={0.9} />
+      <Tree position={[-7.2, -0.27, 3.95]} scale={1.05} />
+      <Tree position={[-7.05, -0.27, -0.75]} scale={0.9} />
       <Tree position={[-1.25, -0.27, 4.25]} scale={0.82} />
       <Tree position={[1.25, -0.27, 4.25]} scale={0.82} />
-      <Tree position={[5.9, -0.27, -0.75]} scale={0.9} />
-      <Tree position={[6.45, -0.27, 3.95]} scale={1.05} />
+      <Tree position={[7.05, -0.27, -0.75]} scale={0.9} />
+      <Tree position={[7.2, -0.27, 3.95]} scale={1.05} />
 
       <ContactShadows
         position={[0, -0.275, 1.4]}
@@ -701,7 +699,7 @@ function Scene({
         enableRotate
         minDistance={12}
         maxDistance={23}
-        target={[0, 2.05, 1.4]}
+        target={[0, 2.1, 1.45]}
         minPolarAngle={Math.PI / 5}
         maxPolarAngle={Math.PI / 2.15}
       />
@@ -849,12 +847,10 @@ export default function Twin() {
                     }}
                     className="rounded-xl px-3 py-2.5 text-sm font-bold transition-all"
                     style={{
-                      color: active ? "white" : "#5b6b7c",
-                      background: active
-                        ? "linear-gradient(135deg, #1768e8, #4f91f5)"
-                        : "#f5f8fb",
+                      color: active ? "white" : "#6b7280",
+                      background: active ? "#1a56db" : "#f3f4f6",
                       boxShadow: active
-                        ? "0 6px 16px rgba(23,104,232,.22)"
+                        ? "0 4px 12px rgba(26,86,219,0.24)"
                         : "none",
                     }}
                   >
@@ -897,9 +893,9 @@ export default function Twin() {
                     }}
                     className="flex items-center justify-between rounded-xl border px-3 py-2 text-sm font-bold transition-all"
                     style={{
-                      color: active ? "white" : "#536477",
-                      background: active ? "#2168ed" : "#f8fafc",
-                      borderColor: active ? "#2168ed" : "#e8edf2",
+                      color: active ? "white" : "#374151",
+                      background: active ? "#1a56db" : "#f8fafc",
+                      borderColor: active ? "#1a56db" : "#e5e7eb",
                     }}
                   >
                     <span className="lg:hidden">{floor}</span>
