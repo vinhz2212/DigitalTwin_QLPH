@@ -2,10 +2,11 @@ const db = require("../config/database");
 const { notifyIncident } = require("../utils/incidentNotifications");
 const {
   syncRoomOperationalStatus,
+  restoreRoomPowerAfterResolvedIncident,
 } = require("../services/roomOperationalStatusService");
 
 const INCIDENT_DEVICE_MAP = {
-  chay: null, // Tất cả thiết bị tắt
+  chay: null,
   mat_dien: null, // Tất cả thiết bị tắt
   may_chieu_hong: "may_chieu",
   dieu_hoa_hong: "dieu_hoa",
@@ -39,12 +40,20 @@ const simulationController = {
       await syncRoomOperationalStatus(room_id);
 
       // Xử lý thiết bị theo loại sự cố
-      if (type === "chay" || type === "mat_dien") {
-        // Tắt tất cả thiết bị
-        await db.query("UPDATE Devices SET status = ? WHERE room_id = ?", [
-          "tat",
-          room_id,
-        ]);
+      if (type === "mat_dien") {
+        // Mất điện tắt thiết bị ngay; sự cố cháy chỉ tắt khi có lệnh ngắt điện.
+        // Nhớ trạng thái ban đầu một lần để khôi phục sau sự cố cuối cùng.
+        await db.query(
+          "UPDATE Rooms SET power_status = 'ngat_dien' WHERE id = ?",
+          [room_id],
+        );
+        await db.query(
+          `UPDATE Devices
+           SET power_cut_previous_status = COALESCE(power_cut_previous_status, status),
+               status = 'tat'
+           WHERE room_id = ?`,
+          [room_id],
+        );
       } else if (type === "may_chieu_hong") {
         await db.query(
           `
@@ -85,6 +94,10 @@ const simulationController = {
           type,
           severity: severity || "trung",
         });
+        if (type === "mat_dien") {
+          io.emit("rooms_changed", { action: "power_status_changed", roomId: room_id });
+          io.emit("devices_changed", { roomId: room_id });
+        }
       }
 
       res.status(201).json({
@@ -99,7 +112,16 @@ const simulationController = {
   // Giải quyết sự cố
   resolveIncident: async (req, res) => {
     try {
-      const { incident_id, room_id } = req.body;
+      const { incident_id } = req.body;
+      const [incidents] = await db.query(
+        "SELECT room_id, type FROM Incidents WHERE id = ? LIMIT 1",
+        [incident_id],
+      );
+      if (!incidents.length) {
+        return res.status(404).json({ message: "Không tìm thấy sự cố." });
+      }
+      const roomId = incidents[0].room_id;
+      const incidentType = incidents[0].type;
 
       // Cập nhật sự cố
       await db.query(
@@ -110,31 +132,32 @@ const simulationController = {
         [incident_id],
       );
 
-      await syncRoomOperationalStatus(room_id);
-
-      // Thiết bị về trạng thái bình thường
-      await db.query(
-        `
-        UPDATE Devices SET status = 'hoat_dong'
-        WHERE room_id = ? AND status = 'tat'
-      `,
-        [room_id],
-      );
+      const restoration =
+        ["chay", "mat_dien"].includes(incidentType) &&
+        (await restoreRoomPowerAfterResolvedIncident(roomId));
+      await syncRoomOperationalStatus(roomId);
 
       // Gửi socket
       const io = req.app.get("io");
       if (io) {
         io.emit("incident_resolved", {
           incidentId: incident_id,
-          roomId: room_id,
+          roomId,
         });
         io.emit("rooms_changed", {
           action: "incident_resolved",
-          roomId: room_id,
+          roomId,
         });
+        if (restoration?.devicesRestored) {
+          io.emit("devices_changed", { roomId });
+        }
       }
 
-      res.json({ message: "Đã giải quyết sự cố" });
+      res.json({
+        message: restoration?.powerRestored || restoration?.devicesRestored
+          ? "Đã giải quyết sự cố, khôi phục nguồn điện và trạng thái thiết bị trước sự cố."
+          : "Đã giải quyết sự cố",
+      });
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
     }
@@ -145,6 +168,7 @@ const simulationController = {
     try {
       const [rows] = await db.query(`
         SELECT i.*, r.code as room_code, r.name as room_name,
+               r.power_status,
                f.floor_number, b.code as building_code, b.name as building_name
         FROM Incidents i
         JOIN Rooms r ON i.room_id = r.id

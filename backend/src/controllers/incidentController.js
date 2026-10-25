@@ -2,6 +2,7 @@ const IncidentModel = require("../models/incidentModel");
 const { notifyIncident } = require("../utils/incidentNotifications");
 const {
   syncRoomOperationalStatus,
+  restoreRoomPowerAfterResolvedIncident,
 } = require("../services/roomOperationalStatusService");
 const { createForUser } = require("../services/notificationService");
 
@@ -91,7 +92,12 @@ const incidentController = {
       if (!incident) {
         return res.status(404).json({ message: "Không tìm thấy sự cố" });
       }
-      if (incident) await syncRoomOperationalStatus(incident.room_id);
+      const restoration =
+        status === "da_giai_quyet" &&
+        ["chay", "mat_dien"].includes(incident.type)
+          ? await restoreRoomPowerAfterResolvedIncident(incident.room_id)
+          : null;
+      await syncRoomOperationalStatus(incident.room_id);
 
       const io = req.app.get("io");
       if (incident?.triggered_by) {
@@ -118,8 +124,15 @@ const incidentController = {
         status,
         roomId: incident?.room_id,
       });
+      if (restoration?.devicesRestored) {
+        io?.emit("devices_changed", { roomId: incident.room_id });
+      }
 
-      res.json({ message: "Cập nhật trạng thái thành công" });
+      res.json({
+        message: restoration?.powerRestored || restoration?.devicesRestored
+          ? "Đã giải quyết sự cố, khôi phục nguồn điện và trạng thái thiết bị trước sự cố."
+          : "Cập nhật trạng thái thành công",
+      });
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
     }

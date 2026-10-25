@@ -54,7 +54,7 @@ const RoomModel = {
       FROM Rooms r
       JOIN Floors f ON r.floor_id = f.id
       JOIN Buildings b ON f.building_id = b.id
-      WHERE r.status = 'trong'
+      WHERE r.status = 'trong' AND r.power_status = 'co_dien'
       ORDER BY b.code, f.floor_number
     `);
     return rows;

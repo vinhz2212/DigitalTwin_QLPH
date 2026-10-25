@@ -117,6 +117,16 @@ function StatusBadge({ status }) {
   );
 }
 
+function PowerBadge({ powerStatus }) {
+  if (powerStatus !== "ngat_dien") return null;
+
+  return (
+    <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800">
+      Nguồn điện: Đã ngắt (mô phỏng)
+    </span>
+  );
+}
+
 export default function Rooms() {
   const { user } = useAuth();
   const canManageRooms = user?.role === "admin";
@@ -684,30 +694,33 @@ export default function Rooms() {
                       </td>
 
                       <td className="px-5 py-4">
-                        {canChangeRoomStatus ? (
-                          <select
-                            value={room.status}
-                            onChange={(event) =>
-                              handleStatusChange(room.id, event.target.value)
-                            }
-                            aria-label={`Trạng thái phòng ${room.code}`}
-                            className="cursor-pointer appearance-none rounded-full border-0 py-1.5 pl-3 pr-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-200"
-                            style={{
-                              color:
-                                STATUS_MAP[room.status]?.color || "#64748b",
-                              background:
-                                STATUS_MAP[room.status]?.bg || "#f1f5f9",
-                            }}
-                          >
-                            {Object.entries(STATUS_MAP).map(([key, status]) => (
-                              <option key={key} value={key}>
-                                {status.label}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <StatusBadge status={room.status} />
-                        )}
+                        <div className="flex flex-col items-start gap-1.5">
+                          {canChangeRoomStatus ? (
+                            <select
+                              value={room.status}
+                              onChange={(event) =>
+                                handleStatusChange(room.id, event.target.value)
+                              }
+                              aria-label={`Trạng thái phòng ${room.code}`}
+                              className="cursor-pointer appearance-none rounded-full border-0 py-1.5 pl-3 pr-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-200"
+                              style={{
+                                color:
+                                  STATUS_MAP[room.status]?.color || "#64748b",
+                                background:
+                                  STATUS_MAP[room.status]?.bg || "#f1f5f9",
+                              }}
+                            >
+                              {Object.entries(STATUS_MAP).map(([key, status]) => (
+                                <option key={key} value={key}>
+                                  {status.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <StatusBadge status={room.status} />
+                          )}
+                          <PowerBadge powerStatus={room.power_status} />
+                        </div>
                       </td>
 
                       {canManageRooms && (
@@ -764,7 +777,10 @@ export default function Rooms() {
                       </p>
                       <p className="mt-1 text-xs text-slate-500">{room.name}</p>
                     </div>
-                    <StatusBadge status={room.status} />
+                    <div className="flex flex-col items-end gap-1.5">
+                      <StatusBadge status={room.status} />
+                      <PowerBadge powerStatus={room.power_status} />
+                    </div>
                   </div>
 
                   <div className="mt-4 space-y-2 border-t border-slate-200 pt-3">

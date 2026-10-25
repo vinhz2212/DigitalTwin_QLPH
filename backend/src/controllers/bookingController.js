@@ -84,9 +84,12 @@ const validateAvailability = async (
   excludeId = null,
   executor,
 ) => {
-  const roomStatus = await BookingModel.getRoomStatus(booking.room_id, executor);
-  if (!roomStatus) return "Phòng học không tồn tại.";
-  if (["bao_tri", "su_co"].includes(roomStatus)) {
+  const roomState = await BookingModel.getRoomStatus(booking.room_id, executor);
+  if (!roomState) return "Phòng học không tồn tại.";
+  if (roomState.power_status === "ngat_dien") {
+    return "Nguồn điện phòng đang bị ngắt trong mô phỏng, không thể đặt.";
+  }
+  if (["bao_tri", "su_co"].includes(roomState.status)) {
     return "Phòng đang bảo trì hoặc có sự cố, không thể đặt.";
   }
 

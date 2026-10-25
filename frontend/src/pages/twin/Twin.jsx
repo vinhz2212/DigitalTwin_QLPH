@@ -127,7 +127,7 @@ function Room3D({ position, room, onClick, isSelected }) {
         position={[0, 0.085, 0.132]}
       >
         <meshPhysicalMaterial
-          color={surfaceColor}
+          color={room.power_status === "ngat_dien" ? "#425363" : surfaceColor}
           roughness={0.3}
           metalness={0.12}
           clearcoat={0.45}
@@ -724,6 +724,9 @@ export default function Twin() {
     try {
       const response = await api.get("/rooms");
       setRooms(response.data);
+      setSelectedRoom((current) =>
+        current ? response.data.find((room) => room.id === current.id) || null : null,
+      );
     } catch (error) {
       console.error("Không thể tải danh sách phòng:", error);
     } finally {
@@ -1137,7 +1140,12 @@ export default function Twin() {
                         </span>
                       </span>
 
-                      <span className="flex items-center gap-3 text-xs text-slate-500">
+                      <span className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                        {room.power_status === "ngat_dien" && (
+                          <span className="font-semibold text-amber-700">
+                            Nguồn điện đã ngắt (mô phỏng)
+                          </span>
+                        )}
                         <span className="flex items-center gap-1">
                           <Users size={12} />
                           {room.capacity} chỗ
@@ -1178,6 +1186,15 @@ export default function Twin() {
                   <span className="text-slate-400">Mã phòng</span>
                   <span className="text-right font-bold text-slate-700">
                     {selectedRoom.code}
+                  </span>
+
+                  <span className="text-slate-400">Nguồn điện</span>
+                  <span
+                    className={`text-right font-bold ${selectedRoom.power_status === "ngat_dien" ? "text-amber-700" : "text-emerald-700"}`}
+                  >
+                    {selectedRoom.power_status === "ngat_dien"
+                      ? "Đã ngắt (mô phỏng)"
+                      : "Có điện (mô phỏng)"}
                   </span>
 
                   <span className="text-slate-400">Tòa nhà</span>

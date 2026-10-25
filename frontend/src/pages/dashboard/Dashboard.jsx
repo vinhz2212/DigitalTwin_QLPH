@@ -168,7 +168,7 @@ function RoomBox({ position, room, onClick, isSelected }) {
         position={[0, 0.075, 0.132]}
       >
         <meshPhysicalMaterial
-          color={surfaceColor}
+          color={room.power_status === "ngat_dien" ? "#425363" : surfaceColor}
           roughness={0.3}
           metalness={0.12}
           clearcoat={0.45}
@@ -686,7 +686,11 @@ export default function Dashboard() {
         api.get("/simulation/active"),
       ]);
 
-      setRooms(Array.isArray(roomsRes.data) ? roomsRes.data : []);
+      const currentRooms = Array.isArray(roomsRes.data) ? roomsRes.data : [];
+      setRooms(currentRooms);
+      setSelectedRoom((current) =>
+        current ? currentRooms.find((room) => room.id === current.id) || null : null,
+      );
       setDevices(Array.isArray(devicesRes.data) ? devicesRes.data : []);
       setIncidents(Array.isArray(incidentsRes.data) ? incidentsRes.data : []);
     } catch (error) {
@@ -987,6 +991,11 @@ export default function Dashboard() {
                         <span className="mt-1 block truncate text-xs text-slate-500">
                           {STATUS_LABELS[room.status] || "Chưa rõ"}
                         </span>
+                        {room.power_status === "ngat_dien" && (
+                          <span className="mt-1 block text-xs font-semibold text-amber-700">
+                            Nguồn điện đã ngắt (mô phỏng)
+                          </span>
+                        )}
                       </span>
                       <span className="shrink-0 rounded-lg bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">
                         👥 {room.capacity}

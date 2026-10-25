@@ -111,10 +111,10 @@ const BookingModel = {
 
   getRoomStatus: async (roomId, executor = db) => {
     const [rows] = await executor.query(
-      "SELECT status FROM Rooms WHERE id = ? LIMIT 1",
+      "SELECT status, power_status FROM Rooms WHERE id = ? LIMIT 1",
       [roomId],
     );
-    return rows[0]?.status ?? null;
+    return rows[0] || null;
   },
 
   create: async (data, executor = db) => {

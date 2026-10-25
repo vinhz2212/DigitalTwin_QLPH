@@ -223,6 +223,10 @@ export default function Simulation() {
   useSocket({
     incident_simulated: () => fetchActive(),
     incident_resolved: () => fetchActive(),
+    rooms_changed: () => {
+      fetchRooms();
+      fetchActive();
+    },
   });
 
   const addLog = (message, type = "info") => {
@@ -671,6 +675,11 @@ export default function Simulation() {
                               ? ` · Tầng ${incident.floor_number}`
                               : ""}
                           </p>
+                          {incident.power_status === "ngat_dien" && (
+                            <p className="mt-1 text-xs font-bold text-amber-800">
+                              Nguồn điện đã ngắt (mô phỏng)
+                            </p>
+                          )}
                           {incident.description && (
                             <p className="mt-1 line-clamp-2 text-sm text-slate-600">
                               {incident.description}

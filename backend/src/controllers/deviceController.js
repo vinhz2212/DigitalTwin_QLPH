@@ -1,4 +1,5 @@
 const DeviceModel = require("../models/deviceModel");
+const RoomModel = require("../models/roomModel");
 
 const emitDeviceChange = (req, payload) => {
   const io = req.app.get("io");
@@ -55,6 +56,12 @@ const deviceController = {
 
   create: async (req, res) => {
     try {
+      if (req.body.status === "hoat_dong") {
+        const room = await RoomModel.getById(req.body.room_id);
+        if (room?.power_status === "ngat_dien") {
+          return res.status(409).json({ message: "Phòng đang ngắt nguồn điện mô phỏng; không thể bật thiết bị." });
+        }
+      }
       const id = await DeviceModel.create(req.body);
       const device = await DeviceModel.getById(id);
       emitDeviceChange(req, { action: "created", deviceId: id });
@@ -66,6 +73,12 @@ const deviceController = {
 
   update: async (req, res) => {
     try {
+      if (req.body.status === "hoat_dong") {
+        const currentDevice = await DeviceModel.getById(req.params.id);
+        if (currentDevice?.room_power_status === "ngat_dien") {
+          return res.status(409).json({ message: "Phòng đang ngắt nguồn điện mô phỏng; không thể bật thiết bị." });
+        }
+      }
       await DeviceModel.update(req.params.id, req.body);
       const device = await DeviceModel.getById(req.params.id);
       emitDeviceChange(req, {
@@ -81,6 +94,12 @@ const deviceController = {
   updateStatus: async (req, res) => {
     try {
       const { status } = req.body;
+      if (status === "hoat_dong") {
+        const currentDevice = await DeviceModel.getById(req.params.id);
+        if (currentDevice?.room_power_status === "ngat_dien") {
+          return res.status(409).json({ message: "Phòng đang ngắt nguồn điện mô phỏng; không thể bật thiết bị." });
+        }
+      }
       await DeviceModel.updateStatus(req.params.id, status);
 
       const io = req.app.get("io");

@@ -674,7 +674,7 @@ export default function Bookings() {
                   >
                     <option value="">Chọn phòng học</option>
                     {rooms
-                      .filter((room) => room.status === "trong")
+                      .filter((room) => room.status === "trong" && room.power_status !== "ngat_dien")
                       .map((room) => (
                         <option key={room.id} value={room.id}>
                           {room.code} — {room.name || "Phòng học"} (
@@ -687,7 +687,7 @@ export default function Bookings() {
                     className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400"
                   />
                 </div>
-                {rooms.filter((room) => room.status === "trong").length ===
+                {rooms.filter((room) => room.status === "trong" && room.power_status !== "ngat_dien").length ===
                   0 && (
                   <p className="mt-2 text-xs text-amber-700">
                     Hiện không có phòng trống để đặt.

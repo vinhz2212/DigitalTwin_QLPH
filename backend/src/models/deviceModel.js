@@ -5,6 +5,7 @@ const DeviceModel = {
     const [rows] = await db.query(`
       SELECT d.*, dt.name as type_name, dt.icon,
              r.code as room_code, r.name as room_name,
+             r.power_status as room_power_status,
              f.floor_number, b.code as building_code, b.name as building_name
       FROM Devices d
       JOIN DeviceTypes dt ON d.device_type_id = dt.id
@@ -21,6 +22,7 @@ const DeviceModel = {
       `
       SELECT d.*, dt.name as type_name, dt.icon,
              r.code as room_code, r.name as room_name,
+             r.power_status as room_power_status,
              f.floor_number, b.code as building_code, b.name as building_name
       FROM Devices d
       JOIN DeviceTypes dt ON d.device_type_id = dt.id

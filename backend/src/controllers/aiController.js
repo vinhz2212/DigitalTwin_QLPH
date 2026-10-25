@@ -1,6 +1,10 @@
 const { generateContent } = require("../config/gemini");
 const db = require("../config/database");
 const RoomModel = require("../models/roomModel");
+const {
+  syncRoomOperationalStatus,
+  restoreRoomPowerAfterResolvedIncident,
+} = require("../services/roomOperationalStatusService");
 
 const MAX_HISTORY_MESSAGES = 12;
 const MAX_MESSAGE_LENGTH = 4000;
@@ -34,6 +38,37 @@ function normalizeVietnamese(value) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/đ/g, "d");
+}
+
+function parsePowerCommand(message) {
+  const normalized = normalizeVietnamese(message).trim().replace(/\s+/g, " ");
+  if (normalized.includes("?")) return null;
+
+  const instruction = normalized.replace(
+    /^(?:(?:ai|tro ly)\s+)?(?:(?:hay|vui long)\s+)?/,
+    "",
+  );
+  const commandPatterns = [
+    { action: "cut", pattern: /^(?:ngat|cat) (?:nguon )?dien\b/ },
+    {
+      action: "restore",
+      pattern: /^(?:khoi phuc|bat|cap|mo)(?: lai)? (?:nguon )?dien(?: lai)?\b/,
+    },
+  ];
+  const command = commandPatterns
+    .map(({ action, pattern }) => ({ action, match: instruction.match(pattern) }))
+    .find(({ match }) => match);
+  if (!command) return null;
+
+  const target = instruction.slice(command.match[0].length).trim();
+  const roomMatch = target.match(
+    /^(?:(?:cho |tai |cua )?phong(?: hoc)? )?([a-z]\d{3})(?: (?:di|nhe|giup toi))?[.!]*$/,
+  );
+
+  return {
+    action: command.action,
+    roomCodes: roomMatch ? [roomMatch[1].toUpperCase()] : [],
+  };
 }
 
 function getVietnamCurrentDateTime() {
@@ -135,6 +170,130 @@ async function saveChatAnswer(userId, prompt, response) {
     [userId, prompt, response],
   );
   return response;
+}
+
+async function handlePowerCommand(req, message, command) {
+  if (!["admin", "ky_thuat_vien"].includes(req.user.role)) {
+    return {
+      status: 403,
+      response: "Chỉ quản trị viên hoặc kỹ thuật viên được điều khiển nguồn điện mô phỏng.",
+    };
+  }
+
+  if (command.roomCodes.length !== 1) {
+    return {
+      status: 400,
+      response: "Vui lòng chỉ rõ một mã phòng, ví dụ: ngắt điện phòng A101.",
+    };
+  }
+
+  const roomCode = command.roomCodes[0];
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [rooms] = await connection.query(
+      "SELECT id, code, power_status FROM Rooms WHERE UPPER(code) = ? LIMIT 1 FOR UPDATE",
+      [roomCode],
+    );
+    const room = rooms[0];
+    if (!room) {
+      await connection.rollback();
+      return { status: 404, response: `Không tìm thấy phòng ${roomCode}.` };
+    }
+
+    const powerIsOff = room.power_status === "ngat_dien";
+    if (command.action === "cut" && powerIsOff) {
+      await connection.rollback();
+      return {
+        status: 200,
+        response: `Nguồn điện phòng ${room.code} đã ở trạng thái ngắt (mô phỏng).`,
+      };
+    }
+    if (command.action === "restore" && !powerIsOff) {
+      await connection.rollback();
+      return {
+        status: 200,
+        response: `Nguồn điện phòng ${room.code} đang ở trạng thái có điện (mô phỏng).`,
+      };
+    }
+
+    if (command.action === "cut") {
+      const [[fireStats]] = await connection.query(
+        `SELECT COUNT(*) AS total FROM Incidents
+         WHERE room_id = ? AND type = 'chay' AND simulated = 1
+           AND status <> 'da_giai_quyet'`,
+        [room.id],
+      );
+      if (!Number(fireStats.total)) {
+        await connection.rollback();
+        return {
+          status: 409,
+          response: `Phòng ${room.code} chưa có sự cố cháy mô phỏng đang mở. Không thay đổi nguồn điện.`,
+        };
+      }
+    } else {
+      const [[incidentStats]] = await connection.query(
+        `SELECT COUNT(*) AS total FROM Incidents
+         WHERE room_id = ? AND type IN ('chay', 'mat_dien')
+           AND status <> 'da_giai_quyet'`,
+        [room.id],
+      );
+      if (Number(incidentStats.total) > 0) {
+        await connection.rollback();
+        return {
+          status: 409,
+          response: `Phòng ${room.code} vẫn còn sự cố cháy hoặc mất điện. Hãy vào Mô phỏng sự cố và bấm “Giải quyết” cho phòng này; sau khi xác nhận an toàn, gửi lại lệnh bật điện.`,
+        };
+      }
+    }
+
+    const nextPowerStatus = command.action === "cut" ? "ngat_dien" : "co_dien";
+    if (command.action === "cut") {
+      await connection.query("UPDATE Rooms SET power_status = ? WHERE id = ?", [
+        nextPowerStatus,
+        room.id,
+      ]);
+      await connection.query(
+        `UPDATE Devices
+         SET power_cut_previous_status = COALESCE(power_cut_previous_status, status),
+             status = 'tat'
+         WHERE room_id = ?`,
+        [room.id],
+      );
+    } else {
+      await restoreRoomPowerAfterResolvedIncident(room.id, connection);
+    }
+    await syncRoomOperationalStatus(room.id, connection);
+
+    const response =
+      command.action === "cut"
+        ? `Đã ngắt nguồn điện phòng ${room.code} trong mô phỏng. Phòng vẫn được đánh dấu có sự cố cháy; các thiết bị đang hoạt động đã chuyển sang tắt. Đây không phải thao tác với hệ thống điện thật.`
+        : `Đã khôi phục nguồn điện mô phỏng cho phòng ${room.code}. Thiết bị trở về trạng thái trước khi ngắt điện; thiết bị vốn hỏng hoặc đang sửa không bị bật nhầm.`;
+    await connection.query(
+      `INSERT INTO ActivityLogs (user_id, action, entity_type, entity_id, details, ip_address)
+       VALUES (?, ?, 'Room', ?, ?, ?)`,
+      [
+        req.user.id,
+        command.action === "cut" ? "SIMULATED_POWER_CUT" : "SIMULATED_POWER_RESTORE",
+        room.id,
+        JSON.stringify({ room_code: room.code, power_status: nextPowerStatus }),
+        req.ip || null,
+      ],
+    );
+    await connection.query(
+      "INSERT INTO AIAnalysis (user_id, prompt, response, type) VALUES (?, ?, ?, 'chatbot')",
+      [req.user.id, message, response],
+    );
+    await connection.commit();
+
+    return { status: 200, response, changed: true, roomId: room.id, logged: true };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 async function getDeviceStats() {
@@ -308,9 +467,47 @@ const aiController = {
 
       const history = cleanChatHistory(req.body.history);
 
+      const powerCommand = parsePowerCommand(message);
+      if (powerCommand) {
+        const result = await handlePowerCommand(req, message, powerCommand);
+        if (!result.logged) {
+          await saveChatAnswer(req.user.id, message, result.response);
+        }
+        if (result.changed) {
+          const io = req.app.get("io");
+          io?.emit("rooms_changed", {
+            action: "power_status_changed",
+            roomId: result.roomId,
+          });
+          io?.emit("devices_changed", { roomId: result.roomId });
+        }
+        if (result.status !== 200) {
+          return res.status(result.status).json({ message: result.response });
+        }
+        return res.json({ response: result.response });
+      }
+
       const normalizedQuestion = normalizeVietnamese(message);
       const roomCode = message.match(/\b([A-Za-z]\d{3})\b/)?.[1]?.toUpperCase();
       const requestedRoomType = getRequestedRoomType(normalizedQuestion);
+
+      const asksRoomPowerStatus =
+        Boolean(roomCode) &&
+        /\b(?:nguon dien|ngat dien|cat dien|khoi phuc dien)\b/.test(normalizedQuestion) &&
+        /\b(?:trang thai|co|con|da|dang|bi|the nao|mat|ngat)\b/.test(
+          normalizedQuestion,
+        );
+      if (asksRoomPowerStatus) {
+        const [rooms] = await db.query(
+          "SELECT code, power_status FROM Rooms WHERE UPPER(code) = ? LIMIT 1",
+          [roomCode],
+        );
+        const responseText = rooms.length
+          ? `Theo dữ liệu mô phỏng, nguồn điện phòng ${rooms[0].code} ${rooms[0].power_status === "ngat_dien" ? "đã ngắt" : "đang có điện"}. Trạng thái này không xác nhận nguồn điện thực tế.`
+          : `Không tìm thấy phòng ${roomCode} trong hệ thống.`;
+        await saveChatAnswer(req.user.id, message, responseText);
+        return res.json({ response: responseText });
+      }
 
       const asksGeneralMaintenancePlan =
         !roomCode &&
@@ -352,7 +549,7 @@ const aiController = {
         }
 
         if (onlyAvailable) {
-          conditions.push("r.status = 'trong'");
+          conditions.push("r.status = 'trong' AND r.power_status = 'co_dien'");
         }
         if (requestedRoomType) {
           conditions.push("r.type = ?");
@@ -1152,7 +1349,7 @@ Hãy đưa ra:
           FROM Rooms r
           JOIN Floors f ON r.floor_id = f.id
           JOIN Buildings b ON f.building_id = b.id
-          WHERE r.status = 'trong'
+          WHERE r.status = 'trong' AND r.power_status = 'co_dien'
             AND r.capacity >= ?
             ${typeCondition}
           ORDER BY r.capacity ASC, b.code ASC, f.floor_number ASC
