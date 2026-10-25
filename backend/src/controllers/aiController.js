@@ -137,6 +137,143 @@ async function saveChatAnswer(userId, prompt, response) {
   return response;
 }
 
+async function getDeviceStats() {
+  const [[stats]] = await db.query(`
+    SELECT
+      COUNT(*) AS total,
+      COALESCE(SUM(status = 'hoat_dong'), 0) AS active,
+      COALESCE(SUM(status = 'tat'), 0) AS off,
+      COALESCE(SUM(status = 'hong'), 0) AS broken,
+      COALESCE(SUM(status = 'dang_sua'), 0) AS repairing
+    FROM Devices
+  `);
+  return stats;
+}
+
+async function getMaintenancePlanAnswer() {
+  const [
+    [[openStats]],
+    [[brokenStats]],
+    [openTickets],
+    [brokenWithoutTicket],
+  ] = await Promise.all([
+    db.query(`
+      SELECT COUNT(*) AS total
+      FROM Maintenance
+      WHERE status IN ('cho_xu_ly', 'dang_sua')
+    `),
+    db.query("SELECT COUNT(*) AS total FROM Devices WHERE status = 'hong'"),
+    db.query(`
+      SELECT m.status, d.name AS device_name, r.code AS room_code
+      FROM Maintenance m
+      JOIN Devices d ON m.device_id = d.id
+      JOIN Rooms r ON d.room_id = r.id
+      WHERE m.status IN ('cho_xu_ly', 'dang_sua')
+      ORDER BY m.created_at ASC
+      LIMIT 5
+    `),
+    db.query(`
+      SELECT d.name AS device_name, r.code AS room_code
+      FROM Devices d
+      JOIN Rooms r ON d.room_id = r.id
+      WHERE d.status = 'hong'
+        AND NOT EXISTS (
+          SELECT 1 FROM Maintenance m
+          WHERE m.device_id = d.id
+            AND m.status IN ('cho_xu_ly', 'dang_sua')
+        )
+      ORDER BY r.code, d.name
+      LIMIT 5
+    `),
+  ]);
+
+  const openCount = Number(openStats?.total) || 0;
+  const brokenCount = Number(brokenStats?.total) || 0;
+  const ticketDetails = openTickets.length
+    ? `\nPhiếu cần xử lý trước: ${openTickets
+        .map((item) =>
+          `${item.device_name} ở phòng ${item.room_code} (${item.status === "dang_sua" ? "đang sửa" : "chờ xử lý"})`,
+        )
+        .join("; ")}${openCount > openTickets.length ? `; còn ${openCount - openTickets.length} phiếu khác` : ""}.`
+    : "";
+  const unreportedDetails = brokenWithoutTicket.length
+    ? `\nThiết bị hỏng chưa có phiếu đang mở cần kiểm tra: ${brokenWithoutTicket
+        .map((item) => `${item.device_name} ở phòng ${item.room_code}`)
+        .join("; ")}.`
+    : "";
+
+  return `Đề xuất bảo trì dựa trên dữ liệu hiện tại: ${openCount} phiếu bảo trì đang mở, ${brokenCount} thiết bị ghi nhận hỏng.${ticketDetails}${unreportedDetails}
+
+Các bước triển khai:
+1. Rà soát phiếu đang mở và kiểm tra thực tế các thiết bị ghi nhận hỏng. Thiết bị đang tắt không được xem là hỏng.
+2. Ưu tiên xử lý thiết bị hỏng và phiếu chờ xử lý; xác nhận vật tư, người phụ trách và thời lượng thực tế.
+3. Đối chiếu lịch học và thời gian phòng trống trước khi chọn ngày, giờ bảo trì.
+4. Trình người quản lý phê duyệt, sau đó tạo hoặc cập nhật phiếu và phân công kỹ thuật viên.
+
+Hệ thống chưa lưu lịch bảo trì đã lên kế hoạch. Đây là quy trình đề xuất, chưa phải lịch đã đặt hoặc được phê duyệt.`;
+}
+
+async function getChatSystemContext() {
+  const [
+    roomStats,
+    deviceStats,
+    [[incidentStats]],
+    [[maintenanceStats]],
+    [openMaintenanceItems],
+  ] = await Promise.all([
+    RoomModel.getStats(),
+    getDeviceStats(),
+    db.query(`
+      SELECT COUNT(*) AS active
+      FROM Incidents
+      WHERE status = 'dang_xay_ra'
+    `),
+    db.query(`
+      SELECT
+        COUNT(*) AS open_total,
+        COALESCE(SUM(status = 'cho_xu_ly'), 0) AS pending,
+        COALESCE(SUM(status = 'dang_sua'), 0) AS in_progress
+      FROM Maintenance
+      WHERE status IN ('cho_xu_ly', 'dang_sua')
+    `),
+    db.query(`
+      SELECT
+        m.status,
+        m.description,
+        d.name AS device_name,
+        dt.name AS device_type,
+        r.code AS room_code
+      FROM Maintenance m
+      JOIN Devices d ON m.device_id = d.id
+      JOIN DeviceTypes dt ON d.device_type_id = dt.id
+      JOIN Rooms r ON d.room_id = r.id
+      WHERE m.status IN ('cho_xu_ly', 'dang_sua')
+      ORDER BY m.created_at ASC
+      LIMIT 20
+    `),
+  ]);
+
+  const maintenanceDetails = openMaintenanceItems.length
+    ? openMaintenanceItems
+        .map((item) => {
+          const status =
+            item.status === "dang_sua" ? "đang sửa" : "chờ xử lý";
+          return `phòng ${item.room_code}: ${item.device_name} (${item.device_type}), ${status}${item.description ? ` — ${item.description}` : ""}`;
+        })
+        .join("; ")
+    : "không có phiếu bảo trì đang mở";
+
+  return `
+Số liệu hiện tại của hệ thống Smart Campus:
+- Phòng học: ${roomStats?.total || 0} tổng, ${roomStats?.trong || 0} trống, ${roomStats?.dang_hoc || 0} đang học, ${roomStats?.bao_tri || 0} bảo trì, ${roomStats?.su_co || 0} có sự cố.
+- Thiết bị: ${deviceStats?.total || 0} tổng, ${deviceStats?.active || 0} đang hoạt động, ${deviceStats?.off || 0} đã tắt, ${deviceStats?.broken || 0} bị hỏng, ${deviceStats?.repairing || 0} đang sửa.
+- Sự cố đang xảy ra: ${incidentStats?.active || 0}.
+- Phiếu bảo trì đang mở: ${maintenanceStats?.open_total || 0} (${maintenanceStats?.pending || 0} chờ xử lý, ${maintenanceStats?.in_progress || 0} đang sửa). Chi tiết hiện có: ${maintenanceDetails}.
+- Bảng dữ liệu chỉ lưu phiếu bảo trì và ngày bảo trì gần nhất, không lưu lịch bảo trì đã lên kế hoạch. Không được tự kết luận rằng thiết bị đang tắt cần bảo trì; cần kiểm tra thực tế trước.
+- Các thống kê tổng hợp không chứa danh sách chi tiết phòng, thiết bị, lịch học hay sự cố. Chỉ nêu mã phòng, tên thiết bị, lịch hoặc số lượng chi tiết khi đã được truy vấn và có trong dữ liệu đầu vào; nếu chưa có thì nói rõ hoặc hỏi người dùng bổ sung ngày/mã phòng.
+`;
+}
+
 function sendAIError(res, error, context, fallbackMessage) {
   const isGeminiError =
     typeof error?.code === "string" && error.code.startsWith("GEMINI_");
@@ -171,79 +308,20 @@ const aiController = {
 
       const history = cleanChatHistory(req.body.history);
 
-      // mysql2 trả kết quả dạng [rows, fields].
-      // Lấy dòng dữ liệu đầu tiên từ mỗi truy vấn.
-      const [
-        roomStats,
-        [[deviceStats]],
-        [[incidentStats]],
-        [[maintenanceStats]],
-        [openMaintenanceItems],
-      ] =
-        await Promise.all([
-          RoomModel.getStats(),
-          db.query(`
-          SELECT
-            COUNT(*) AS total,
-            COALESCE(SUM(status = 'hoat_dong'), 0) AS active,
-            COALESCE(SUM(status = 'tat'), 0) AS off,
-            COALESCE(SUM(status = 'hong'), 0) AS broken,
-            COALESCE(SUM(status = 'dang_sua'), 0) AS repairing
-          FROM Devices
-        `),
-          db.query(`
-          SELECT COUNT(*) AS active
-          FROM Incidents
-          WHERE status = 'dang_xay_ra'
-        `),
-          db.query(`
-          SELECT
-            COUNT(*) AS open_total,
-            COALESCE(SUM(status = 'cho_xu_ly'), 0) AS pending,
-            COALESCE(SUM(status = 'dang_sua'), 0) AS in_progress
-          FROM Maintenance
-          WHERE status IN ('cho_xu_ly', 'dang_sua')
-        `),
-          db.query(`
-          SELECT
-            m.status,
-            m.description,
-            d.name AS device_name,
-            dt.name AS device_type,
-            r.code AS room_code
-          FROM Maintenance m
-          JOIN Devices d ON m.device_id = d.id
-          JOIN DeviceTypes dt ON d.device_type_id = dt.id
-          JOIN Rooms r ON d.room_id = r.id
-          WHERE m.status IN ('cho_xu_ly', 'dang_sua')
-          ORDER BY m.created_at ASC
-          LIMIT 20
-        `),
-        ]);
-
-      const maintenanceDetails = openMaintenanceItems.length
-        ? openMaintenanceItems
-            .map((item) => {
-              const status =
-                item.status === "dang_sua" ? "đang sửa" : "chờ xử lý";
-              return `phòng ${item.room_code}: ${item.device_name} (${item.device_type}), ${status}${item.description ? ` — ${item.description}` : ""}`;
-            })
-            .join("; ")
-        : "không có phiếu bảo trì đang mở";
-
-      const systemContext = `
-Số liệu hiện tại của hệ thống Smart Campus:
-- Phòng học: ${roomStats?.total || 0} tổng, ${roomStats?.trong || 0} trống, ${roomStats?.dang_hoc || 0} đang học, ${roomStats?.bao_tri || 0} bảo trì, ${roomStats?.su_co || 0} có sự cố.
-- Thiết bị: ${deviceStats?.total || 0} tổng, ${deviceStats?.active || 0} đang hoạt động, ${deviceStats?.off || 0} đã tắt, ${deviceStats?.broken || 0} bị hỏng, ${deviceStats?.repairing || 0} đang sửa.
-- Sự cố đang xảy ra: ${incidentStats?.active || 0}.
-- Phiếu bảo trì đang mở: ${maintenanceStats?.open_total || 0} (${maintenanceStats?.pending || 0} chờ xử lý, ${maintenanceStats?.in_progress || 0} đang sửa). Chi tiết hiện có: ${maintenanceDetails}.
-- Bảng dữ liệu chỉ lưu phiếu bảo trì và ngày bảo trì gần nhất, không lưu lịch bảo trì đã lên kế hoạch. Không được tự kết luận rằng thiết bị đang tắt cần bảo trì; cần kiểm tra thực tế trước.
-- Các thống kê tổng hợp không chứa danh sách chi tiết phòng, thiết bị, lịch học hay sự cố. Chỉ nêu mã phòng, tên thiết bị, lịch hoặc số lượng chi tiết khi đã được truy vấn và có trong dữ liệu đầu vào; nếu chưa có thì nói rõ hoặc hỏi người dùng bổ sung ngày/mã phòng.
-`;
-
       const normalizedQuestion = normalizeVietnamese(message);
       const roomCode = message.match(/\b([A-Za-z]\d{3})\b/)?.[1]?.toUpperCase();
       const requestedRoomType = getRequestedRoomType(normalizedQuestion);
+
+      const asksGeneralMaintenancePlan =
+        !roomCode &&
+        /^(?:de xuat|goi y|lap|len) (?:lich |ke hoach )?(?:bao tri|bao duong)(?: thiet bi)?[?.!]*$/.test(
+          normalizedQuestion.trim(),
+        );
+      if (asksGeneralMaintenancePlan) {
+        const responseText = await getMaintenancePlanAnswer();
+        await saveChatAnswer(req.user.id, message, responseText);
+        return res.json({ response: responseText });
+      }
 
       // Câu hỏi đếm phòng theo sức chứa phải được xử lý trước câu hỏi đếm phòng
       // chung để không trả nhầm tổng số phòng toàn trường.
@@ -635,6 +713,7 @@ Số liệu hiện tại của hệ thống Smart Campus:
         }
 
         if (!deviceStatus && !roomCode && !buildingScope.codes.length) {
+          const deviceStats = await getDeviceStats();
           const total = Number(deviceStats?.total) || 0;
           const active = Number(deviceStats?.active) || 0;
           const off = Number(deviceStats?.off) || 0;
@@ -934,6 +1013,7 @@ Số liệu hiện tại của hệ thống Smart Campus:
         return res.json({ response: responseText });
       }
 
+      const systemContext = await getChatSystemContext();
       const response = await generateContent(message, {
         history,
         context: `${systemContext}

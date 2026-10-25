@@ -5,8 +5,8 @@ const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 // These model IDs are listed as stable Gemini API models.
 const MODELS = [
   "gemini-3.8-flash",
-  "gemini-3.6-flash",
   "gemini-3.5-flash-lite",
+  "gemini-3.6-flash",
   "gemini-3.1-flash-lite",
 ];
 
@@ -22,8 +22,10 @@ Trạng thái thiết bị "tắt" chỉ có nghĩa là đang tắt, không đ�
 Nếu dữ liệu không có lịch bảo trì đã lên kế hoạch, hãy nói rõ và trình bày các bước triển khai theo thứ tự thay vì tự đặt lịch cụ thể.
 Khi trả lời tiếp câu hỏi trong cùng cuộc hội thoại, giữ nhất quán với nội dung đã nói trước đó; nếu câu trước thiếu dữ liệu thì phải đính chính rõ, không biến đề xuất thành lịch đã xác nhận.`;
 
-const MAX_RETRIES = 2;
-const REQUEST_TIMEOUT_MS = 30000;
+const MAX_RETRIES = 1;
+const REQUEST_TIMEOUT_MS = 20000;
+const PRIMARY_MODEL_COOLDOWN_MS = 60000;
+let primaryModelOverloadedUntil = 0;
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -43,7 +45,7 @@ function getRetryDelay(error, attempt) {
     return Math.min(retryAfter * 1000, 8000);
   }
 
-  return 700 * 2 ** attempt + Math.floor(Math.random() * 300);
+  return 500 * 2 ** attempt + Math.floor(Math.random() * 250);
 }
 
 function isRetryable(error) {
@@ -175,7 +177,10 @@ const generateContent = async (prompt, { history = [], context = "" } = {}) => {
   let lastUnavailableModelError;
   let lastTransientError;
 
-  for (const modelName of MODELS) {
+  const models =
+    Date.now() < primaryModelOverloadedUntil ? MODELS.slice(1) : MODELS;
+
+  for (const modelName of models) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
@@ -190,8 +195,12 @@ const generateContent = async (prompt, { history = [], context = "" } = {}) => {
               systemInstruction: { parts: [{ text: systemInstruction }] },
               contents: continuationContents,
               generationConfig: {
-                temperature: 0.5,
-                maxOutputTokens: 1600,
+                thinkingConfig: {
+                  thinkingLevel: modelName.includes("flash-lite")
+                    ? "minimal"
+                    : "low",
+                },
+                maxOutputTokens: 2400,
               },
             },
             {
@@ -250,7 +259,17 @@ const generateContent = async (prompt, { history = [], context = "" } = {}) => {
           break;
         }
 
-        // Với lỗi tạm thời, retry cùng model trước; hết lượt mới chuyển model.
+        // Model quá tải: chuyển ngay sang model nhẹ hơn và tạm bỏ qua model này.
+        if (status === 503) {
+          if (modelName === MODELS[0]) {
+            primaryModelOverloadedUntil =
+              Date.now() + PRIMARY_MODEL_COOLDOWN_MS;
+          }
+          lastTransientError = error;
+          break;
+        }
+
+        // Với lỗi tạm thời khác, chỉ retry một lần để tránh chờ quá lâu.
         if (isRetryable(error) && attempt < MAX_RETRIES) {
           await wait(getRetryDelay(error, attempt));
           continue;
