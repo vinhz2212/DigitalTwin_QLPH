@@ -72,10 +72,13 @@ const DeviceModel = {
     const { room_id, device_type_id, name, status, installed_at, notes } = data;
     const [result] = await db.query(
       `
-      INSERT INTO Devices (room_id, device_type_id, name, status, installed_at, notes)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO Devices (room_id, device_type_id, name, status, power_status, installed_at, notes)
+      VALUES (?, ?, ?, ?, CASE
+        WHEN ? = 'hong' AND ? IN (
+          SELECT id FROM DeviceTypes WHERE name IN ('may_chieu', 'dieu_hoa')
+        ) THEN 'ngat_dien' ELSE 'co_dien' END, ?, ?)
     `,
-      [room_id, device_type_id, name, status, installed_at, notes],
+      [room_id, device_type_id, name, status, status, device_type_id, installed_at, notes],
     );
     return result.insertId;
   },
@@ -84,15 +87,30 @@ const DeviceModel = {
     const { name, status, installed_at, last_maintenance, notes } = data;
     await db.query(
       `
-      UPDATE Devices SET name=?, status=?, installed_at=?, last_maintenance=?, notes=?
-      WHERE id=?
+      UPDATE Devices d
+      JOIN DeviceTypes dt ON dt.id = d.device_type_id
+      SET d.name=?, d.status=?,
+          d.power_status=CASE
+            WHEN ? = 'hong' AND dt.name IN ('may_chieu', 'dieu_hoa')
+            THEN 'ngat_dien' ELSE d.power_status END,
+          d.installed_at=?, d.last_maintenance=?, d.notes=?
+      WHERE d.id=?
     `,
-      [name, status, installed_at, last_maintenance, notes, id],
+      [name, status, status, installed_at, last_maintenance, notes, id],
     );
   },
 
   updateStatus: async (id, status) => {
-    await db.query("UPDATE Devices SET status=? WHERE id=?", [status, id]);
+    await db.query(
+      `UPDATE Devices d
+       JOIN DeviceTypes dt ON dt.id = d.device_type_id
+       SET d.status = ?,
+           d.power_status = CASE
+             WHEN ? = 'hong' AND dt.name IN ('may_chieu', 'dieu_hoa')
+             THEN 'ngat_dien' ELSE d.power_status END
+       WHERE d.id = ?`,
+      [status, status, id],
+    );
   },
 
   delete: async (id) => {

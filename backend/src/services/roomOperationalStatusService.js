@@ -78,6 +78,11 @@ const restoreRoomPowerAfterResolvedIncident = async (roomId, executor = db) => {
     `UPDATE Devices d
      JOIN Rooms r ON r.id = d.room_id
      SET d.status = CASE
+           WHEN d.status = 'tat' AND d.power_status = 'ngat_dien'
+             THEN CASE
+               WHEN d.power_cut_previous_status IN ('hong', 'dang_sua')
+                 THEN d.power_cut_previous_status
+               ELSE 'tat' END
            WHEN d.status = 'tat' THEN d.power_cut_previous_status
            ELSE d.status
          END,

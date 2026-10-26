@@ -24,9 +24,11 @@ const MaintenanceModel = {
   getById: async (id, executor = db, forUpdate = false) => {
     const [rows] = await executor.query(
       `SELECT m.*, d.room_id, d.name AS device_name,
-              d.status AS device_status, r.code AS room_code
+              d.status AS device_status, d.power_status AS device_power_status,
+              dt.name AS device_type, r.code AS room_code
        FROM Maintenance m
        JOIN Devices d ON m.device_id = d.id
+       JOIN DeviceTypes dt ON dt.id = d.device_type_id
        JOIN Rooms r ON d.room_id = r.id
        WHERE m.id = ?
        ${forUpdate ? "FOR UPDATE" : ""}`,
@@ -37,8 +39,10 @@ const MaintenanceModel = {
 
   getDeviceById: async (id, executor = db, forUpdate = false) => {
     const [rows] = await executor.query(
-      `SELECT d.id, d.room_id, d.name, d.status, r.code AS room_code
+      `SELECT d.id, d.room_id, d.name, d.status, d.power_status,
+              dt.name AS device_type, r.code AS room_code
        FROM Devices d
+       JOIN DeviceTypes dt ON dt.id = d.device_type_id
        JOIN Rooms r ON d.room_id = r.id
        WHERE d.id = ?
        ${forUpdate ? "FOR UPDATE" : ""}`,
@@ -95,11 +99,21 @@ const MaintenanceModel = {
 
   updateDeviceStatus: async (deviceId, status, completed, executor = db) => {
     await executor.query(
-      `UPDATE Devices
-       SET status = ?,
-           last_maintenance = CASE WHEN ? THEN CURDATE() ELSE last_maintenance END
-       WHERE id = ?`,
-      [status, completed, deviceId],
+      `UPDATE Devices d
+       JOIN DeviceTypes dt ON dt.id = d.device_type_id
+       JOIN Rooms r ON r.id = d.room_id
+       SET d.status = CASE
+             WHEN ? = 'hoat_dong' AND r.power_status = 'ngat_dien' THEN 'tat'
+             ELSE ? END,
+           d.power_status = CASE
+             WHEN ? = 'hong' AND dt.name IN ('may_chieu', 'dieu_hoa')
+             THEN 'ngat_dien' ELSE d.power_status END,
+           d.power_cut_previous_status = CASE
+             WHEN ? = 'hoat_dong' AND r.power_status = 'ngat_dien'
+             THEN 'hoat_dong' ELSE d.power_cut_previous_status END,
+           d.last_maintenance = CASE WHEN ? THEN CURDATE() ELSE d.last_maintenance END
+       WHERE d.id = ?`,
+      [status, status, status, status, completed, deviceId],
     );
   },
 

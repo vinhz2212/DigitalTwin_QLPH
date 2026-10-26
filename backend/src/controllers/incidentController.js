@@ -1,3 +1,4 @@
+const db = require("../config/database");
 const IncidentModel = require("../models/incidentModel");
 const { notifyIncident } = require("../utils/incidentNotifications");
 const {
@@ -5,6 +6,11 @@ const {
   restoreRoomPowerAfterResolvedIncident,
 } = require("../services/roomOperationalStatusService");
 const { createForUser } = require("../services/notificationService");
+const {
+  FAILURE_DEVICE_TYPES,
+  getFailureDevice,
+  restoreRepairedDevice,
+} = require("../services/devicePowerService");
 
 const emitIncidentChange = (io, event, payload) => {
   if (!io) return;
@@ -81,23 +87,45 @@ const incidentController = {
   },
 
   updateStatus: async (req, res) => {
+    let connection;
     try {
       const { status } = req.body;
       if (!["dang_xay_ra", "dang_xu_ly", "da_giai_quyet"].includes(status)) {
         return res.status(400).json({ message: "Trạng thái sự cố không hợp lệ" });
       }
-      await IncidentModel.updateStatus(req.params.id, status);
-
-      const incident = await IncidentModel.getById(req.params.id);
-      if (!incident) {
+      connection = await db.getConnection();
+      await connection.beginTransaction();
+      const [incidents] = await connection.query(
+        "SELECT room_id, type, status FROM Incidents WHERE id = ? FOR UPDATE",
+        [req.params.id],
+      );
+      const current = incidents[0];
+      if (!current) {
+        await connection.rollback();
         return res.status(404).json({ message: "Không tìm thấy sự cố" });
       }
+      if (current.status === "da_giai_quyet" && status !== "da_giai_quyet") {
+        await connection.rollback();
+        return res.status(409).json({ message: "Sự cố đã giải quyết không thể mở lại." });
+      }
+      await connection.query(
+        "UPDATE Incidents SET status = ?, resolved_at = CASE WHEN ? = 'da_giai_quyet' THEN NOW() ELSE NULL END WHERE id = ?",
+        [status, status, req.params.id],
+      );
       const restoration =
         status === "da_giai_quyet" &&
-        ["chay", "mat_dien"].includes(incident.type)
-          ? await restoreRoomPowerAfterResolvedIncident(incident.room_id)
+        ["chay", "mat_dien"].includes(current.type)
+          ? await restoreRoomPowerAfterResolvedIncident(current.room_id, connection)
           : null;
-      await syncRoomOperationalStatus(incident.room_id);
+      let deviceRepair = null;
+      if (status === "da_giai_quyet" && current.status !== status && FAILURE_DEVICE_TYPES[current.type]) {
+        const device = await getFailureDevice(current.room_id, current.type, connection);
+        deviceRepair = await restoreRepairedDevice(device.id, connection);
+      }
+      await syncRoomOperationalStatus(current.room_id, connection);
+      await connection.commit();
+
+      const incident = await IncidentModel.getById(req.params.id);
 
       const io = req.app.get("io");
       if (incident?.triggered_by) {
@@ -124,17 +152,24 @@ const incidentController = {
         status,
         roomId: incident?.room_id,
       });
-      if (restoration?.devicesRestored) {
+      if (restoration?.devicesRestored || deviceRepair?.restored) {
         io?.emit("devices_changed", { roomId: incident.room_id });
       }
 
       res.json({
-        message: restoration?.powerRestored || restoration?.devicesRestored
+        message: deviceRepair?.restored
+          ? "Đã sửa xong và cấp điện lại cho thiết bị mô phỏng."
+          : deviceRepair?.blocked
+            ? "Đã giải quyết sự cố; thiết bị vẫn ngắt điện vì còn sự cố hoặc phiếu bảo trì đang mở."
+          : restoration?.powerRestored || restoration?.devicesRestored
           ? "Đã giải quyết sự cố, khôi phục nguồn điện và trạng thái thiết bị trước sự cố."
           : "Cập nhật trạng thái thành công",
       });
     } catch (error) {
+      if (connection) await connection.rollback();
       res.status(500).json({ message: "Lỗi server", error: error.message });
+    } finally {
+      connection?.release();
     }
   },
 

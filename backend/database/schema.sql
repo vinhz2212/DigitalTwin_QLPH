@@ -138,6 +138,7 @@ CREATE TABLE `devices` (
   `device_type_id` int NOT NULL,
   `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `status` enum('hoat_dong','tat','hong','dang_sua') COLLATE utf8mb4_unicode_ci DEFAULT 'tat',
+  `power_status` enum('co_dien','ngat_dien') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'co_dien',
   `power_cut_previous_status` enum('hoat_dong','tat','hong','dang_sua') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `installed_at` date DEFAULT NULL,
   `last_maintenance` date DEFAULT NULL,

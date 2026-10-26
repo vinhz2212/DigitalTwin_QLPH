@@ -91,6 +91,16 @@ function StatusBadge({ status }) {
   );
 }
 
+function DevicePowerBadge({ powerStatus }) {
+  if (powerStatus !== "ngat_dien") return null;
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800">
+      <Power size={12} />
+      Đã ngắt điện (mô phỏng)
+    </span>
+  );
+}
+
 function StatCard({ label, value, color, bg, icon: Icon, active, onClick }) {
   return (
     <button
@@ -659,26 +669,29 @@ export default function Devices() {
                       </td>
 
                       <td className="px-5 py-4">
-                        <select
-                          value={device.status}
-                          onChange={(event) =>
-                            handleStatusChange(device.id, event.target.value)
-                          }
-                          aria-label={`Trạng thái thiết bị ${device.name}`}
-                          className="cursor-pointer appearance-none rounded-full border-0 py-1.5 pl-3 pr-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-200"
-                          style={{
-                            color:
-                              STATUS_MAP[device.status]?.color || "#64748b",
-                            background:
-                              STATUS_MAP[device.status]?.bg || "#f1f5f9",
-                          }}
-                        >
-                          {Object.entries(STATUS_MAP).map(([key, status]) => (
-                            <option key={key} value={key}>
-                              {status.label}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex flex-col items-start gap-1.5">
+                          <select
+                            value={device.status}
+                            onChange={(event) =>
+                              handleStatusChange(device.id, event.target.value)
+                            }
+                            aria-label={`Trạng thái thiết bị ${device.name}`}
+                            className="cursor-pointer appearance-none rounded-full border-0 py-1.5 pl-3 pr-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-200"
+                            style={{
+                              color:
+                                STATUS_MAP[device.status]?.color || "#64748b",
+                              background:
+                                STATUS_MAP[device.status]?.bg || "#f1f5f9",
+                            }}
+                          >
+                            {Object.entries(STATUS_MAP).map(([key, status]) => (
+                              <option key={key} value={key}>
+                                {status.label}
+                              </option>
+                            ))}
+                          </select>
+                          <DevicePowerBadge powerStatus={device.power_status} />
+                        </div>
                       </td>
 
                       <td className="px-5 py-4">
@@ -746,6 +759,9 @@ export default function Devices() {
                   <p className="mt-1 text-xs font-semibold text-blue-600">
                     {device.room_code || "Chưa gán phòng"} · {label}
                   </p>
+                  <div className="mt-2">
+                    <DevicePowerBadge powerStatus={device.power_status} />
+                  </div>
 
                   <div className="mt-4 space-y-2 border-t border-slate-200 pt-3 text-xs text-slate-500">
                     <p>

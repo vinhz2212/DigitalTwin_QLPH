@@ -289,13 +289,13 @@ export default function Simulation() {
     try {
       setResolvingId(incident.id);
 
-      await api.post("/simulation/resolve", {
+      const response = await api.post("/simulation/resolve", {
         incident_id: incident.id,
         room_id: incident.room_id,
       });
 
       addLog(
-        `Đã giải quyết sự cố tại phòng ${incident.room_code || "không rõ"}`,
+        `${incident.room_code || "Phòng"}: ${response.data?.message || "Đã giải quyết sự cố."}`,
         "success",
       );
 
@@ -678,6 +678,11 @@ export default function Simulation() {
                           {incident.power_status === "ngat_dien" && (
                             <p className="mt-1 text-xs font-bold text-amber-800">
                               Nguồn điện đã ngắt (mô phỏng)
+                            </p>
+                          )}
+                          {incident.affected_device_power_status === "ngat_dien" && (
+                            <p className="mt-1 text-xs font-bold text-amber-800">
+                              Đã ngắt riêng nguồn {incident.type === "may_chieu_hong" ? "máy chiếu" : "điều hòa"} (mô phỏng)
                             </p>
                           )}
                           {incident.description && (

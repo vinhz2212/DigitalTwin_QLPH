@@ -75,8 +75,8 @@ const deviceController = {
     try {
       if (req.body.status === "hoat_dong") {
         const currentDevice = await DeviceModel.getById(req.params.id);
-        if (currentDevice?.room_power_status === "ngat_dien") {
-          return res.status(409).json({ message: "Phòng đang ngắt nguồn điện mô phỏng; không thể bật thiết bị." });
+        if (currentDevice?.room_power_status === "ngat_dien" || currentDevice?.power_status === "ngat_dien") {
+          return res.status(409).json({ message: "Nguồn phòng hoặc thiết bị đang bị ngắt; hãy giải quyết sự cố hoặc hoàn tất bảo trì trước." });
         }
       }
       await DeviceModel.update(req.params.id, req.body);
@@ -96,8 +96,8 @@ const deviceController = {
       const { status } = req.body;
       if (status === "hoat_dong") {
         const currentDevice = await DeviceModel.getById(req.params.id);
-        if (currentDevice?.room_power_status === "ngat_dien") {
-          return res.status(409).json({ message: "Phòng đang ngắt nguồn điện mô phỏng; không thể bật thiết bị." });
+        if (currentDevice?.room_power_status === "ngat_dien" || currentDevice?.power_status === "ngat_dien") {
+          return res.status(409).json({ message: "Nguồn phòng hoặc thiết bị đang bị ngắt; hãy giải quyết sự cố hoặc hoàn tất bảo trì trước." });
         }
       }
       await DeviceModel.updateStatus(req.params.id, status);

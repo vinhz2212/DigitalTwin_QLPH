@@ -3,6 +3,7 @@ const MaintenanceModel = require("../models/maintenanceModel");
 const {
   syncRoomOperationalStatus,
 } = require("../services/roomOperationalStatusService");
+const { restoreRepairedDevice } = require("../services/devicePowerService");
 const {
   createForRoles,
   createForUser,
@@ -173,13 +174,35 @@ const maintenanceController = {
         connection,
       );
       const completed = status === "da_xong";
-      const deviceStatus = completed ? "hoat_dong" : "dang_sua";
-      await MaintenanceModel.updateDeviceStatus(
-        maintenance.device_id,
-        deviceStatus,
-        completed,
-        connection,
-      );
+      let deviceStatus = completed ? "hoat_dong" : "dang_sua";
+      if (completed && maintenance.device_power_status === "ngat_dien") {
+        const repair = await restoreRepairedDevice(
+          maintenance.device_id,
+          connection,
+          { allowRepairing: true },
+        );
+        if (!repair.restored) {
+          deviceStatus = "hong";
+          await connection.query(
+            "UPDATE Devices SET status = 'hong', last_maintenance = CURDATE() WHERE id = ?",
+            [maintenance.device_id],
+          );
+        } else {
+          deviceStatus = repair.device.room_power_status === "ngat_dien"
+            ? "tat" : "hoat_dong";
+          await connection.query(
+            "UPDATE Devices SET last_maintenance = CURDATE() WHERE id = ?",
+            [maintenance.device_id],
+          );
+        }
+      } else {
+        await MaintenanceModel.updateDeviceStatus(
+          maintenance.device_id,
+          deviceStatus,
+          completed,
+          connection,
+        );
+      }
 
       await syncRoomOperationalStatus(maintenance.room_id, connection);
 
