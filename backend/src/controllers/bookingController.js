@@ -87,7 +87,7 @@ const validateAvailability = async (
   const roomState = await BookingModel.getRoomStatus(booking.room_id, executor);
   if (!roomState) return "Phòng học không tồn tại.";
   if (roomState.power_status === "ngat_dien") {
-    return "Nguồn điện phòng đang bị ngắt trong mô phỏng, không thể đặt.";
+    return "Nguồn điện phòng đang ở trạng thái ngắt trên hệ thống, không thể đặt.";
   }
   if (["bao_tri", "su_co"].includes(roomState.status)) {
     return "Phòng đang bảo trì hoặc có sự cố, không thể đặt.";

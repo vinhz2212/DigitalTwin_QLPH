@@ -69,6 +69,8 @@ export function AuthProvider({ children }) {
     localStorage.removeItem("user");
     sessionStorage.removeItem("ai_messages");
     sessionStorage.removeItem("ai_workspace_state");
+    sessionStorage.removeItem("ai_alert_cleared_before");
+    if (user?.id) sessionStorage.removeItem(`smart-campus-ai-alert-seen:${user.id}`);
     setUser(null);
     return logoutRequest;
   };

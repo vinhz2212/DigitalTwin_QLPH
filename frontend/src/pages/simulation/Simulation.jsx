@@ -251,7 +251,7 @@ export default function Simulation() {
     try {
       setTriggering(true);
 
-      await api.post("/simulation/trigger", {
+      const response = await api.post("/simulation/trigger", {
         ...form,
         room_id: Number(form.room_id),
         description: form.description.trim(),
@@ -263,7 +263,7 @@ export default function Simulation() {
       const type = INCIDENT_TYPES[form.type];
 
       addLog(
-        `${type?.icon || "⚠️"} Kích hoạt "${type?.label || form.type}" tại phòng ${selectedRoom?.code || "không rõ"}`,
+        `${type?.icon || "⚠️"} ${response.data?.message || `Kích hoạt "${type?.label || form.type}" tại phòng ${selectedRoom?.code || "không rõ"}`}`,
         "success",
       );
 
@@ -677,12 +677,12 @@ export default function Simulation() {
                           </p>
                           {incident.power_status === "ngat_dien" && (
                             <p className="mt-1 text-xs font-bold text-amber-800">
-                              Nguồn điện đã ngắt (mô phỏng)
+                              Nguồn điện đã ngắt trên hệ thống
                             </p>
                           )}
                           {incident.affected_device_power_status === "ngat_dien" && (
                             <p className="mt-1 text-xs font-bold text-amber-800">
-                              Đã ngắt riêng nguồn {incident.type === "may_chieu_hong" ? "máy chiếu" : "điều hòa"} (mô phỏng)
+                              Đã ngắt riêng nguồn {incident.type === "may_chieu_hong" ? "máy chiếu" : "điều hòa"} trên hệ thống
                             </p>
                           )}
                           {incident.description && (

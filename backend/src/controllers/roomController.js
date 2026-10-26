@@ -77,7 +77,7 @@ const roomController = {
     try {
       const currentRoom = await RoomModel.getById(req.params.id);
       if (currentRoom?.power_status === "ngat_dien" && req.body.status !== "su_co") {
-        return res.status(409).json({ message: "Phòng đang ngắt nguồn điện mô phỏng; trạng thái phòng phải là sự cố." });
+        return res.status(409).json({ message: "Nguồn điện phòng đang ở trạng thái ngắt trên hệ thống; trạng thái phòng phải là sự cố." });
       }
       await RoomModel.update(req.params.id, req.body);
       const room = await RoomModel.getById(req.params.id);
@@ -93,7 +93,7 @@ const roomController = {
       const { status } = req.body;
       const currentRoom = await RoomModel.getById(req.params.id);
       if (currentRoom?.power_status === "ngat_dien" && status !== "su_co") {
-        return res.status(409).json({ message: "Phòng đang ngắt nguồn điện mô phỏng; trạng thái phòng phải là sự cố." });
+        return res.status(409).json({ message: "Nguồn điện phòng đang ở trạng thái ngắt trên hệ thống; trạng thái phòng phải là sự cố." });
       }
       await RoomModel.updateStatus(req.params.id, status);
 

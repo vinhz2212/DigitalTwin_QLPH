@@ -11,6 +11,10 @@ const {
   getFailureDevice,
   restoreRepairedDevice,
 } = require("../services/devicePowerService");
+const {
+  recordAutomaticResolutionAlert,
+  emitAutomaticIncidentAlert,
+} = require("../services/automaticIncidentAlertService");
 
 const emitIncidentChange = (io, event, payload) => {
   if (!io) return;
@@ -96,7 +100,9 @@ const incidentController = {
       connection = await db.getConnection();
       await connection.beginTransaction();
       const [incidents] = await connection.query(
-        "SELECT room_id, type, status FROM Incidents WHERE id = ? FOR UPDATE",
+        `SELECT i.room_id, i.type, i.status, r.code AS room_code
+         FROM Incidents i JOIN Rooms r ON r.id = i.room_id
+         WHERE i.id = ? FOR UPDATE`,
         [req.params.id],
       );
       const current = incidents[0];
@@ -123,12 +129,23 @@ const incidentController = {
         deviceRepair = await restoreRepairedDevice(device.id, connection);
       }
       await syncRoomOperationalStatus(current.room_id, connection);
+      const resolutionAlert = status === "da_giai_quyet" && current.status !== status
+        ? await recordAutomaticResolutionAlert({
+            incidentId: req.params.id,
+            roomId: current.room_id,
+            roomCode: current.room_code,
+            type: current.type,
+            deviceId: deviceRepair?.device?.id,
+            executor: connection,
+          })
+        : null;
       await connection.commit();
 
       const incident = await IncidentModel.getById(req.params.id);
 
       const io = req.app.get("io");
-      if (incident?.triggered_by) {
+      emitAutomaticIncidentAlert(io, resolutionAlert);
+      if (incident?.triggered_by && !resolutionAlert) {
         try {
           const statusLabels = {
             dang_xay_ra: "đang xảy ra",
@@ -158,7 +175,7 @@ const incidentController = {
 
       res.json({
         message: deviceRepair?.restored
-          ? "Đã sửa xong và cấp điện lại cho thiết bị mô phỏng."
+          ? "Đã sửa xong và cấp điện lại cho thiết bị trên hệ thống."
           : deviceRepair?.blocked
             ? "Đã giải quyết sự cố; thiết bị vẫn ngắt điện vì còn sự cố hoặc phiếu bảo trì đang mở."
           : restoration?.powerRestored || restoration?.devicesRestored

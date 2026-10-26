@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import api from "../../services/api";
+import useSocket from "../../hooks/useSocket";
 import {
   AlertTriangle,
   Bot,
@@ -71,6 +72,7 @@ const ROOM_TYPES = [
 
 const STORAGE_KEY = "ai_messages";
 const WORKSPACE_STORAGE_KEY = "ai_workspace_state";
+const ALERT_WATERMARK_KEY = "ai_alert_cleared_before";
 
 const DEFAULT_INCIDENT_FORM = {
   incident_type: "chay",
@@ -167,6 +169,29 @@ function loadSavedMessages() {
   }
 }
 
+function loadAlertWatermark() {
+  try {
+    const value = Number(sessionStorage.getItem(ALERT_WATERMARK_KEY));
+    return Number.isSafeInteger(value) && value > 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function createAutomaticAlertMessage(alert) {
+  return {
+    role: "assistant",
+    content: alert.content,
+    autoAlertId: Number(alert.id),
+    time: alert.created_at
+      ? new Date(alert.created_at).toLocaleTimeString("vi-VN", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : getCurrentTime(),
+  };
+}
+
 function MessageText({ content }) {
   const removeBoldMarkers = (text) =>
     text.replace(/\*\*/g, "").replace(/__/g, "");
@@ -243,10 +268,17 @@ function MessageBubble({ message }) {
       <div
         className={`max-w-[88%] rounded-2xl px-4 py-3 shadow-sm sm:max-w-[78%] ${
           isAssistant
-            ? "rounded-bl-md border border-slate-100 bg-white text-slate-700"
+            ? message.autoAlertId
+              ? "rounded-bl-md border border-amber-200 bg-amber-50 text-slate-800"
+              : "rounded-bl-md border border-slate-100 bg-white text-slate-700"
             : "rounded-br-md bg-blue-600 text-white"
         }`}
       >
+        {message.autoAlertId && (
+          <p className="mb-2 text-xs font-bold text-amber-800">
+            Cảnh báo tự động
+          </p>
+        )}
         <MessageText content={message.content} />
         <p
           className={`mt-2 flex items-center gap-1 text-[11px] ${
@@ -356,6 +388,8 @@ export default function AIAssistant() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("chat");
   const messagesEndRef = useRef(null);
+  const alertWatermarkRef = useRef(loadAlertWatermark());
+  const alertFetchVersionRef = useRef(0);
 
   const [incidentForm, setIncidentForm] = useState(savedWorkspace.incidentForm);
   const [incidentResult, setIncidentResult] = useState(
@@ -377,6 +411,46 @@ export default function AIAssistant() {
   const [roomResult, setRoomResult] = useState(savedWorkspace.roomResult);
   const [roomError, setRoomError] = useState("");
   const [roomLoading, setRoomLoading] = useState(false);
+
+  const appendAutomaticAlerts = useCallback((alerts) => {
+    if (!Array.isArray(alerts) || alerts.length === 0) return;
+    setMessages((previous) => {
+      const existing = new Set(previous.map((message) => message.autoAlertId));
+      const incoming = alerts
+        .filter(
+          (alert) =>
+            Number(alert.id) > alertWatermarkRef.current &&
+            typeof alert.content === "string" &&
+            !existing.has(Number(alert.id)),
+        )
+        .map(createAutomaticAlertMessage);
+      return incoming.length ? [...previous, ...incoming] : previous;
+    });
+  }, []);
+
+  useSocket({ ai_incident_alert: (alert) => appendAutomaticAlerts([alert]) });
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchVersion = alertFetchVersionRef.current;
+    api.get("/ai/incident-alerts")
+      .then(({ data }) => {
+        if (cancelled || !Array.isArray(data)) return;
+        if (fetchVersion !== alertFetchVersionRef.current) {
+          const latestId = Math.max(0, ...data.map((alert) => Number(alert.id) || 0));
+          alertWatermarkRef.current = Math.max(alertWatermarkRef.current, latestId);
+          sessionStorage.setItem(ALERT_WATERMARK_KEY, String(alertWatermarkRef.current));
+          return;
+        }
+        appendAutomaticAlerts(data);
+      })
+      .catch((error) => {
+        console.error("Không thể tải cảnh báo AI:", error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [appendAutomaticAlerts]);
 
   useEffect(() => {
     try {
@@ -438,7 +512,9 @@ export default function AIAssistant() {
       time: getCurrentTime(),
     };
 
-    const history = messages.map(({ role, content }) => ({ role, content }));
+    const history = messages
+      .filter((item) => !item.autoAlertId)
+      .map(({ role, content }) => ({ role, content }));
 
     setMessages((previous) => [...previous, userMessage]);
     setInput("");
@@ -468,12 +544,19 @@ export default function AIAssistant() {
   };
 
   const handleClearChat = () => {
+    alertFetchVersionRef.current += 1;
+    const latestAlertId = Math.max(
+      alertWatermarkRef.current,
+      ...messages.map((message) => Number(message.autoAlertId) || 0),
+    );
+    alertWatermarkRef.current = latestAlertId;
     const welcome = createWelcomeMessage();
     setMessages([welcome]);
     setInput("");
 
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify([welcome]));
+      sessionStorage.setItem(ALERT_WATERMARK_KEY, String(latestAlertId));
     } catch (error) {
       console.warn("Không thể xóa lịch sử chat đã lưu:", error);
     }

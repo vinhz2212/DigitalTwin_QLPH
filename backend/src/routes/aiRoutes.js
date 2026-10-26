@@ -5,6 +5,7 @@ const authMiddleware = require("../middleware/auth");
 
 router.use(authMiddleware);
 
+router.get("/incident-alerts", aiController.incidentAlerts);
 router.post("/chat", aiController.chat);
 router.post("/analyze-incident", aiController.analyzeIncident);
 router.post("/suggest-maintenance", aiController.suggestMaintenance);

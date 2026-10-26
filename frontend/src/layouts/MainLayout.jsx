@@ -33,7 +33,30 @@ import {
   MapPin,
   LoaderCircle,
 } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+
+const aiAlertSeenKey = (userId) => `smart-campus-ai-alert-seen:${userId}`;
+
+function getLastSeenAiAlertId(userId) {
+  try {
+    const id = Number(sessionStorage.getItem(aiAlertSeenKey(userId)));
+    return Number.isSafeInteger(id) && id > 0 ? id : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveLastSeenAiAlertId(userId, id) {
+  if (!userId || !Number.isSafeInteger(id) || id <= 0) return;
+  try {
+    sessionStorage.setItem(
+      aiAlertSeenKey(userId),
+      String(Math.max(getLastSeenAiAlertId(userId), id)),
+    );
+  } catch {
+    // Trình duyệt chặn lưu trữ: huy hiệu vẫn hoạt động trong lần mở trang này.
+  }
+}
 
 const PAGE_TITLES = {
   "/dashboard": { title: "Tổng quan", sub: "Digital Twin Smart Campus" },
@@ -262,9 +285,40 @@ export default function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [time, setTime] = useState(new Date());
   const [notifications, setNotifications] = useState(0);
+  const [aiUnreadIds, setAiUnreadIds] = useState([]);
   const role = user?.role;
   const userId = user?.id;
   const username = user?.username;
+  const viewingAiRef = useRef(location.pathname === "/ai");
+
+  useEffect(() => {
+    viewingAiRef.current = location.pathname === "/ai";
+  }, [location.pathname]);
+
+  const receiveAiAlerts = useCallback((alerts) => {
+    if (!userId || !Array.isArray(alerts)) return;
+    const ids = alerts
+      .map((alert) => Number(alert.id))
+      .filter((id) => Number.isSafeInteger(id) && id > 0);
+    if (viewingAiRef.current) {
+      if (ids.length) saveLastSeenAiAlertId(userId, Math.max(...ids));
+      setAiUnreadIds([]);
+      return;
+    }
+    setAiUnreadIds((previous) => [
+      ...new Set([...previous, ...ids].filter((id) => id > getLastSeenAiAlertId(userId))),
+    ]);
+  }, [userId]);
+
+  const fetchAiAlerts = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const res = await api.get("/ai/incident-alerts");
+      receiveAiAlerts(res.data);
+    } catch (error) {
+      console.error("Không thể lấy số cảnh báo AI chưa xem:", error);
+    }
+  }, [receiveAiAlerts, userId]);
 
   const fetchUnreadCount = useCallback(async () => {
     try {
@@ -317,6 +371,7 @@ export default function MainLayout() {
   useSocket({
     notification_created: handleNotificationCreated,
     notification_updated: fetchUnreadCount,
+    ai_incident_alert: (alert) => receiveAiAlerts([alert]),
     account_changed: () => window.location.reload(),
   });
 
@@ -344,6 +399,12 @@ export default function MainLayout() {
       );
     };
   }, [fetchUnreadCount, location.pathname]);
+
+  useEffect(() => {
+    fetchAiAlerts();
+    const interval = setInterval(fetchAiAlerts, 30000);
+    return () => clearInterval(interval);
+  }, [fetchAiAlerts, location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -417,7 +478,7 @@ export default function MainLayout() {
           label: "Thông báo",
           badge: notifications,
         },
-        { to: "/ai", icon: Bot, label: "AI Assistant" },
+        { to: "/ai", icon: Bot, label: "AI Assistant", badge: aiUnreadIds.length },
         { to: "/settings", icon: Settings, label: "Cài đặt" },
       ],
     },

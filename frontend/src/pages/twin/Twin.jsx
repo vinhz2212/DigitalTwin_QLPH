@@ -1143,7 +1143,7 @@ export default function Twin() {
                       <span className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
                         {room.power_status === "ngat_dien" && (
                           <span className="font-semibold text-amber-700">
-                            Nguồn điện đã ngắt (mô phỏng)
+                            Nguồn điện đã ngắt trên hệ thống
                           </span>
                         )}
                         <span className="flex items-center gap-1">
@@ -1193,8 +1193,8 @@ export default function Twin() {
                     className={`text-right font-bold ${selectedRoom.power_status === "ngat_dien" ? "text-amber-700" : "text-emerald-700"}`}
                   >
                     {selectedRoom.power_status === "ngat_dien"
-                      ? "Đã ngắt (mô phỏng)"
-                      : "Có điện (mô phỏng)"}
+                      ? "Đã ngắt trên hệ thống"
+                      : "Có điện trên hệ thống"}
                   </span>
 
                   <span className="text-slate-400">Tòa nhà</span>

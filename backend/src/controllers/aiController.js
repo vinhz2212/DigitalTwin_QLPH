@@ -5,6 +5,9 @@ const {
   syncRoomOperationalStatus,
   restoreRoomPowerAfterResolvedIncident,
 } = require("../services/roomOperationalStatusService");
+const {
+  getAutomaticIncidentAlerts,
+} = require("../services/automaticIncidentAlertService");
 
 const MAX_HISTORY_MESSAGES = 12;
 const MAX_MESSAGE_LENGTH = 4000;
@@ -176,7 +179,7 @@ async function handlePowerCommand(req, message, command) {
   if (!["admin", "ky_thuat_vien"].includes(req.user.role)) {
     return {
       status: 403,
-      response: "Chỉ quản trị viên hoặc kỹ thuật viên được điều khiển nguồn điện mô phỏng.",
+      response: "Chỉ quản trị viên hoặc kỹ thuật viên được thay đổi trạng thái nguồn điện trên hệ thống.",
     };
   }
 
@@ -207,14 +210,14 @@ async function handlePowerCommand(req, message, command) {
       await connection.rollback();
       return {
         status: 200,
-        response: `Nguồn điện phòng ${room.code} đã ở trạng thái ngắt (mô phỏng).`,
+        response: `Nguồn điện phòng ${room.code} đã ở trạng thái ngắt trên hệ thống.`,
       };
     }
     if (command.action === "restore" && !powerIsOff) {
       await connection.rollback();
       return {
         status: 200,
-        response: `Nguồn điện phòng ${room.code} đang ở trạng thái có điện (mô phỏng).`,
+        response: `Nguồn điện phòng ${room.code} đang ở trạng thái có điện trên hệ thống.`,
       };
     }
 
@@ -229,7 +232,7 @@ async function handlePowerCommand(req, message, command) {
         await connection.rollback();
         return {
           status: 409,
-          response: `Phòng ${room.code} chưa có sự cố cháy mô phỏng đang mở. Không thay đổi nguồn điện.`,
+          response: `Phòng ${room.code} chưa có sự cố cháy đang mở trên hệ thống. Không thay đổi trạng thái nguồn điện.`,
         };
       }
     } else {
@@ -268,8 +271,8 @@ async function handlePowerCommand(req, message, command) {
 
     const response =
       command.action === "cut"
-        ? `Đã ngắt nguồn điện phòng ${room.code} trong mô phỏng. Phòng vẫn được đánh dấu có sự cố cháy; các thiết bị đang hoạt động đã chuyển sang tắt. Đây không phải thao tác với hệ thống điện thật.`
-        : `Đã khôi phục nguồn điện mô phỏng cho phòng ${room.code}. Thiết bị trở về trạng thái trước khi ngắt điện; thiết bị vốn hỏng hoặc đang sửa không bị bật nhầm.`;
+        ? `Đã chuyển nguồn điện phòng ${room.code} sang trạng thái ngắt trên hệ thống. Phòng vẫn được đánh dấu có sự cố cháy; các thiết bị đang hoạt động đã chuyển sang tắt.`
+        : `Đã khôi phục trạng thái nguồn điện trên hệ thống cho phòng ${room.code}. Thiết bị trở về trạng thái trước khi ngắt điện; thiết bị vốn hỏng hoặc đang sửa không bị bật nhầm.`;
     await connection.query(
       `INSERT INTO ActivityLogs (user_id, action, entity_type, entity_id, details, ip_address)
        VALUES (?, ?, 'Room', ?, ?, ?)`,
@@ -450,6 +453,16 @@ function sendAIError(res, error, context, fallbackMessage) {
 }
 
 const aiController = {
+  incidentAlerts: async (req, res) => {
+    try {
+      const alerts = await getAutomaticIncidentAlerts(req.user.id, req.user.iat);
+      return res.json(alerts);
+    } catch (error) {
+      console.error("Lỗi lấy cảnh báo tự động:", error);
+      return res.status(500).json({ message: "Không thể tải cảnh báo AI." });
+    }
+  },
+
   chat: async (req, res) => {
     try {
       const message =
@@ -503,7 +516,7 @@ const aiController = {
           [roomCode],
         );
         const responseText = rooms.length
-          ? `Theo dữ liệu mô phỏng, nguồn điện phòng ${rooms[0].code} ${rooms[0].power_status === "ngat_dien" ? "đã ngắt" : "đang có điện"}. Trạng thái này không xác nhận nguồn điện thực tế.`
+          ? `Theo dữ liệu hệ thống, nguồn điện phòng ${rooms[0].code} ${rooms[0].power_status === "ngat_dien" ? "đã ngắt" : "đang có điện"}. Trạng thái này không xác nhận nguồn điện thực tế.`
           : `Không tìm thấy phòng ${roomCode} trong hệ thống.`;
         await saveChatAnswer(req.user.id, message, responseText);
         return res.json({ response: responseText });

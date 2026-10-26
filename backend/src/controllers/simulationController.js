@@ -10,6 +10,12 @@ const {
   getFailureDevice,
   restoreRepairedDevice,
 } = require("../services/devicePowerService");
+const {
+  AUTO_POWER_TYPES,
+  recordAutomaticIncidentAlert,
+  recordAutomaticResolutionAlert,
+  emitAutomaticIncidentAlert,
+} = require("../services/automaticIncidentAlertService");
 
 const INCIDENT_DEVICE_MAP = {
   chay: null,
@@ -28,6 +34,15 @@ const simulationController = {
       const { room_id, type, severity, description } = req.body;
       connection = await db.getConnection();
       await connection.beginTransaction();
+      const [rooms] = await connection.query(
+        "SELECT code FROM Rooms WHERE id = ? FOR UPDATE",
+        [room_id],
+      );
+      if (!rooms.length) {
+        await connection.rollback();
+        return res.status(404).json({ message: "Không tìm thấy phòng." });
+      }
+      const roomCode = rooms[0].code;
 
       // Lỗi thiết bị chỉ cô lập đúng máy chiếu/điều hòa trong phòng.
       let affectedDevice = null;
@@ -55,8 +70,8 @@ const simulationController = {
       await syncRoomOperationalStatus(room_id, connection);
 
       // Xử lý thiết bị theo loại sự cố
-      if (type === "mat_dien") {
-        // Mất điện tắt thiết bị ngay; sự cố cháy chỉ tắt khi có lệnh ngắt điện.
+      if (type === "mat_dien" || type === "chay") {
+        // Cháy hoặc mất điện ngắt nguồn mô phỏng của cả phòng.
         // Nhớ trạng thái ban đầu một lần để khôi phục sau sự cố cuối cùng.
         await connection.query(
           "UPDATE Rooms SET power_status = 'ngat_dien' WHERE id = ?",
@@ -70,20 +85,32 @@ const simulationController = {
           [room_id],
         );
       }
+      const automaticAlert = AUTO_POWER_TYPES.has(type)
+        ? await recordAutomaticIncidentAlert({
+            incidentId,
+            roomCode,
+            type,
+            executor: connection,
+          })
+        : null;
       await connection.commit();
 
-      // Lưu thông báo cho quản trị viên và kỹ thuật viên, kèm mã phòng.
+      // Cảnh báo tự động đến mọi tài khoản; các loại sự cố khác giữ luồng cũ.
       const io = req.app.get("io");
-      try {
-        await notifyIncident({
-          io,
-          roomId: room_id,
-          type,
-          severity: severity || "trung",
-          description: description || `Mô phỏng sự cố: ${type}`,
-        });
-      } catch (notificationError) {
-        console.error("Không thể tạo cảnh báo mô phỏng:", notificationError);
+      if (automaticAlert) {
+        emitAutomaticIncidentAlert(io, automaticAlert);
+      } else {
+        try {
+          await notifyIncident({
+            io,
+            roomId: room_id,
+            type,
+            severity: severity || "trung",
+            description: description || `Mô phỏng sự cố: ${type}`,
+          });
+        } catch (notificationError) {
+          console.error("Không thể tạo cảnh báo mô phỏng:", notificationError);
+        }
       }
 
       // Gửi socket realtime
@@ -94,18 +121,20 @@ const simulationController = {
           type,
           severity: severity || "trung",
         });
-        if (type === "mat_dien") {
+        if (type === "mat_dien" || type === "chay") {
           io.emit("rooms_changed", { action: "power_status_changed", roomId: room_id });
         }
-        if (type === "mat_dien" || affectedDevice) {
+        if (type === "mat_dien" || type === "chay" || affectedDevice) {
           io.emit("devices_changed", { roomId: room_id, deviceId: affectedDevice?.id });
         }
       }
 
       res.status(201).json({
-        message: affectedDevice
-          ? `Đã mô phỏng thiết bị hỏng và ngắt riêng nguồn ${affectedDevice.name}.`
-          : "Mô phỏng sự cố thành công",
+        message: type === "chay"
+          ? `Đã ghi nhận sự cố cháy và tự động ngắt nguồn điện phòng ${roomCode} trên hệ thống.`
+          : affectedDevice
+            ? `Đã ghi nhận thiết bị hỏng và ngắt riêng nguồn ${affectedDevice.name} trên hệ thống.`
+            : "Mô phỏng sự cố thành công",
         incidentId,
       });
     } catch (error) {
@@ -124,7 +153,9 @@ const simulationController = {
       connection = await db.getConnection();
       await connection.beginTransaction();
       const [incidents] = await connection.query(
-        "SELECT room_id, type, status FROM Incidents WHERE id = ? LIMIT 1 FOR UPDATE",
+        `SELECT i.room_id, i.type, i.status, r.code AS room_code
+         FROM Incidents i JOIN Rooms r ON r.id = i.room_id
+         WHERE i.id = ? LIMIT 1 FOR UPDATE`,
         [incident_id],
       );
       if (!incidents.length) {
@@ -156,10 +187,19 @@ const simulationController = {
         deviceRepair = await restoreRepairedDevice(device.id, connection);
       }
       await syncRoomOperationalStatus(roomId, connection);
+      const resolutionAlert = await recordAutomaticResolutionAlert({
+        incidentId: incident_id,
+        roomId,
+        roomCode: incidents[0].room_code,
+        type: incidentType,
+        deviceId: deviceRepair?.device?.id,
+        executor: connection,
+      });
       await connection.commit();
 
       // Gửi socket
       const io = req.app.get("io");
+      emitAutomaticIncidentAlert(io, resolutionAlert);
       if (io) {
         io.emit("incident_resolved", {
           incidentId: incident_id,
@@ -176,7 +216,7 @@ const simulationController = {
 
       res.json({
         message: deviceRepair?.restored
-          ? "Đã sửa xong và cấp điện lại cho thiết bị mô phỏng."
+          ? "Đã sửa xong và cấp điện lại cho thiết bị trên hệ thống."
           : deviceRepair?.blocked
             ? "Đã giải quyết sự cố; thiết bị vẫn ngắt điện vì còn sự cố hoặc phiếu bảo trì đang mở."
           : restoration?.powerRestored || restoration?.devicesRestored

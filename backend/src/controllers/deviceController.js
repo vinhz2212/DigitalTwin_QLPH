@@ -59,7 +59,7 @@ const deviceController = {
       if (req.body.status === "hoat_dong") {
         const room = await RoomModel.getById(req.body.room_id);
         if (room?.power_status === "ngat_dien") {
-          return res.status(409).json({ message: "Phòng đang ngắt nguồn điện mô phỏng; không thể bật thiết bị." });
+          return res.status(409).json({ message: "Nguồn điện phòng đang ở trạng thái ngắt trên hệ thống; không thể bật thiết bị." });
         }
       }
       const id = await DeviceModel.create(req.body);

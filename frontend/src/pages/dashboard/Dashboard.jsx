@@ -993,7 +993,7 @@ export default function Dashboard() {
                         </span>
                         {room.power_status === "ngat_dien" && (
                           <span className="mt-1 block text-xs font-semibold text-amber-700">
-                            Nguồn điện đã ngắt (mô phỏng)
+                            Nguồn điện đã ngắt trên hệ thống
                           </span>
                         )}
                       </span>

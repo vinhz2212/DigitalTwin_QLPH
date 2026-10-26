@@ -96,7 +96,7 @@ function DevicePowerBadge({ powerStatus }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800">
       <Power size={12} />
-      Đã ngắt điện (mô phỏng)
+      Đã ngắt điện trên hệ thống
     </span>
   );
 }
