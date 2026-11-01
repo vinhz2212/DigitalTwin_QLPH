@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
+import ResponsiveCamera from "../../components/ResponsiveCamera";
 import {
   ContactShadows,
   Edges,
@@ -44,6 +45,7 @@ const STATUS_LABELS = {
 };
 
 const FLOOR_HEIGHT = 0.86;
+const CAMERA_POSITION = [10, 8, 21];
 
 function Tree({ position, scale = 1 }) {
   return (
@@ -829,8 +831,8 @@ export default function Twin() {
       {/* Bản đồ khuôn viên */}
       <div className="grid grid-cols-12 gap-4">
         {/* Điều khiển bên trái */}
-        <aside className="col-span-12 space-y-3 lg:col-span-2">
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <aside className="col-span-12 grid grid-cols-2 gap-3 lg:col-span-2 lg:block lg:space-y-3">
+          <section className="order-1 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:order-none lg:p-4">
             <div className="mb-3 flex items-center gap-2">
               <Grid3X3 size={15} className="text-blue-600" />
               <h2 className="text-sm font-bold text-slate-700">Tòa nhà</h2>
@@ -864,7 +866,7 @@ export default function Twin() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="order-3 col-span-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:order-none lg:col-span-1 lg:p-4">
             <div className="mb-3 flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-50 text-xs font-black text-blue-600">
                 {selectedFloor}
@@ -894,7 +896,7 @@ export default function Twin() {
                       setSelectedFloor(floor);
                       setSelectedRoom(null);
                     }}
-                    className="flex items-center justify-between rounded-xl border px-3 py-2 text-sm font-bold transition-all"
+                    className="relative flex items-center justify-center rounded-xl border px-2 py-2 text-sm font-bold transition-all lg:justify-between lg:px-3"
                     style={{
                       color: active ? "white" : "#374151",
                       background: active ? "#1a56db" : "#f8fafc",
@@ -904,7 +906,7 @@ export default function Twin() {
                     <span className="lg:hidden">{floor}</span>
                     <span className="hidden lg:inline">Tầng {floor}</span>
                     {hasIncident && (
-                      <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
+                      <span className="absolute right-1 top-1 h-2 w-2 animate-pulse rounded-full bg-red-400 lg:static" />
                     )}
                   </button>
                 );
@@ -912,7 +914,7 @@ export default function Twin() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="order-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:order-none lg:p-4">
             <h2 className="mb-3 text-sm font-bold text-slate-700">Góc nhìn</h2>
 
             <div className="grid grid-cols-2 gap-2">
@@ -944,13 +946,12 @@ export default function Twin() {
         {/* Khu vực mô hình */}
         <section className="col-span-12 lg:col-span-7">
           <div
-            className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-            style={{ height: 540 }}
+            className="relative h-96 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:h-[540px]"
           >
             {viewMode === "3d" ? (
               <Canvas
                 camera={{
-                  position: [10, 8, 21],
+                  position: CAMERA_POSITION,
                   fov: 38,
                   near: 0.1,
                   far: 100,
@@ -959,6 +960,7 @@ export default function Twin() {
                 dpr={[1, 1.75]}
                 gl={{ antialias: true, alpha: false }}
               >
+                <ResponsiveCamera position={CAMERA_POSITION} />
                 <Scene
                   rooms={rooms}
                   onRoomClick={handleRoomSelect}
@@ -1053,7 +1055,7 @@ export default function Twin() {
             </div>
 
             {/* Chú giải */}
-            <div className="absolute bottom-3 left-1/2 z-10 flex max-w-[95%] -translate-x-1/2 gap-3 overflow-x-auto rounded-full border border-white/70 bg-white/95 px-4 py-2.5 text-xs shadow-lg backdrop-blur">
+            <div className="absolute bottom-3 left-1/2 z-10 grid max-w-[calc(100%-1.5rem)] -translate-x-1/2 grid-cols-2 gap-x-3 gap-y-1 rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-[10px] shadow-lg backdrop-blur sm:flex sm:gap-3 sm:rounded-full sm:px-4 sm:py-2.5 sm:text-xs">
               {Object.entries(STATUS_COLORS).map(([status, color]) => (
                 <div key={status} className="flex items-center gap-1.5">
                   <span

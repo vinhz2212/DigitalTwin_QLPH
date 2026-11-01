@@ -19,6 +19,8 @@ import {
   Bot,
   Settings,
   ChevronLeft,
+  Menu,
+  X,
   LogOut,
   Box,
   Home,
@@ -283,6 +285,10 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuPath, setMobileMenuPath] = useState(null);
+  const mobileMenuOpen = mobileMenuPath === location.pathname;
+  const menuButtonRef = useRef(null);
+  const sidebarRef = useRef(null);
   const [time, setTime] = useState(new Date());
   const [notifications, setNotifications] = useState(0);
   const [aiUnreadIds, setAiUnreadIds] = useState([]);
@@ -294,6 +300,48 @@ export default function MainLayout() {
   useEffect(() => {
     viewingAiRef.current = location.pathname === "/ai";
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return undefined;
+
+    const sidebar = sidebarRef.current;
+    const focusable = () =>
+      [...sidebar.querySelectorAll("a[href], button:not([disabled])")].filter(
+        (element) => element.getClientRects().length > 0,
+      );
+    sidebar.querySelector("[data-close-mobile-menu]")?.focus();
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setMobileMenuPath(null);
+        menuButtonRef.current?.focus();
+      } else if (event.key === "Tab") {
+        const items = focusable();
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    const desktopBreakpoint = window.matchMedia("(min-width: 1024px)");
+    const closeMobileMenu = (event) => {
+      if (event.matches) setMobileMenuPath(null);
+    };
+    desktopBreakpoint.addEventListener("change", closeMobileMenu);
+    return () => desktopBreakpoint.removeEventListener("change", closeMobileMenu);
+  }, []);
 
   const receiveAiAlerts = useCallback((alerts) => {
     if (!userId || !Array.isArray(alerts)) return;
@@ -485,11 +533,26 @@ export default function MainLayout() {
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f4f7fb]">
+    <div className="flex h-screen h-dvh min-w-0 overflow-hidden bg-[#f4f7fb]">
+      {mobileMenuOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-30 bg-slate-950/55 lg:hidden"
+          aria-label="Đóng menu điều hướng"
+          onClick={() => {
+            setMobileMenuPath(null);
+            menuButtonRef.current?.focus();
+          }}
+        />
+      )}
       <aside
-        className="z-20 flex flex-col shadow-lg transition-all duration-300"
+        ref={sidebarRef}
+        id="app-sidebar"
+        role={mobileMenuOpen ? "dialog" : undefined}
+        aria-modal={mobileMenuOpen ? "true" : undefined}
+        aria-label="Điều hướng chính"
+        className={`fixed inset-y-0 left-0 z-40 flex w-[min(84vw,300px)] flex-col shadow-lg transition-[transform,width,visibility] duration-300 lg:relative lg:inset-auto lg:z-20 lg:visible lg:translate-x-0 ${collapsed ? "lg:w-[68px]" : "lg:w-[252px]"} ${mobileMenuOpen ? "visible translate-x-0" : "invisible -translate-x-full"}`}
         style={{
-          width: collapsed ? "68px" : "252px",
           background: "linear-gradient(180deg, #071a39 0%, #0b2447 55%, #10294a 100%)",
           borderRight: "1px solid rgba(96,165,250,0.16)",
         }}
@@ -502,19 +565,29 @@ export default function MainLayout() {
             🎓
           </div>
 
-          {!collapsed && (
-            <div>
-              <p className="text-sm font-bold text-white">SmartCampus</p>
-              <p className="text-xs text-slate-400">Digital Twin</p>
-            </div>
-          )}
+          <div className={collapsed ? "min-w-0 lg:hidden" : "min-w-0"}>
+            <p className="text-sm font-bold text-white">SmartCampus</p>
+            <p className="text-xs text-slate-400">Digital Twin</p>
+          </div>
+          <button
+            type="button"
+            data-close-mobile-menu
+            aria-label="Đóng menu"
+            onClick={() => {
+              setMobileMenuPath(null);
+              menuButtonRef.current?.focus();
+            }}
+            className="ml-auto rounded-lg p-2 text-slate-200 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white lg:hidden"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
           {navGroups.map((group, groupIndex) => (
             <div key={groupIndex} className="mb-2">
-              {group.group && !collapsed && (
-                <p className="px-3 pb-2 pt-4 text-xs font-semibold uppercase tracking-widest text-slate-500">
+              {group.group && (
+                <p className={`px-3 pb-2 pt-4 text-xs font-semibold uppercase tracking-widest text-slate-500 ${collapsed ? "lg:hidden" : ""}`}>
                   {group.group}
                 </p>
               )}
@@ -523,8 +596,9 @@ export default function MainLayout() {
                 <NavLink
                   key={to}
                   to={to}
+                  onClick={() => setMobileMenuPath(null)}
                   className={({ isActive }) =>
-                    `relative mb-0.5 flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all ${
+                    `relative mb-0.5 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300 ${
                       isActive
                         ? "bg-gradient-to-r from-blue-600 to-sky-500 text-white shadow-lg shadow-blue-950/40"
                         : "text-slate-300 hover:bg-white/10 hover:text-white"
@@ -533,19 +607,17 @@ export default function MainLayout() {
                 >
                   <Icon size={17} className="flex-shrink-0" />
 
-                  {!collapsed && (
-                    <span className="flex-1 font-medium">{label}</span>
-                  )}
+                  <span className={`flex-1 font-medium ${collapsed ? "lg:hidden" : ""}`}>{label}</span>
 
-                  {!collapsed && badge > 0 && (
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
+                  {badge > 0 && (
+                    <span className={`flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white ${collapsed ? "lg:hidden" : ""}`}>
                       {badge > 99 ? "99+" : badge}
                     </span>
                   )}
 
                   {collapsed && badge > 0 && (
                     <span
-                      className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-red-500"
+                      className="absolute right-1 top-1 hidden h-2.5 w-2.5 rounded-full bg-red-500 lg:block"
                       title={`${badge} thông báo chưa đọc`}
                     />
                   )}
@@ -555,8 +627,7 @@ export default function MainLayout() {
           ))}
         </nav>
 
-        {!collapsed && (
-          <div className="mx-3 mb-2 rounded-xl border border-slate-600 bg-slate-700/50 p-3">
+        <div className={`mx-3 mb-2 rounded-xl border border-slate-600 bg-slate-700/50 p-3 ${collapsed ? "lg:hidden" : ""}`}>
             <div className="flex items-center gap-2">
               <div
                 className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
@@ -583,10 +654,9 @@ export default function MainLayout() {
                 <LogOut size={15} />
               </button>
             </div>
-          </div>
-        )}
+        </div>
 
-        <div className="border-t border-slate-700 p-2">
+        <div className="hidden border-t border-slate-700 p-2 lg:block">
           <button
             type="button"
             onClick={() => setCollapsed(!collapsed)}
@@ -601,16 +671,29 @@ export default function MainLayout() {
         </div>
       </aside>
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 py-3 backdrop-blur md:px-6">
-          <div className="min-w-0">
-            <h1 className="text-lg font-bold text-gray-800">
-              {currentPage.title}
-            </h1>
-            <div className="flex items-center gap-1 text-xs text-gray-400">
-              <Home size={11} />
-              <span>/</span>
-              <span>{currentPage.sub}</span>
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex items-center justify-between gap-2 border-b border-slate-200/80 bg-white/95 px-3 py-2.5 backdrop-blur sm:px-4 sm:py-3 md:px-6">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <button
+              ref={menuButtonRef}
+              type="button"
+              aria-label="Mở menu điều hướng"
+              aria-controls="app-sidebar"
+              aria-expanded={mobileMenuOpen}
+              onClick={() => setMobileMenuPath(location.pathname)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 lg:hidden"
+            >
+              <Menu size={20} />
+            </button>
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-bold text-gray-800 sm:text-lg">
+                {currentPage.title}
+              </h1>
+              <div className="hidden items-center gap-1 text-xs text-gray-400 sm:flex">
+                <Home size={11} />
+                <span>/</span>
+                <span>{currentPage.sub}</span>
+              </div>
             </div>
           </div>
 
@@ -647,7 +730,7 @@ export default function MainLayout() {
               )}
             </button>
 
-            <div className="flex items-center gap-2 pl-1 sm:pl-2">
+            <div className="hidden items-center gap-2 pl-1 sm:flex sm:pl-2">
               <div
                 className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold text-white shadow"
                 style={{
@@ -676,7 +759,7 @@ export default function MainLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto bg-[#f4f7fb] p-4 md:p-6">
+        <main className="min-w-0 flex-1 overflow-auto bg-[#f4f7fb] p-3 sm:p-4 md:p-6">
           <Outlet />
         </main>
       </div>

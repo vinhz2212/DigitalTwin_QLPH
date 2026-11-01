@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
+import ResponsiveCamera from "../../components/ResponsiveCamera";
 import {
   ContactShadows,
   Edges,
@@ -69,6 +70,7 @@ const SEVERITY_LABELS = {
 };
 
 const FLOOR_HEIGHT = 0.86;
+const CAMERA_POSITION = [9, 7, 17];
 
 const tempData = [
   { time: "00:00", temp: 24 },
@@ -761,7 +763,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-5 text-sm">
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
-        <aside className="space-y-4 xl:col-span-2">
+        <aside className="space-y-4 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0 xl:col-span-2 xl:block xl:space-y-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="mb-3 text-sm font-bold text-slate-700">Chọn tòa nhà</p>
 
@@ -794,7 +796,7 @@ export default function Dashboard() {
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="mb-3 text-sm font-bold text-slate-700">Chọn tầng</p>
 
-            <div className="space-y-1.5">
+            <div className="grid grid-cols-5 gap-1.5 xl:grid-cols-1">
               {[5, 4, 3, 2, 1].map((floor) => {
                 const roomsOnFloor = rooms.filter(
                   (room) =>
@@ -814,7 +816,7 @@ export default function Dashboard() {
                       setSelectedFloor(floor);
                       setSelectedRoom(null);
                     }}
-                    className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm font-bold transition-all"
+                    className="relative flex min-w-0 items-center justify-center rounded-lg border px-1.5 py-2 text-sm font-bold transition-all xl:justify-between xl:px-3"
                     style={{
                       background:
                         selectedFloor === floor ? "#1a56db" : "#f8fafc",
@@ -823,9 +825,10 @@ export default function Dashboard() {
                         selectedFloor === floor ? "#1a56db" : "#e5e7eb",
                     }}
                   >
-                    <span>Tầng {floor}</span>
+                    <span className="xl:hidden">{floor}</span>
+                    <span className="hidden xl:inline">Tầng {floor}</span>
                     {hasIncident && (
-                      <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+                      <span className="absolute right-1 top-1 h-2 w-2 animate-pulse rounded-full bg-red-500 xl:static" />
                     )}
                   </button>
                 );
@@ -836,8 +839,7 @@ export default function Dashboard() {
 
         <section className="xl:col-span-7">
           <div
-            className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-            style={{ height: 520 }}
+            className="relative h-96 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:h-[520px]"
           >
             <div className="absolute left-3 top-3 z-10 flex gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-md">
               {["2D", "3D"].map((mode) => (
@@ -863,15 +865,16 @@ export default function Dashboard() {
             {viewMode === "3d" ? (
               <Canvas
                 camera={{
-                  position: [9, 7, 17],
+                  position: CAMERA_POSITION,
                   fov: 38,
                   near: 0.1,
                   far: 100,
                 }}
                 shadows
-        dpr={[1, 2]}
+                dpr={[1, 2]}
                 gl={{ antialias: true, alpha: false }}
               >
+                <ResponsiveCamera position={CAMERA_POSITION} />
                 <Scene
                   rooms={rooms}
                   onRoomClick={handleRoomClick}
@@ -935,9 +938,9 @@ export default function Dashboard() {
               </div>
             )}
 
-            <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-4 rounded-full border border-slate-200 bg-white/95 px-4 py-2 text-xs shadow-md">
+            <div className="absolute bottom-3 left-1/2 z-10 grid max-w-[calc(100%-1.5rem)] -translate-x-1/2 grid-cols-2 gap-x-3 gap-y-1 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-[10px] shadow-md sm:flex sm:gap-4 sm:rounded-full sm:px-4 sm:text-xs">
               {Object.entries(STATUS_COLORS).map(([key, color]) => (
-                <div key={key} className="flex items-center gap-1.5">
+                <div key={key} className="flex shrink-0 items-center gap-1.5">
                   <span
                     className="h-2.5 w-2.5 rounded-full"
                     style={{ background: color }}

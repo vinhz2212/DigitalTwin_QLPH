@@ -417,8 +417,8 @@ export default function Settings() {
         </p>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <aside className="space-y-3">
+      <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <aside className="min-w-0 space-y-3">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-2xl font-bold text-white shadow-sm">
               {(profile.full_name || user?.username || "U")
