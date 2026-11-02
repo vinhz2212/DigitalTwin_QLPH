@@ -761,8 +761,8 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-5 text-sm">
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+    <div className="space-y-4 text-sm">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <aside className="space-y-4 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0 xl:col-span-2 xl:block xl:space-y-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="mb-3 text-sm font-bold text-slate-700">Chọn tòa nhà</p>
@@ -1023,8 +1023,8 @@ export default function Dashboard() {
         </aside>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-5">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="mb-3 text-xs font-bold text-slate-600">
             Tổng quan phòng
           </p>
@@ -1071,7 +1071,7 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="mb-3 text-xs font-bold text-slate-600">Thiết bị</p>
 
           <div className="mt-2 space-y-3">
@@ -1123,7 +1123,7 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-bold text-slate-600">Nhiệt độ TB</p>
             <span className="text-xs italic text-slate-400">Mô phỏng</span>
@@ -1149,7 +1149,7 @@ export default function Dashboard() {
           </p>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-bold text-slate-600">Điện năng</p>
             <span className="text-xs italic text-slate-400">Mô phỏng</span>
@@ -1170,7 +1170,7 @@ export default function Dashboard() {
           </p>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-2 flex items-start justify-between gap-2">
             <div>
               <p className="text-xs font-bold text-slate-600">Cảnh báo</p>

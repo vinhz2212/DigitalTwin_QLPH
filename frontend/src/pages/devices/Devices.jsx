@@ -106,14 +106,14 @@ function StatCard({ label, value, color, bg, icon: Icon, active, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex min-w-0 items-center gap-3 rounded-2xl border bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md"
+      className="flex min-w-0 items-center gap-2.5 rounded-2xl border bg-white p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-md"
       style={{
         borderColor: active ? color : "#edf0f3",
         boxShadow: active ? `0 0 0 3px ${color}16` : undefined,
       }}
     >
       <span
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
         style={{ background: bg, color }}
       >
         <Icon size={20} strokeWidth={2.1} />
@@ -123,7 +123,7 @@ function StatCard({ label, value, color, bg, icon: Icon, active, onClick }) {
         <span className="block truncate text-xs font-medium text-slate-500">
           {label}
         </span>
-        <span className="mt-0.5 block text-2xl font-black" style={{ color }}>
+        <span className="mt-0.5 block text-xl font-black" style={{ color }}>
           {value}
         </span>
       </span>
@@ -330,7 +330,7 @@ export default function Devices() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Tiêu đề */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -420,7 +420,7 @@ export default function Devices() {
       </section>
 
       {/* Tìm kiếm, bộ lọc và chế độ xem */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
           <label className="relative min-w-0 flex-1">
             <Search
@@ -545,14 +545,14 @@ export default function Devices() {
 
       {/* Nội dung danh sách */}
       {loading ? (
-        <section className="flex h-56 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="flex h-44 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
           <span className="h-9 w-9 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600" />
           <p className="mt-3 text-sm font-medium text-slate-500">
             Đang tải danh sách thiết bị...
           </p>
         </section>
       ) : filteredDevices.length === 0 ? (
-        <section className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-center shadow-sm">
+        <section className="flex min-h-44 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-center shadow-sm">
           <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-400">
             <Search size={25} />
           </span>

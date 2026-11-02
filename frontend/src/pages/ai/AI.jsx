@@ -365,7 +365,7 @@ const inputClassName =
 
 function ResultPanel({ title, description, icon: Icon, children }) {
   return (
-    <section className="min-h-[280px] rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section className="min-h-[220px] rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <SectionHeading icon={Icon} title={title} description={description} />
       {children}
     </section>
@@ -374,7 +374,7 @@ function ResultPanel({ title, description, icon: Icon, children }) {
 
 function EmptyResult({ icon: Icon = Sparkles, text }) {
   return (
-    <div className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 text-center text-slate-400">
+    <div className="flex min-h-40 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 text-center text-slate-400">
       <Icon size={34} className="mb-3 text-slate-300" />
       <p className="text-sm">{text}</p>
     </div>
@@ -699,14 +699,14 @@ export default function AIAssistant() {
   };
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="space-y-4 pb-4">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
             <Sparkles size={14} />
             Trợ lý cho Smart Campus
           </div>
-          <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+          <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-[26px]">
             AI Assistant
           </h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -729,7 +729,7 @@ export default function AIAssistant() {
               type="button"
               onClick={() => setActiveTab(tab.id)}
               aria-current={isActive ? "page" : undefined}
-              className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition sm:px-4 ${
+              className={`flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${
                 isActive
                   ? "bg-blue-600 text-white shadow-sm"
                   : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
@@ -743,7 +743,7 @@ export default function AIAssistant() {
       </nav>
 
       {activeTab === "chat" && (
-        <section className="flex h-[min(68vh,760px)] min-h-[500px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="flex h-[min(56vh,560px)] min-h-[400px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:h-[min(64vh,640px)] sm:min-h-[420px]">
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-5">
             <div className="flex items-center gap-3">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
@@ -842,7 +842,7 @@ export default function AIAssistant() {
 
       {activeTab === "incident" && (
         <div className="grid gap-4 xl:grid-cols-2">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <SectionHeading
               icon={AlertTriangle}
               title="Phân tích sự cố"
@@ -938,7 +938,7 @@ export default function AIAssistant() {
 
       {activeTab === "maintenance" && (
         <div className="grid gap-4 xl:grid-cols-2">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <SectionHeading
               icon={Wrench}
               title="Đề xuất bảo trì"
@@ -1047,8 +1047,8 @@ export default function AIAssistant() {
       )}
 
       {activeTab === "room" && (
-        <div className="grid gap-4 xl:grid-cols-2">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="grid gap-4 xl:min-h-[min(64vh,640px)] xl:grid-cols-2">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <SectionHeading
               icon={Building2}
               title="Tìm phòng phù hợp"

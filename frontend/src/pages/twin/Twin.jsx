@@ -798,10 +798,10 @@ export default function Twin() {
             key={status}
             type="button"
             onClick={() => navigate("/rooms")}
-            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+            className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
           >
             <span
-              className="flex h-11 w-11 items-center justify-center rounded-2xl"
+              className="flex h-10 w-10 items-center justify-center rounded-2xl"
               style={{ background: `${color}18` }}
             >
               <span
@@ -818,7 +818,7 @@ export default function Twin() {
                 {STATUS_LABELS[status]}
               </span>
               <span
-                className="mt-0.5 block text-2xl font-black"
+                className="mt-0.5 block text-xl font-black"
                 style={{ color }}
               >
                 {stats[status]}

@@ -69,22 +69,24 @@ function EnergyTooltip({ active, payload, label }) {
 
 function KpiCard({ label, value, description, icon: Icon, color, background }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-slate-500">{label}</p>
-          <p className="mt-3 break-words text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+    <article className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-slate-500 sm:text-sm">{label}</p>
+        <div className="mt-1 flex min-w-0 items-baseline gap-x-2">
+          <span className="shrink-0 whitespace-nowrap text-xl font-bold text-slate-900">
             {value}
-          </p>
-          <p className="mt-1 text-xs text-slate-500">{description}</p>
+          </span>
+          <span className="min-w-0 truncate text-xs text-slate-500" title={description}>
+            {description}
+          </span>
         </div>
-        <span
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-          style={{ color, backgroundColor: background }}
-        >
-          <Icon size={20} />
-        </span>
       </div>
+      <span
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+        style={{ color, backgroundColor: background }}
+      >
+        <Icon size={20} />
+      </span>
     </article>
   );
 }
@@ -92,9 +94,9 @@ function KpiCard({ label, value, description, icon: Icon, color, background }) {
 function Panel({ title, subtitle, children, className = "" }) {
   return (
     <section
-      className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${className}`}
+      className={`rounded-2xl border border-slate-200 bg-white p-3 shadow-sm ${className}`}
     >
-      <div className="mb-4">
+      <div className="mb-2">
         <h2 className="font-semibold text-slate-900">{title}</h2>
         {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
       </div>
@@ -105,7 +107,7 @@ function Panel({ title, subtitle, children, className = "" }) {
 
 function EmptyState({ message }) {
   return (
-    <div className="flex h-56 items-center justify-center rounded-xl bg-slate-50 px-4 text-center text-sm text-slate-400">
+    <div className="flex h-44 items-center justify-center rounded-xl bg-slate-50 px-4 text-center text-sm text-slate-400">
       {message}
     </div>
   );
@@ -210,7 +212,7 @@ export default function Energy() {
     {
       label: "Điện năng hôm nay",
       value: `${todayKwh.toLocaleString("vi-VN")} kWh`,
-      description: `${activeDevices} thiết bị đang hoạt động`,
+      description: `${activeDevices} thiết bị bật`,
       icon: Zap,
       color: "#2563eb",
       background: "#eff6ff",
@@ -218,7 +220,7 @@ export default function Energy() {
     {
       label: "Chi phí hôm nay",
       value: formatCost(summary?.today_cost),
-      description: "Chi phí ước tính",
+      description: "Ước tính",
       icon: Activity,
       color: "#d97706",
       background: "#fffbeb",
@@ -226,7 +228,7 @@ export default function Energy() {
     {
       label: "Điện năng tuần này",
       value: `${weeklyKwh.toLocaleString("vi-VN")} kWh`,
-      description: "Tổng trong 7 ngày gần nhất",
+      description: "7 ngày",
       icon: TrendingDown,
       color: "#16a34a",
       background: "#f0fdf4",
@@ -234,7 +236,7 @@ export default function Energy() {
     {
       label: "Cảnh báo tiêu thụ",
       value: alertsCount,
-      description: "Thiết bị cần kiểm tra",
+      description: "Cần kiểm tra",
       icon: AlertTriangle,
       color: "#dc2626",
       background: "#fef2f2",
@@ -257,7 +259,7 @@ export default function Energy() {
 
   if (loading) {
     return (
-      <div className="flex min-h-72 flex-col items-center justify-center gap-3 text-slate-500">
+      <div className="flex min-h-44 flex-col items-center justify-center gap-3 text-slate-500">
         <LoaderCircle size={30} className="animate-spin text-blue-600" />
         <p className="text-sm">Đang tải dữ liệu điện năng...</p>
       </div>
@@ -265,14 +267,14 @@ export default function Energy() {
   }
 
   return (
-    <div className="space-y-6 pb-6">
+    <div className="space-y-4 pb-4">
       <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-600">
+          <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-blue-600">
             <Zap size={16} />
             <span>Giám sát tiêu thụ</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-[26px]">
             Điện năng tiêu thụ
           </h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -287,7 +289,7 @@ export default function Energy() {
                 key={item.id}
                 type="button"
                 onClick={() => setPeriod(item.id)}
-                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                className={`min-h-10 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
                   period === item.id
                     ? "bg-blue-600 text-white shadow-sm"
                     : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
@@ -302,7 +304,7 @@ export default function Energy() {
             type="button"
             onClick={() => fetchData(true)}
             disabled={refreshing}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
             Làm mới
@@ -326,7 +328,7 @@ export default function Energy() {
         </div>
       )}
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((item) => (
           <KpiCard key={item.label} {...item} />
         ))}
@@ -337,7 +339,7 @@ export default function Energy() {
         subtitle={chartSubtitle}
         className="overflow-hidden"
       >
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-slate-500">
             {period === "day"
               ? `Hôm nay: ${todayKwh.toLocaleString("vi-VN")} kWh`
@@ -351,13 +353,13 @@ export default function Energy() {
         </div>
 
         {chartLoading ? (
-          <div className="flex h-64 items-center justify-center">
+          <div className="flex h-52 items-center justify-center">
             <LoaderCircle size={26} className="animate-spin text-blue-600" />
           </div>
         ) : chartData.length === 0 ? (
           <EmptyState message="Chưa có dữ liệu biểu đồ cho khoảng thời gian này." />
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={230}>
             {period === "day" ? (
               <AreaChart data={chartData}>
                 <defs>
@@ -492,7 +494,7 @@ export default function Energy() {
         )}
       </Panel>
 
-      <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
         <Panel
           title="Phân bổ điện năng theo thiết bị"
           subtitle={`Tổng tiêu thụ hôm nay: ${todayKwh.toLocaleString("vi-VN")} kWh`}
@@ -500,7 +502,7 @@ export default function Energy() {
           {deviceData.length === 0 ? (
             <EmptyState message="Chưa có dữ liệu phân bổ theo thiết bị." />
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               {deviceData.map((device, index) => {
                 const percent = Math.max(
                   0,
@@ -511,10 +513,10 @@ export default function Energy() {
                 return (
                   <div
                     key={device.code || device.name || index}
-                    className="flex items-center gap-3"
+                    className="flex items-center gap-2.5"
                   >
                     <span
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold"
                       style={{
                         color,
                         backgroundColor: `${color}16`,
@@ -524,7 +526,7 @@ export default function Energy() {
                     </span>
 
                     <div className="min-w-0 flex-1">
-                      <div className="mb-1.5 flex items-center justify-between gap-3">
+                      <div className="mb-1 flex items-center justify-between gap-2">
                         <span className="truncate text-sm font-semibold text-slate-700">
                           {device.name || "Thiết bị"}
                         </span>
@@ -532,7 +534,7 @@ export default function Energy() {
                           {device.kwh ?? 0} kWh · {percent}%
                         </span>
                       </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
                         <div
                           className="h-full rounded-full transition-all"
                           style={{
@@ -556,17 +558,17 @@ export default function Energy() {
           {topRooms.length === 0 ? (
             <EmptyState message="Chưa có dữ liệu phòng tiêu thụ." />
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {topRooms.map((room, index) => {
                 const rising = room.trend === "up";
 
                 return (
                   <div
                     key={room.room || index}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 p-3 transition hover:border-blue-200 hover:bg-blue-50/30"
+                    className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 p-2.5 transition hover:border-blue-200 hover:bg-blue-50/30"
                   >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-600">
                         {String(index + 1).padStart(2, "0")}
                       </span>
                       <div className="min-w-0">
@@ -579,12 +581,12 @@ export default function Energy() {
                       </div>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-3">
+                    <div className="flex shrink-0 items-center gap-2">
                       <span className="text-sm font-semibold text-slate-700">
                         {room.kwh ?? 0} kWh
                       </span>
                       <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
                           rising
                             ? "bg-red-50 text-red-600"
                             : "bg-green-50 text-green-700"

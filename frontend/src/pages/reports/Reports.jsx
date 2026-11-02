@@ -2,18 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../../services/api";
 import useSocket from "../../hooks/useSocket";
 import {
-  Bar,
-  BarChart,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
   AlertTriangle,
   Building2,
   CalendarDays,
@@ -107,27 +95,6 @@ function formatDateValue(value, includeTime = false) {
   return includeTime
     ? date.toLocaleString("vi-VN")
     : date.toLocaleDateString("vi-VN");
-}
-
-function CustomTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-lg">
-      {label && (
-        <p className="mb-1 text-xs font-semibold text-slate-700">{label}</p>
-      )}
-      {payload.map((item, index) => (
-        <p
-          key={`${item.dataKey}-${index}`}
-          className="text-xs font-semibold"
-          style={{ color: item.color || "#334155" }}
-        >
-          {item.name}: {item.value}
-        </p>
-      ))}
-    </div>
-  );
 }
 
 function escapeHTML(value) {
@@ -312,24 +279,24 @@ function ReportCard({ report, exporting, loading, onExport }) {
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md">
       <div
-        className="border-b border-slate-100 p-5"
+        className="border-b border-slate-100 p-3"
         style={{
           background: `linear-gradient(135deg, white, ${report.background})`,
         }}
       >
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-center gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-2.5">
             <span
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white"
               style={{ backgroundColor: report.color }}
             >
-              <report.icon size={21} />
+              <report.icon size={19} />
             </span>
             <div className="min-w-0">
               <h2 className="truncate font-semibold text-slate-900">
                 {report.title}
               </h2>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-0.5 text-xs text-slate-500">
                 {report.description}
               </p>
             </div>
@@ -340,7 +307,7 @@ function ReportCard({ report, exporting, loading, onExport }) {
               type="button"
               onClick={() => onExport(report.id, "csv")}
               disabled={loading || Boolean(exporting)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-500 bg-transparent px-3 py-2.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {exporting === `${report.id}-csv` ? (
                 <LoaderCircle size={14} className="animate-spin" />
@@ -354,7 +321,7 @@ function ReportCard({ report, exporting, loading, onExport }) {
               type="button"
               onClick={() => onExport(report.id, "pdf")}
               disabled={loading || Boolean(exporting)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-500 bg-transparent px-3 py-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {exporting === `${report.id}-pdf` ? (
                 <LoaderCircle size={14} className="animate-spin" />
@@ -367,16 +334,18 @@ function ReportCard({ report, exporting, loading, onExport }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4 sm:p-5">
+      <div className="grid grid-cols-2 gap-1.5 p-2.5 sm:grid-cols-4">
         {report.stats.map((stat) => (
           <div
             key={stat.label}
-            className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-center"
+            className="flex min-w-0 items-center justify-center gap-2 rounded-lg border border-slate-100 bg-slate-50/70 px-2 py-2 text-center"
           >
-            <p className="text-2xl font-bold" style={{ color: stat.color }}>
+            <span className="shrink-0 text-lg font-bold leading-6" style={{ color: stat.color }}>
               {loading ? "--" : stat.value}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">{stat.label}</p>
+            </span>
+            <span className="min-w-0 text-xs leading-4 text-slate-500">
+              {stat.label}
+            </span>
           </div>
         ))}
       </div>
@@ -620,24 +589,6 @@ export default function Reports() {
     },
   ];
 
-  const buildingData = [
-    ...new Set(rooms.map((room) => room.building_code).filter(Boolean)),
-  ]
-    .sort()
-    .map((buildingCode) => {
-      const buildingRooms = rooms.filter(
-        (room) => room.building_code === buildingCode,
-      );
-
-      return {
-        name: `Tòa ${buildingCode}`,
-        total: buildingRooms.length,
-        trong: buildingRooms.filter((room) => room.status === "trong").length,
-        dang_hoc: buildingRooms.filter((room) => room.status === "dang_hoc")
-          .length,
-      };
-    });
-
   const devicePieData = [
     {
       name: "Hoạt động",
@@ -845,34 +796,34 @@ export default function Reports() {
     },
   ];
 
-  const deviceTotal = devices.length;
-
   return (
-    <div className="space-y-6 pb-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="space-y-4 pb-4">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-600">
+          <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-blue-600">
             <FileText size={16} />
             <span>Tổng hợp dữ liệu</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-[26px]">
             Báo cáo
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Xem thống kê và xuất dữ liệu hệ thống.
-          </p>
-          {generatedAt && (
-            <p className="mt-1 text-xs text-slate-400">
-              Cập nhật lúc {formatDateValue(generatedAt, true)}
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            <p className="text-sm text-slate-500">
+              Xem thống kê và xuất dữ liệu hệ thống.
             </p>
-          )}
+            {generatedAt && (
+              <p className="text-xs text-slate-400">
+                Cập nhật lúc {formatDateValue(generatedAt, true)}
+              </p>
+            )}
+          </div>
         </div>
 
         <button
           type="button"
           onClick={() => fetchData("refresh")}
           disabled={refreshing}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
           {refreshing ? "Đang cập nhật..." : "Làm mới"}
@@ -895,22 +846,22 @@ export default function Reports() {
         </div>
       )}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div>
+      <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
             <div className="flex items-center gap-2 font-semibold text-slate-900">
-              <CalendarDays size={18} className="text-blue-600" />
+              <CalendarDays size={17} className="text-blue-600" />
               Lọc dữ liệu theo thời gian
             </div>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-0.5 text-xs leading-4 text-slate-500">
               Áp dụng cho sự cố, bảo trì, đặt phòng và lịch học/lịch thi.
               Phòng học và thiết bị luôn hiển thị trạng thái hiện tại.
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:flex xl:items-end">
+          <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:shrink-0 xl:items-end">
             <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+              <span className="mb-1 block text-xs font-semibold text-slate-600">
                 Từ ngày
               </span>
               <input
@@ -918,11 +869,11 @@ export default function Reports() {
                 value={fromDate}
                 max={toDate || undefined}
                 onChange={(event) => setFromDate(event.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 xl:w-44"
+                className="min-h-10 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 xl:w-40"
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+              <span className="mb-1 block text-xs font-semibold text-slate-600">
                 Đến ngày
               </span>
               <input
@@ -930,15 +881,15 @@ export default function Reports() {
                 value={toDate}
                 min={fromDate || undefined}
                 onChange={(event) => setToDate(event.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 xl:w-44"
+                className="min-h-10 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 xl:w-40"
               />
             </label>
-            <div className="flex gap-2 sm:col-span-2 xl:col-span-1">
+            <div className="flex gap-2 sm:col-span-2 xl:col-span-1 xl:shrink-0">
               <button
                 type="button"
                 onClick={applyDateRange}
                 disabled={loading || refreshing}
-                className="flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-h-10 flex-1 whitespace-nowrap rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 xl:min-w-24"
               >
                 Áp dụng
               </button>
@@ -946,7 +897,7 @@ export default function Reports() {
                 type="button"
                 onClick={clearDateRange}
                 disabled={loading || refreshing}
-                className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-h-10 flex-1 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 xl:min-w-24"
               >
                 Xóa lọc
               </button>
@@ -1015,24 +966,24 @@ export default function Reports() {
           return (
             <div
               key={item.label}
-              className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
+              className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-3"
             >
-              <div>
-                <p className="text-sm font-medium text-slate-500">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-slate-500 sm:text-sm">
                   {item.label}
                 </p>
-                <p className="mt-2 text-3xl font-bold text-slate-900">
+                <p className="mt-1 text-xl font-bold text-slate-900">
                   {loading ? "--" : item.value}
                 </p>
               </div>
               <span
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 sm:rounded-xl"
                 style={{
                   color: item.color,
                   backgroundColor: item.background,
                 }}
               >
-                <Icon size={20} />
+                <Icon size={18} className="sm:h-5 sm:w-5" />
               </span>
             </div>
           );
@@ -1059,124 +1010,6 @@ export default function Reports() {
           ))}
         </div>
       </section>
-
-      <div className="grid grid-cols-1 gap-4 2xl:grid-cols-3">
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 2xl:col-span-2">
-          <div className="mb-4">
-            <h2 className="font-semibold text-slate-900">
-              Phòng học theo tòa nhà
-            </h2>
-            <p className="mt-1 text-xs text-slate-500">
-              So sánh tổng số phòng, phòng trống và phòng đang sử dụng.
-            </p>
-          </div>
-
-          {rooms.length === 0 ? (
-            <div className="flex h-64 items-center justify-center text-sm text-slate-400">
-              Chưa có dữ liệu phòng học.
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={270}>
-              <BarChart data={buildingData} barGap={8}>
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 12 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  allowDecimals={false}
-                  tick={{ fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                <Bar
-                  dataKey="total"
-                  name="Tổng phòng"
-                  fill="#cbd5e1"
-                  radius={[5, 5, 0, 0]}
-                />
-                <Bar
-                  dataKey="trong"
-                  name="Đang trống"
-                  fill="#16a34a"
-                  radius={[5, 5, 0, 0]}
-                />
-                <Bar
-                  dataKey="dang_hoc"
-                  name="Đang sử dụng"
-                  fill="#2563eb"
-                  radius={[5, 5, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="mb-3">
-            <h2 className="font-semibold text-slate-900">
-              Trạng thái thiết bị
-            </h2>
-            <p className="mt-1 text-xs text-slate-500">
-              Tổng {deviceTotal} thiết bị
-            </p>
-          </div>
-
-          {deviceTotal === 0 ? (
-            <div className="flex h-56 items-center justify-center text-sm text-slate-400">
-              Chưa có dữ liệu thiết bị.
-            </div>
-          ) : (
-            <>
-              <ResponsiveContainer width="100%" height={190}>
-                <PieChart>
-                  <Pie
-                    data={devicePieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={48}
-                    outerRadius={78}
-                    dataKey="value"
-                    stroke="white"
-                    strokeWidth={3}
-                  >
-                    {devicePieData.map((item) => (
-                      <Cell key={item.name} fill={item.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
-
-              <div className="space-y-2">
-                {devicePieData.map((item) => (
-                  <div
-                    key={item.name}
-                    className="flex items-center justify-between text-xs"
-                  >
-                    <span className="flex items-center gap-2 text-slate-600">
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      {item.name}
-                    </span>
-                    <span
-                      className="font-semibold"
-                      style={{ color: item.color }}
-                    >
-                      {item.value}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </section>
-      </div>
 
       <p className="text-xs text-slate-400">
         PDF được tạo qua hộp thoại in của trình duyệt. Chọn “Lưu dưới dạng PDF”

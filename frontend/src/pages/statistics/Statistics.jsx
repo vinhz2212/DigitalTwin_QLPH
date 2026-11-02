@@ -56,9 +56,9 @@ function CustomTooltip({ active, payload, label }) {
 function Panel({ title, subtitle, children, className = "" }) {
   return (
     <section
-      className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${className}`}
+      className={`rounded-2xl border border-slate-200 bg-white p-3 shadow-sm ${className}`}
     >
-      <div className="mb-4">
+      <div className="mb-2">
         <h2 className="font-semibold text-slate-900">{title}</h2>
         {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
       </div>
@@ -69,7 +69,7 @@ function Panel({ title, subtitle, children, className = "" }) {
 
 function EmptyChart({ children = "Chưa có dữ liệu" }) {
   return (
-    <div className="flex h-52 items-center justify-center rounded-xl bg-slate-50 text-sm text-slate-400">
+    <div className="flex h-44 items-center justify-center rounded-xl bg-slate-50 text-sm text-slate-400">
       {children}
     </div>
   );
@@ -77,29 +77,27 @@ function EmptyChart({ children = "Chưa có dữ liệu" }) {
 
 function KpiCard({ label, value, description, icon: Icon, color, background }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-slate-500">{label}</p>
-          <p className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
-            {value}
-          </p>
-          <p className="mt-1 text-xs text-slate-500">{description}</p>
+    <article className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-slate-500 sm:text-sm">{label}</p>
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
+          <span className="text-xl font-bold text-slate-900">{value}</span>
+          <span className="text-xs text-slate-500">{description}</span>
         </div>
-        <span
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-          style={{ color, backgroundColor: background }}
-        >
-          <Icon size={20} />
-        </span>
       </div>
+      <span
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+        style={{ color, backgroundColor: background }}
+      >
+        <Icon size={20} />
+      </span>
     </article>
   );
 }
 
 function PieLegend({ data }) {
   return (
-    <div className="mt-3 space-y-2">
+    <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5">
       {data.map((item) => (
         <div
           key={item.name}
@@ -273,7 +271,7 @@ export default function Statistics() {
 
   if (loading) {
     return (
-      <div className="flex min-h-72 flex-col items-center justify-center gap-3 text-slate-500">
+      <div className="flex min-h-44 flex-col items-center justify-center gap-3 text-slate-500">
         <LoaderCircle size={30} className="animate-spin text-blue-600" />
         <p className="text-sm">Đang tải dữ liệu thống kê...</p>
       </div>
@@ -281,14 +279,14 @@ export default function Statistics() {
   }
 
   return (
-    <div className="space-y-6 pb-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="space-y-4 pb-4">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-600">
+          <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-blue-600">
             <Activity size={16} />
             <span>Tổng quan dữ liệu</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-[26px]">
             Thống kê &amp; Phân tích
           </h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -300,7 +298,7 @@ export default function Statistics() {
           type="button"
           onClick={() => fetchAll(true)}
           disabled={refreshing}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
           {refreshing ? "Đang cập nhật..." : "Làm mới dữ liệu"}
@@ -323,7 +321,7 @@ export default function Statistics() {
         </div>
       )}
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((item) => (
           <KpiCard key={item.label} {...item} />
         ))}
@@ -338,7 +336,7 @@ export default function Statistics() {
           {buildingData.length === 0 ? (
             <EmptyChart>Chưa có dữ liệu phòng theo tòa nhà</EmptyChart>
           ) : (
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={230}>
               <BarChart data={buildingData} barGap={6}>
                 <XAxis
                   dataKey="name"
@@ -386,14 +384,14 @@ export default function Statistics() {
           ) : (
             <>
               <div className="relative">
-                <ResponsiveContainer width="100%" height={210}>
+                <ResponsiveContainer width="100%" height={180}>
                   <PieChart>
                     <Pie
                       data={roomPieData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={58}
-                      outerRadius={86}
+                      innerRadius={48}
+                      outerRadius={72}
                       paddingAngle={3}
                       dataKey="value"
                       stroke="white"
@@ -428,7 +426,7 @@ export default function Statistics() {
           {incidentWeekly.length === 0 ? (
             <EmptyChart>Không có sự cố trong 7 ngày qua</EmptyChart>
           ) : (
-            <ResponsiveContainer width="100%" height={270}>
+            <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={incidentWeekly}>
                 <XAxis
                   dataKey="date"
@@ -494,14 +492,14 @@ export default function Statistics() {
           ) : (
             <>
               <div className="relative">
-                <ResponsiveContainer width="100%" height={210}>
+                <ResponsiveContainer width="100%" height={180}>
                   <PieChart>
                     <Pie
                       data={devicePieData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={58}
-                      outerRadius={86}
+                      innerRadius={48}
+                      outerRadius={72}
                       paddingAngle={3}
                       dataKey="value"
                       stroke="white"
@@ -532,7 +530,7 @@ export default function Statistics() {
           {maintenanceMonthly.length === 0 ? (
             <EmptyChart>Chưa có dữ liệu bảo trì</EmptyChart>
           ) : (
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={210}>
               <LineChart data={maintenanceMonthly}>
                 <XAxis
                   dataKey="month"
@@ -573,7 +571,7 @@ export default function Statistics() {
           {topRooms.length === 0 ? (
             <EmptyChart>Chưa có dữ liệu đặt phòng</EmptyChart>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {topRooms.map((room, index) => {
                 const count = numberValue(room.booking_count);
                 const maxCount = Math.max(
@@ -620,7 +618,7 @@ export default function Statistics() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
               <Wrench size={19} />
@@ -642,7 +640,7 @@ export default function Statistics() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50 text-green-700">
               <CalendarDays size={19} />

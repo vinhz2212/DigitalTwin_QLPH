@@ -190,13 +190,13 @@ function StatusBadge({ status, options }) {
 
 function StatCard({ label, value, icon: Icon, color, background }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
       <div>
         <p className="text-xs font-medium text-slate-500 sm:text-sm">{label}</p>
-        <p className="mt-2 text-2xl font-bold text-slate-900">{value ?? 0}</p>
+        <p className="mt-1 text-xl font-bold text-slate-900">{value ?? 0}</p>
       </div>
       <span
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
         style={{ color, backgroundColor: background }}
       >
         <Icon size={20} />
@@ -207,7 +207,7 @@ function StatCard({ label, value, icon: Icon, color, background }) {
 
 function EmptyState({ icon: Icon, title, description }) {
   return (
-    <div className="flex min-h-64 flex-col items-center justify-center px-5 text-center">
+    <div className="flex min-h-44 flex-col items-center justify-center px-5 text-center">
       <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
         <Icon size={26} />
       </span>
@@ -505,14 +505,14 @@ export default function Incidents() {
         ];
 
   return (
-    <div className="space-y-6 pb-6">
+    <div className="space-y-4 pb-4">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-600">
+          <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-blue-600">
             <ShieldAlert size={16} />
             <span>Vận hành hệ thống</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-[26px]">
             Sự cố &amp; Bảo trì
           </h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -523,7 +523,7 @@ export default function Incidents() {
         <button
           type="button"
           onClick={openModal}
-          className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-lg transition focus:outline-none focus:ring-4 ${
+          className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition focus:outline-none focus:ring-4 ${
             tab === "incidents"
               ? "bg-red-600 shadow-red-600/20 hover:bg-red-700 focus:ring-red-100"
               : "bg-amber-500 shadow-amber-500/20 hover:bg-amber-600 focus:ring-amber-100"

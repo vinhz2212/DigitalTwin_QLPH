@@ -249,14 +249,14 @@ export default function Notifications() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
+      <div className="flex h-44 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="flex items-center gap-3 text-2xl font-black text-slate-800">
@@ -320,7 +320,7 @@ export default function Notifications() {
         {stats.map((stat) => (
           <div
             key={stat.label}
-            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md"
+            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md"
           >
             <div
               className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xl"
@@ -330,7 +330,7 @@ export default function Notifications() {
             </div>
             <div>
               <p className="text-xs font-medium text-slate-400">{stat.label}</p>
-              <p className="text-2xl font-black" style={{ color: stat.color }}>
+              <p className="text-xl font-black" style={{ color: stat.color }}>
                 {stat.value}
               </p>
             </div>
@@ -338,7 +338,7 @@ export default function Notifications() {
         ))}
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <div className="mr-1 flex items-center gap-1.5 text-xs font-bold text-slate-400">
             <Filter size={13} />
@@ -424,8 +424,8 @@ export default function Notifications() {
 
       <div className="space-y-3">
         {filtered.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-            <Bell size={56} className="mx-auto mb-4 text-slate-200" />
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <Bell size={40} className="mx-auto mb-3 text-slate-200" />
             <p className="text-base font-bold text-slate-500">
               {notifications.length === 0
                 ? "Chưa có thông báo"

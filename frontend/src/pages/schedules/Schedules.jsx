@@ -436,15 +436,15 @@ export default function Schedules() {
   };
 
   return (
-    <div className="space-y-6 pb-6">
-      <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+    <div className="space-y-4 pb-4">
+      <header className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-600">
+          <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-blue-600">
             <CalendarDays size={16} />
             <span>Thời khóa biểu</span>
           </div>
 
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-[26px]">
             Lịch học, lịch thi theo tuần
           </h1>
 
@@ -457,7 +457,7 @@ export default function Schedules() {
           <button
             type="button"
             onClick={() => openModal()}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
           >
             <Plus size={18} />
             Thêm buổi học
@@ -465,7 +465,7 @@ export default function Schedules() {
         )}
       </header>
 
-      <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:flex-row xl:items-center xl:justify-between">
+      <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           {[
             { value: "all", label: "Tất cả" },
@@ -476,7 +476,7 @@ export default function Schedules() {
               key={filter.value}
               type="button"
               onClick={() => setTypeFilter(filter.value)}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+              className={`min-h-10 rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
                 typeFilter === filter.value
                   ? "bg-blue-600 text-white shadow-sm"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -488,7 +488,7 @@ export default function Schedules() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-600">
+          <label className="flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 py-1.5 text-sm text-slate-600">
             <CalendarDays size={16} className="text-blue-600" />
             <span className="hidden sm:inline">Chọn ngày</span>
             <input
@@ -503,7 +503,7 @@ export default function Schedules() {
           <button
             type="button"
             onClick={goToCurrentWeek}
-            className="rounded-xl bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+            className="min-h-10 rounded-xl bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
           >
             Hiện tại
           </button>
@@ -511,7 +511,7 @@ export default function Schedules() {
           <button
             type="button"
             onClick={handlePrint}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
           >
             <Printer size={16} />
             In lịch
@@ -520,7 +520,7 @@ export default function Schedules() {
           <button
             type="button"
             onClick={goToPreviousWeek}
-            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+            className="inline-flex min-h-10 items-center gap-1 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
             aria-label="Tuần trước"
           >
             <ChevronLeft size={17} />
@@ -530,7 +530,7 @@ export default function Schedules() {
           <button
             type="button"
             onClick={goToNextWeek}
-            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+            className="inline-flex min-h-10 items-center gap-1 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
             aria-label="Tuần sau"
           >
             <span className="hidden sm:inline">Tiếp</span>
@@ -539,42 +539,42 @@ export default function Schedules() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Tuần đang xem
-          </p>
-          <p className="mt-1 font-semibold text-slate-800">{weekLabel}</p>
+      <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Tuần đang xem
+            </p>
+            <p className="font-semibold text-slate-800">{weekLabel}</p>
+          </div>
+
+          <div className="flex self-start rounded-xl border border-slate-200 bg-white p-1 sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setViewMode("week")}
+              className={`min-h-10 rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                viewMode === "week"
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              Thời khóa biểu
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={`min-h-10 rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                viewMode === "list"
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              Danh sách
+            </button>
+          </div>
         </div>
 
-        <div className="flex rounded-xl border border-slate-200 bg-white p-1">
-          <button
-            type="button"
-            onClick={() => setViewMode("week")}
-            className={`rounded-lg px-3 py-2 text-sm font-semibold ${
-              viewMode === "week"
-                ? "bg-blue-50 text-blue-700"
-                : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            Thời khóa biểu
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("list")}
-            className={`rounded-lg px-3 py-2 text-sm font-semibold ${
-              viewMode === "list"
-                ? "bg-blue-50 text-blue-700"
-                : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            Danh sách
-          </button>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-3 pt-3 sm:flex-row sm:items-center">
           <label className="relative block flex-1">
             <Search
               size={18}
@@ -585,7 +585,7 @@ export default function Schedules() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Tìm môn học, giảng viên, phòng, ngày..."
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
             />
           </label>
 
@@ -604,7 +604,7 @@ export default function Schedules() {
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
+      <section className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
         {statCards.map(({ date, day, count }) => {
           const active = selectedDay === day;
 
@@ -613,7 +613,7 @@ export default function Schedules() {
               key={date}
               type="button"
               onClick={() => setSelectedDay(active ? "" : day)}
-              className={`rounded-2xl border bg-white p-3 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              className={`rounded-2xl border bg-white p-2.5 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
                 active
                   ? "border-blue-300 ring-2 ring-blue-100"
                   : "border-slate-200"
@@ -622,11 +622,11 @@ export default function Schedules() {
               <p className="text-xs font-bold text-slate-700">
                 {DAY_LABELS[day]}
               </p>
-              <p className="mt-1 text-xs font-medium text-slate-500">
+              <p className="text-xs font-medium text-slate-500">
                 {formatDate(date)}
               </p>
               <p
-                className={`mt-2 text-2xl font-bold ${
+                className={`mt-1 text-xl font-bold ${
                   count ? "text-blue-600" : "text-slate-300"
                 }`}
               >
@@ -639,7 +639,7 @@ export default function Schedules() {
       </section>
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-1 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-1 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-semibold text-slate-900">
               {viewMode === "week" ? "Lịch trong tuần" : "Danh sách lịch"}
@@ -664,12 +664,12 @@ export default function Schedules() {
         </div>
 
         {loading ? (
-          <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-slate-500">
+          <div className="flex min-h-40 flex-col items-center justify-center gap-3 text-slate-500">
             <LoaderCircle size={28} className="animate-spin text-blue-600" />
             <p className="text-sm">Đang tải lịch...</p>
           </div>
         ) : loadError ? (
-          <div className="flex min-h-64 flex-col items-center justify-center px-5 text-center">
+          <div className="flex min-h-40 flex-col items-center justify-center px-5 text-center">
             <p className="font-semibold text-slate-800">{loadError}</p>
             <button
               type="button"
@@ -681,7 +681,7 @@ export default function Schedules() {
           </div>
         ) : viewMode === "week" ? (
           <div className="overflow-x-auto">
-            <div className="min-w-[1050px]">
+            <div className="min-w-[980px]">
               <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50">
                 {weekDates.map((date, index) => {
                   const day = DAYS[index];
@@ -690,7 +690,7 @@ export default function Schedules() {
                   return (
                     <div
                       key={date}
-                      className="border-r border-slate-100 px-3 py-4 text-center last:border-r-0"
+                      className="border-r border-slate-100 px-3 py-3 text-center last:border-r-0"
                     >
                       <p className="text-xs font-bold uppercase tracking-wide text-slate-700">
                         {DAY_LABELS[day]}
@@ -706,7 +706,7 @@ export default function Schedules() {
                 })}
               </div>
 
-              <div className="grid min-h-72 grid-cols-7">
+              <div className="grid min-h-44 grid-cols-7">
                 {weekDates.map((date) => {
                   const daySchedules = schedulesByDate[date] || [];
 
@@ -716,7 +716,7 @@ export default function Schedules() {
                       className="space-y-2 border-r border-slate-100 p-2 last:border-r-0"
                     >
                       {daySchedules.length === 0 ? (
-                        <p className="py-6 text-center text-xs text-slate-300">
+                        <p className="py-4 text-center text-xs text-slate-300">
                           Chưa có lịch
                         </p>
                       ) : (

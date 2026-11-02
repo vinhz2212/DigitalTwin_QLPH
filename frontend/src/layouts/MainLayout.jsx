@@ -583,11 +583,11 @@ export default function MainLayout() {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
+        <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
           {navGroups.map((group, groupIndex) => (
-            <div key={groupIndex} className="mb-2">
+            <div key={groupIndex} className="mb-1">
               {group.group && (
-                <p className={`px-3 pb-2 pt-4 text-xs font-semibold uppercase tracking-widest text-slate-500 ${collapsed ? "lg:hidden" : ""}`}>
+                <p className={`px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-widest text-slate-500 ${collapsed ? "lg:hidden" : ""}`}>
                   {group.group}
                 </p>
               )}
@@ -598,7 +598,7 @@ export default function MainLayout() {
                   to={to}
                   onClick={() => setMobileMenuPath(null)}
                   className={({ isActive }) =>
-                    `relative mb-0.5 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300 ${
+                    `relative flex min-h-10 items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all lg:min-h-9 lg:py-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300 ${
                       isActive
                         ? "bg-gradient-to-r from-blue-600 to-sky-500 text-white shadow-lg shadow-blue-950/40"
                         : "text-slate-300 hover:bg-white/10 hover:text-white"
@@ -759,7 +759,7 @@ export default function MainLayout() {
           </div>
         </header>
 
-        <main className="min-w-0 flex-1 overflow-auto bg-[#f4f7fb] p-3 sm:p-4 md:p-6">
+        <main className="min-w-0 flex-1 overflow-auto bg-[#f4f7fb] p-3 sm:p-4 lg:p-5">
           <Outlet />
         </main>
       </div>

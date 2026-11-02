@@ -404,12 +404,12 @@ export default function Settings() {
   ];
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="space-y-4 pb-4">
       <header>
         <p className="mb-1 text-sm font-semibold text-blue-600">
           Tài khoản của bạn
         </p>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-[26px]">
           Cài đặt
         </h1>
         <p className="mt-1 text-sm text-slate-500">
@@ -419,7 +419,7 @@ export default function Settings() {
 
       <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
         <aside className="min-w-0 space-y-3">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-2xl font-bold text-white shadow-sm">
               {(profile.full_name || user?.username || "U")
                 .charAt(0)
@@ -472,7 +472,7 @@ export default function Settings() {
         </aside>
 
         <main className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6">
+          <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/70 px-4 py-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
               <ActiveTabIcon size={19} />
             </span>
@@ -492,9 +492,9 @@ export default function Settings() {
             </div>
           </div>
 
-          <div className="p-4 sm:p-6">
+          <div className="p-4">
             {activeTab === "profile" && (
-              <form onSubmit={handleSaveProfile} className="space-y-5">
+              <form onSubmit={handleSaveProfile} className="space-y-4">
                 {(profileError || profileSuccess) && (
                   <div
                     role={profileError ? "alert" : "status"}
@@ -635,7 +635,7 @@ export default function Settings() {
             )}
 
             {activeTab === "appearance" && (
-              <div className="space-y-5">
+              <div className="space-y-4">
                 {preferencesError && (
                   <div
                     role="alert"
@@ -723,7 +723,7 @@ export default function Settings() {
             {activeTab === "security" && (
               <form
                 onSubmit={handleChangePassword}
-                className="max-w-xl space-y-5"
+                className="max-w-xl space-y-4"
               >
                 <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
                   <div className="flex items-start gap-3">

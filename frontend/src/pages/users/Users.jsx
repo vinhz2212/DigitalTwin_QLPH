@@ -343,14 +343,14 @@ export default function Users() {
   ];
 
   return (
-    <div className="space-y-6 pb-6">
+    <div className="space-y-4 pb-4">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-600">
+          <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-blue-600">
             <UsersRound size={16} />
             <span>Quản trị hệ thống</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-[26px]">
             Quản lý người dùng
           </h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -361,7 +361,7 @@ export default function Users() {
         <button
           type="button"
           onClick={() => openUserModal()}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
         >
           <Plus size={18} />
           Thêm người dùng
@@ -375,13 +375,13 @@ export default function Users() {
           return (
             <div
               key={item.label}
-              className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+              className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
             >
               <div>
                 <p className="text-xs font-medium text-slate-500 sm:text-sm">
                   {item.label}
                 </p>
-                <p className="mt-2 text-2xl font-bold text-slate-900">
+                <p className="mt-1 text-xl font-bold text-slate-900">
                   {item.value}
                 </p>
               </div>
@@ -454,12 +454,12 @@ export default function Users() {
         </div>
 
         {loading ? (
-          <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-slate-500">
+          <div className="flex min-h-44 flex-col items-center justify-center gap-3 text-slate-500">
             <LoaderCircle size={28} className="animate-spin text-blue-600" />
             <p className="text-sm">Đang tải người dùng...</p>
           </div>
         ) : loadError ? (
-          <div className="flex min-h-64 flex-col items-center justify-center px-5 text-center">
+          <div className="flex min-h-44 flex-col items-center justify-center px-5 text-center">
             <p className="font-semibold text-slate-800">{loadError}</p>
             <button
               type="button"
@@ -470,7 +470,7 @@ export default function Users() {
             </button>
           </div>
         ) : filteredUsers.length === 0 ? (
-          <div className="flex min-h-64 flex-col items-center justify-center px-5 text-center">
+          <div className="flex min-h-44 flex-col items-center justify-center px-5 text-center">
             <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
               <UsersRound size={26} />
             </span>

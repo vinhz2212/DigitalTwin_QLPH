@@ -275,15 +275,15 @@ export default function Bookings() {
   ];
 
   return (
-    <div className="space-y-6 pb-6">
+    <div className="space-y-4 pb-4">
       {/* Tiêu đề */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-600">
+          <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-blue-600">
             <CalendarDays size={16} />
             <span>Quản lý phòng học</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-[26px]">
             Lịch sử đặt phòng
           </h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -297,7 +297,7 @@ export default function Bookings() {
             setFormError("");
             setShowModal(true);
           }}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
         >
           <Plus size={18} />
           Đặt phòng mới
@@ -315,7 +315,7 @@ export default function Bookings() {
               key={item.label}
               type="button"
               onClick={() => setFilterStatus(item.filter)}
-              className={`rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              className={`rounded-2xl border bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
                 selected
                   ? "border-blue-300 ring-2 ring-blue-100"
                   : "border-slate-200"
@@ -326,12 +326,12 @@ export default function Bookings() {
                   <p className="text-xs font-medium text-slate-500 sm:text-sm">
                     {item.label}
                   </p>
-                  <p className="mt-2 text-2xl font-bold text-slate-900">
+                  <p className="mt-1 text-xl font-bold text-slate-900">
                     {item.value}
                   </p>
                 </div>
                 <span
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
                   style={{
                     color: item.color,
                     backgroundColor: item.background,
@@ -346,7 +346,7 @@ export default function Bookings() {
       </section>
 
       {/* Bộ lọc */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <label className="relative block flex-1">
             <Search
@@ -403,12 +403,12 @@ export default function Bookings() {
         </div>
 
         {loading ? (
-          <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-slate-500">
+          <div className="flex min-h-44 flex-col items-center justify-center gap-3 text-slate-500">
             <LoaderCircle size={28} className="animate-spin text-blue-600" />
             <p className="text-sm">Đang tải danh sách...</p>
           </div>
         ) : loadError ? (
-          <div className="flex min-h-64 flex-col items-center justify-center px-5 text-center">
+          <div className="flex min-h-44 flex-col items-center justify-center px-5 text-center">
             <p className="font-semibold text-slate-800">{loadError}</p>
             <button
               type="button"
@@ -419,7 +419,7 @@ export default function Bookings() {
             </button>
           </div>
         ) : filteredBookings.length === 0 ? (
-          <div className="flex min-h-64 flex-col items-center justify-center px-5 text-center">
+          <div className="flex min-h-44 flex-col items-center justify-center px-5 text-center">
             <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
               <CalendarDays size={26} />
             </span>
