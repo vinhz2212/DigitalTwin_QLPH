@@ -106,21 +106,23 @@ const RoomModel = {
 
   // Tạo phòng mới
   create: async (data) => {
-    const { floor_id, code, name, capacity, type, description } = data;
+    const { floor_id, code, name, capacity, type, description, status = "trong" } = data;
+    const powerStatus = status === "ngat_dien" ? "ngat_dien" : "co_dien";
+    const roomStatus = status === "ngat_dien" ? "su_co" : status;
     const [result] = await db.query(
       `
-      INSERT INTO Rooms (floor_id, code, name, capacity, type, description)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO Rooms (floor_id, code, name, capacity, type, description, status, power_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `,
-      [floor_id, code, name, capacity, type, description],
+      [floor_id, code, name, capacity, type, description, roomStatus, powerStatus],
     );
     return result.insertId;
   },
 
   // Cập nhật phòng
-  update: async (id, data) => {
+  update: async (id, data, executor = db) => {
     const { code, name, capacity, type, status, description } = data;
-    await db.query(
+    await executor.query(
       `
       UPDATE Rooms SET code=?, name=?, capacity=?, type=?, status=?, description=?
       WHERE id=?
@@ -130,8 +132,8 @@ const RoomModel = {
   },
 
   // Cập nhật trạng thái
-  updateStatus: async (id, status) => {
-    await db.query("UPDATE Rooms SET status=? WHERE id=?", [status, id]);
+  updateStatus: async (id, status, executor = db) => {
+    await executor.query("UPDATE Rooms SET status=? WHERE id=?", [status, id]);
   },
 
   // Xóa phòng

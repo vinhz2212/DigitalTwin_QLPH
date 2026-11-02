@@ -16,6 +16,7 @@ import {
   X,
   AlertTriangle,
   BookOpen,
+  ZapOff,
 } from "lucide-react";
 
 import api from "../../services/api";
@@ -47,7 +48,16 @@ const STATUS_MAP = {
     bg: "#fff0ef",
     dot: "#e45d58",
   },
+  ngat_dien: {
+    label: "Ngắt điện",
+    color: "#92400e",
+    bg: "#fef3c7",
+    dot: "#f59e0b",
+  },
 };
+
+const roomDisplayStatus = (room) =>
+  room.power_status === "ngat_dien" ? "ngat_dien" : room.status;
 
 const TYPE_MAP = {
   ly_thuyet: { label: "Lý thuyết", icon: BookOpen },
@@ -121,8 +131,8 @@ function PowerBadge({ powerStatus }) {
   if (powerStatus !== "ngat_dien") return null;
 
   return (
-    <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800">
-      Nguồn điện: Đã ngắt trên hệ thống
+    <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-800">
+      Ngắt điện
     </span>
   );
 }
@@ -218,7 +228,7 @@ export default function Rooms() {
         name: room.name || "",
         capacity: room.capacity ?? 40,
         type: room.type || "ly_thuyet",
-        status: room.status || "trong",
+        status: roomDisplayStatus(room) || "trong",
         description: room.description || "",
       });
 
@@ -326,7 +336,11 @@ export default function Rooms() {
       const matchesBuilding =
         !filterBuilding || room.building_code === filterBuilding;
 
-      const matchesStatus = !filterStatus || room.status === filterStatus;
+      const matchesStatus =
+        !filterStatus ||
+        (filterStatus === "ngat_dien"
+          ? room.power_status === "ngat_dien"
+          : room.status === filterStatus);
 
       const matchesType = !filterType || room.type === filterType;
 
@@ -340,6 +354,7 @@ export default function Rooms() {
     dang_hoc: rooms.filter((room) => room.status === "dang_hoc").length,
     bao_tri: rooms.filter((room) => room.status === "bao_tri").length,
     su_co: rooms.filter((room) => room.status === "su_co").length,
+    ngat_dien: rooms.filter((room) => room.power_status === "ngat_dien").length,
   };
 
   const clearFilters = () => {
@@ -388,7 +403,7 @@ export default function Rooms() {
       </header>
 
       {/* Thẻ thống kê */}
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <StatCard
           label="Tổng số phòng"
           value={stats.total}
@@ -444,6 +459,17 @@ export default function Rooms() {
           active={filterStatus === "su_co"}
           onClick={() =>
             setFilterStatus(filterStatus === "su_co" ? "" : "su_co")
+          }
+        />
+        <StatCard
+          label="Ngắt điện"
+          value={stats.ngat_dien}
+          color="#92400e"
+          bg="#fef3c7"
+          icon={ZapOff}
+          active={filterStatus === "ngat_dien"}
+          onClick={() =>
+            setFilterStatus(filterStatus === "ngat_dien" ? "" : "ngat_dien")
           }
         />
       </section>
@@ -697,7 +723,7 @@ export default function Rooms() {
                         <div className="flex flex-col items-start gap-1.5">
                           {canChangeRoomStatus ? (
                             <select
-                              value={room.status}
+                              value={roomDisplayStatus(room)}
                               onChange={(event) =>
                                 handleStatusChange(room.id, event.target.value)
                               }
@@ -705,9 +731,9 @@ export default function Rooms() {
                               className="cursor-pointer appearance-none rounded-full border-0 py-1.5 pl-3 pr-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-200"
                               style={{
                                 color:
-                                  STATUS_MAP[room.status]?.color || "#64748b",
+                                  STATUS_MAP[roomDisplayStatus(room)]?.color || "#64748b",
                                 background:
-                                  STATUS_MAP[room.status]?.bg || "#f1f5f9",
+                                  STATUS_MAP[roomDisplayStatus(room)]?.bg || "#f1f5f9",
                               }}
                             >
                               {Object.entries(STATUS_MAP).map(([key, status]) => (
@@ -719,7 +745,10 @@ export default function Rooms() {
                           ) : (
                             <StatusBadge status={room.status} />
                           )}
-                          <PowerBadge powerStatus={room.power_status} />
+                          {canChangeRoomStatus && room.power_status === "ngat_dien" && (
+                            <StatusBadge status={room.status} />
+                          )}
+                          {!canChangeRoomStatus && <PowerBadge powerStatus={room.power_status} />}
                         </div>
                       </td>
 
@@ -757,7 +786,7 @@ export default function Rooms() {
           {filteredRooms.map((room) => {
             const type = TYPE_MAP[room.type];
             const TypeIcon = type?.icon || DoorOpen;
-            const status = STATUS_MAP[room.status];
+            const status = STATUS_MAP[roomDisplayStatus(room)];
 
             return (
               <article
@@ -1013,10 +1042,10 @@ export default function Rooms() {
 
               <fieldset>
                 <legend className="mb-2 text-sm font-semibold text-slate-700">
-                  Trạng thái ban đầu
+                  {editRoom ? "Trạng thái phòng" : "Trạng thái ban đầu"}
                 </legend>
 
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                   {Object.entries(STATUS_MAP).map(([key, status]) => {
                     const active = form.status === key;
 
