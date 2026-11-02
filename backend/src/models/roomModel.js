@@ -77,7 +77,8 @@ const RoomModel = {
           COALESCE(SUM(r.status = 'trong'), 0) AS trong,
           COALESCE(SUM(r.status = 'dang_hoc'), 0) AS dang_hoc,
           COALESCE(SUM(r.status = 'bao_tri'), 0) AS bao_tri,
-          COALESCE(SUM(r.status = 'su_co'), 0) AS su_co
+          COALESCE(SUM(r.status = 'su_co'), 0) AS su_co,
+          COALESCE(SUM(r.power_status = 'ngat_dien'), 0) AS ngat_dien
         FROM Rooms r
         JOIN Floors f ON r.floor_id = f.id
         JOIN Buildings b ON f.building_id = b.id
@@ -92,6 +93,7 @@ const RoomModel = {
       dang_hoc: Number(stats.dang_hoc) || 0,
       bao_tri: Number(stats.bao_tri) || 0,
       su_co: Number(stats.su_co) || 0,
+      ngat_dien: Number(stats.ngat_dien) || 0,
     };
 
     // Giữ các tên cũ để những nơi đang dùng API /rooms/stats không bị lỗi.

@@ -9,6 +9,7 @@ const MODELS = [
   "gemini-3.6-flash",
   "gemini-3.1-flash-lite",
 ];
+const QUICK_MODELS = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
 
 const SYSTEM_INSTRUCTION = `Bạn là AI Assistant của hệ thống Smart Campus Digital Twin.
 Bạn hỗ trợ quản lý phòng học, thiết bị và sự cố tại trường đại học.
@@ -144,7 +145,10 @@ function extractCandidate(response) {
   return { text, finishReason: candidate.finishReason };
 }
 
-const generateContent = async (prompt, { history = [], context = "" } = {}) => {
+const generateContent = async (
+  prompt,
+  { history = [], context = "", mode = "default" } = {},
+) => {
   if (!GEMINI_API_KEY) {
     throw createGeminiError(
       "GEMINI_KEY_MISSING",
@@ -176,19 +180,24 @@ const generateContent = async (prompt, { history = [], context = "" } = {}) => {
 
   let lastUnavailableModelError;
   let lastTransientError;
+  let lastIncompleteError;
 
-  const models =
-    Date.now() < primaryModelOverloadedUntil ? MODELS.slice(1) : MODELS;
+  const quick = mode === "quick";
+  const models = quick
+    ? QUICK_MODELS
+    : Date.now() < primaryModelOverloadedUntil
+      ? MODELS.slice(1)
+      : MODELS;
 
   for (const modelName of models) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
 
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+    for (let attempt = 0; attempt <= (quick ? 0 : MAX_RETRIES); attempt += 1) {
       try {
         let continuationContents = contents;
         let completeText = "";
 
-        for (let continuation = 0; continuation < 3; continuation += 1) {
+        for (let continuation = 0; continuation < (quick ? 1 : 3); continuation += 1) {
           const response = await axios.post(
             url,
             {
@@ -200,11 +209,11 @@ const generateContent = async (prompt, { history = [], context = "" } = {}) => {
                     ? "minimal"
                     : "low",
                 },
-                maxOutputTokens: 2400,
+                maxOutputTokens: quick ? 700 : 2400,
               },
             },
             {
-              timeout: REQUEST_TIMEOUT_MS,
+              timeout: quick ? 8000 : REQUEST_TIMEOUT_MS,
               headers: {
                 "Content-Type": "application/json",
                 "x-goog-api-key": GEMINI_API_KEY,
@@ -233,8 +242,20 @@ const generateContent = async (prompt, { history = [], context = "" } = {}) => {
           ];
         }
 
+        if (quick) {
+          throw createGeminiError(
+            "GEMINI_INCOMPLETE_RESPONSE",
+            "Gemini stopped before completing the short response.",
+            503,
+            "AI chưa hoàn thành câu trả lời ngắn. Vui lòng thử lại.",
+          );
+        }
         return completeText.trim();
       } catch (error) {
+        if (error.code === "GEMINI_INCOMPLETE_RESPONSE") {
+          lastIncompleteError = error;
+          break;
+        }
         if (error.code?.startsWith("GEMINI_")) {
           throw error;
         }
@@ -270,12 +291,12 @@ const generateContent = async (prompt, { history = [], context = "" } = {}) => {
         }
 
         // Với lỗi tạm thời khác, chỉ retry một lần để tránh chờ quá lâu.
-        if (isRetryable(error) && attempt < MAX_RETRIES) {
+        if (isRetryable(error) && attempt < (quick ? 0 : MAX_RETRIES)) {
           await wait(getRetryDelay(error, attempt));
           continue;
         }
 
-        if ([502, 503, 504].includes(status)) {
+        if ((quick && isRetryable(error)) || [502, 503, 504].includes(status)) {
           lastTransientError = error;
           break;
         }
@@ -290,6 +311,8 @@ const generateContent = async (prompt, { history = [], context = "" } = {}) => {
   if (lastTransientError) {
     throw normalizeGeminiError(lastTransientError);
   }
+
+  if (lastIncompleteError) throw lastIncompleteError;
 
   if (lastUnavailableModelError) {
     throw createGeminiError(

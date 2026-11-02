@@ -8,6 +8,12 @@ const {
 const {
   getAutomaticIncidentAlerts,
 } = require("../services/automaticIncidentAlertService");
+const {
+  inferIncidentType,
+  buildIncidentGuidance,
+  buildMaintenanceGuidance,
+  buildMaintenanceFallback,
+} = require("../services/aiQuickGuidanceService");
 
 const MAX_HISTORY_MESSAGES = 12;
 const MAX_MESSAGE_LENGTH = 4000;
@@ -352,27 +358,20 @@ async function getMaintenancePlanAnswer() {
   const openCount = Number(openStats?.total) || 0;
   const brokenCount = Number(brokenStats?.total) || 0;
   const ticketDetails = openTickets.length
-    ? `\nPhiếu cần xử lý trước: ${openTickets
+    ? `\nPhiếu ưu tiên: ${openTickets.slice(0, 3)
         .map((item) =>
           `${item.device_name} ở phòng ${item.room_code} (${item.status === "dang_sua" ? "đang sửa" : "chờ xử lý"})`,
         )
-        .join("; ")}${openCount > openTickets.length ? `; còn ${openCount - openTickets.length} phiếu khác` : ""}.`
+        .join("; ")}${openCount > 3 ? `; còn ${openCount - 3} phiếu khác` : ""}.`
     : "";
   const unreportedDetails = brokenWithoutTicket.length
-    ? `\nThiết bị hỏng chưa có phiếu đang mở cần kiểm tra: ${brokenWithoutTicket
+    ? `\nThiết bị hỏng chưa có phiếu: ${brokenWithoutTicket.slice(0, 3)
         .map((item) => `${item.device_name} ở phòng ${item.room_code}`)
         .join("; ")}.`
     : "";
 
-  return `Đề xuất bảo trì dựa trên dữ liệu hiện tại: ${openCount} phiếu bảo trì đang mở, ${brokenCount} thiết bị ghi nhận hỏng.${ticketDetails}${unreportedDetails}
-
-Các bước triển khai:
-1. Rà soát phiếu đang mở và kiểm tra thực tế các thiết bị ghi nhận hỏng. Thiết bị đang tắt không được xem là hỏng.
-2. Ưu tiên xử lý thiết bị hỏng và phiếu chờ xử lý; xác nhận vật tư, người phụ trách và thời lượng thực tế.
-3. Đối chiếu lịch học và thời gian phòng trống trước khi chọn ngày, giờ bảo trì.
-4. Trình người quản lý phê duyệt, sau đó tạo hoặc cập nhật phiếu và phân công kỹ thuật viên.
-
-Hệ thống chưa lưu lịch bảo trì đã lên kế hoạch. Đây là quy trình đề xuất, chưa phải lịch đã đặt hoặc được phê duyệt.`;
+  return `Hiện có ${openCount} phiếu bảo trì đang mở và ${brokenCount} thiết bị ghi nhận hỏng.${ticketDetails}${unreportedDetails}
+Đề xuất: kiểm tra thực tế, ưu tiên thiết bị hỏng; đối chiếu lịch học và phòng trống rồi trình phê duyệt. Hệ thống chưa lưu lịch bảo trì đã đặt. Thiết bị đang tắt không đồng nghĩa với hỏng.`;
 }
 
 async function getChatSystemContext() {
@@ -434,6 +433,47 @@ Số liệu hiện tại của hệ thống Smart Campus:
 - Bảng dữ liệu chỉ lưu phiếu bảo trì và ngày bảo trì gần nhất, không lưu lịch bảo trì đã lên kế hoạch. Không được tự kết luận rằng thiết bị đang tắt cần bảo trì; cần kiểm tra thực tế trước.
 - Các thống kê tổng hợp không chứa danh sách chi tiết phòng, thiết bị, lịch học hay sự cố. Chỉ nêu mã phòng, tên thiết bị, lịch hoặc số lượng chi tiết khi đã được truy vấn và có trong dữ liệu đầu vào; nếu chưa có thì nói rõ hoặc hỏi người dùng bổ sung ngày/mã phòng.
 `;
+}
+
+async function findSimilarCompletedMaintenance(deviceType, issue) {
+  if (!deviceType || !issue) return null;
+  try {
+    const [cases] = await db.query(
+      `SELECT m.description, m.notes
+       FROM Maintenance m
+       JOIN Devices d ON d.id = m.device_id
+       JOIN DeviceTypes dt ON dt.id = d.device_type_id
+       WHERE dt.name = ? AND m.status = 'da_xong'
+         AND m.notes IS NOT NULL AND TRIM(m.notes) <> ''
+       ORDER BY m.resolved_at DESC
+       LIMIT 20`,
+      [deviceType],
+    );
+    const keywords = new Set(
+      normalizeVietnamese(issue).match(/[a-z0-9]{3,}/g) || [],
+    );
+    const ranked = cases
+      .map((item) => ({
+        ...item,
+        overlap: [...new Set(normalizeVietnamese(item.description).match(/[a-z0-9]{3,}/g) || [])]
+          .filter((word) => keywords.has(word)).length,
+      }))
+      .sort((a, b) => b.overlap - a.overlap);
+    return ranked[0]?.overlap >= 2 ? ranked[0].notes.trim().slice(0, 180) : null;
+  } catch (error) {
+    console.error("Không thể tra phiếu bảo trì tương tự:", error);
+    return null;
+  }
+}
+
+function isTemporaryGeminiError(error) {
+  return [
+    "GEMINI_TEMPORARILY_UNAVAILABLE",
+    "GEMINI_RATE_LIMIT",
+    "GEMINI_MODELS_UNAVAILABLE",
+    "GEMINI_INCOMPLETE_RESPONSE",
+    "GEMINI_EMPTY_RESPONSE",
+  ].includes(error?.code);
 }
 
 function sendAIError(res, error, context, fallbackMessage) {
@@ -533,6 +573,39 @@ const aiController = {
         return res.json({ response: responseText });
       }
 
+      const describesCommonFault =
+        /(may chieu|dieu hoa|may lanh)/.test(normalizedQuestion) &&
+        /(hinh anh mo|hinh mo|khong len hinh|khong co hinh|khong mat|kem mat|ro nuoc|chay nuoc)/.test(normalizedQuestion) &&
+        !/(bao nhieu|co may|danh sach|liet ke)/.test(normalizedQuestion);
+      const asksGuidance = describesCommonFault ||
+        /(phan tich|cach xu ly|huong xu ly|nen lam gi|can lam gi|phai lam sao|xu ly the nao|goi y|huong dan|de xuat bao tri|de xuat xu ly|bao tri nhu the nao)/.test(normalizedQuestion);
+      if (asksGuidance) {
+        const incidentType = inferIncidentType(message);
+        const incidentGuide = incidentType
+          ? buildIncidentGuidance(incidentType, roomCode, message)
+          : null;
+        const deviceType = /may chieu/.test(normalizedQuestion)
+          ? "may_chieu"
+          : /(dieu hoa|may lanh)/.test(normalizedQuestion)
+            ? "dieu_hoa"
+            : null;
+        const maintenanceGuide =
+          !incidentGuide && deviceType
+            ? buildMaintenanceGuidance({
+                device_name: roomCode
+                  ? `${deviceType === "may_chieu" ? "máy chiếu" : "điều hòa"} ${roomCode}`
+                  : deviceType === "may_chieu" ? "máy chiếu" : "điều hòa",
+                device_type: deviceType,
+                issue: message,
+              })
+            : null;
+        const responseText = incidentGuide || maintenanceGuide;
+        if (responseText) {
+          await saveChatAnswer(req.user.id, message, responseText);
+          return res.json({ response: responseText, source: "local" });
+        }
+      }
+
       // Câu hỏi đếm phòng theo sức chứa phải được xử lý trước câu hỏi đếm phòng
       // chung để không trả nhầm tổng số phòng toàn trường.
       const requestedCapacity = normalizedQuestion.match(
@@ -585,13 +658,15 @@ const aiController = {
         const roomLabel = `phòng${
           requestedRoomType ? ` ${requestedRoomType.label}` : ""
         }${onlyAvailable ? " đang trống" : ""}`;
-        const roomList = matchingRooms.length
-          ? ` Danh sách: ${matchingRooms
+        const shouldListRooms = /(liet ke|tim|nao|danh sach)/.test(normalizedQuestion);
+        const visibleRooms = shouldListRooms ? matchingRooms.slice(0, 5) : [];
+        const roomList = visibleRooms.length
+          ? ` Gợi ý: ${visibleRooms
               .map(
                 (room) =>
                   `${room.code} (Tòa ${room.building_code}, ${room.capacity} chỗ)`,
               )
-              .join(", ")}.`
+              .join(", ")}${matchingRooms.length > visibleRooms.length ? `; còn ${matchingRooms.length - visibleRooms.length} phòng khác` : ""}.`
           : "";
         const responseText =
           matchingRooms.length
@@ -849,11 +924,15 @@ const aiController = {
         const occupied = Number(stats?.dang_hoc) || 0;
         const maintenance = Number(stats?.bao_tri) || 0;
         const incident = Number(stats?.su_co) || 0;
+        const powerOff = Number(stats?.ngat_dien) || 0;
 
         let count = total;
         let label = "phòng";
 
-        if (/(phong trong|con trong|dang trong)/.test(normalizedQuestion)) {
+        if (/(ngat dien|mat dien|cat dien)/.test(normalizedQuestion)) {
+          count = powerOff;
+          label = "phòng đang ngắt điện";
+        } else if (/(phong trong|con trong|dang trong)/.test(normalizedQuestion)) {
           count = available;
           label = "phòng đang trống";
         } else if (normalizedQuestion.includes("dang hoc")) {
@@ -867,11 +946,10 @@ const aiController = {
           label = "phòng đang có sự cố";
         }
 
-        const responseText =
-          `Hiện có ${count} ${label} ${buildingScope.label}. ` +
-          `Tổng số ${total} phòng ${buildingScope.label} gồm ${available} phòng trống, ` +
-          `${occupied} phòng đang học, ${maintenance} phòng bảo trì ` +
-          `và ${incident} phòng có sự cố.`;
+        const wantsBreakdown = /(thong ke|tong quan|phan bo)/.test(normalizedQuestion);
+        const responseText = wantsBreakdown
+          ? `Tổng ${total} phòng ${buildingScope.label}: ${available} trống, ${occupied} đang học, ${maintenance} bảo trì, ${incident} có sự cố; ${powerOff} phòng ngắt điện.`
+          : `Hiện có ${count} ${label} ${buildingScope.label}.`;
 
         await saveChatAnswer(req.user.id, message, responseText);
 
@@ -1233,7 +1311,8 @@ Quy tắc trả lời hội thoại:
 - Trình bày câu trả lời thành các câu hoàn chỉnh, theo thứ tự hợp lý. Nếu có nhiều bước, liệt kê đầy đủ từng bước và kết luận ngắn; không dừng giữa câu hoặc giữa danh sách.
 - Chỉ dùng số liệu hệ thống ở trên; không nói hệ thống đang chờ đồng bộ nếu không có dữ liệu xác nhận. Thiết bị đã tắt không đồng nghĩa với thiết bị hỏng hay cần bảo trì. Nếu thiếu dữ liệu, nêu rõ giới hạn.
 - Với lịch/kế hoạch bảo trì, tách dữ liệu thực tế khỏi đề xuất. Không tự bịa ngày, thứ, giờ, thời lượng hay số lượng thiết bị mỗi ngày. Nêu rõ phiếu đang mở theo dữ liệu trên; mọi kế hoạch là đề xuất chưa được đặt lịch/phê duyệt.
-- Trả lời ngắn gọn, chuyên nghiệp bằng tiếng Việt; với yêu cầu giải thích hoặc kế hoạch, cung cấp đủ các ý để người dùng có thể thực hiện.`,
+- Trả lời tối đa 120 từ, ưu tiên 1–3 ý chính bằng tiếng Việt. Nếu cần thêm dữ liệu để kết luận, nói rõ dữ liệu còn thiếu.`,
+        mode: "quick",
       });
 
       await db.query(
@@ -1258,20 +1337,31 @@ Quy tắc trả lời hội thoại:
   analyzeIncident: async (req, res) => {
     try {
       const { incident_type, description, room_code } = req.body;
+      const shortGuide = buildIncidentGuidance(incident_type, room_code, description);
 
       const prompt = `
 Phân tích sự cố tại phòng ${room_code}:
 - Loại sự cố: ${incident_type}
 - Mô tả: ${description}
 
-Hãy đưa ra:
-1. Nguyên nhân có thể
-2. Mức độ nguy hiểm
-3. Các bước xử lý ngay lập tức
-4. Biện pháp phòng ngừa
+Trả lời tối đa 100 từ, gồm đánh giá thận trọng, bước xử lý ngay và phòng ngừa.
+Không khẳng định nguyên nhân nếu chưa kiểm tra thực tế. Không tự thay đổi trạng thái thiết bị.
 `;
 
-      const response = await generateContent(prompt);
+      let response = shortGuide;
+      let source = "local";
+      if (!shortGuide || String(description || "").length > 160) {
+        try {
+          response = await generateContent(prompt, { mode: "quick" });
+          source = "gemini";
+        } catch (error) {
+          if (!isTemporaryGeminiError(error)) throw error;
+          response = shortGuide
+            ? `${shortGuide}\nGemini hiện chưa phản hồi; đây là hướng xử lý ban đầu.`
+            : `Chưa đủ dữ liệu để xác định nguyên nhân sự cố tại phòng ${room_code}. Hãy bảo đảm an toàn, ghi nhận hiện trạng và chuyển người phụ trách kiểm tra. Gemini hiện chưa phản hồi nên đây là hướng xử lý ban đầu.`;
+          source = "fallback";
+        }
+      }
 
       await db.query(
         `
@@ -1281,7 +1371,7 @@ Hãy đưa ra:
         [req.user.id, prompt, response],
       );
 
-      return res.json({ response });
+      return res.json({ response, source });
     } catch (error) {
       return sendAIError(
         res,
@@ -1295,6 +1385,17 @@ Hãy đưa ra:
   suggestMaintenance: async (req, res) => {
     try {
       const { device_name, device_type, last_maintenance, issue } = req.body;
+      const today = getVietnamCurrentDateTime().date;
+      if (last_maintenance && (getRequestedDate(last_maintenance) !== last_maintenance || last_maintenance > today)) {
+        return res.status(400).json({ message: "Ngày bảo trì gần nhất không được sau ngày hiện tại." });
+      }
+      const similarCase = await findSimilarCompletedMaintenance(device_type, issue);
+      const shortGuide = buildMaintenanceGuidance({
+        device_name,
+        device_type,
+        issue,
+        similarCase,
+      });
 
       const prompt = `
 Đề xuất bảo trì cho thiết bị:
@@ -1303,14 +1404,23 @@ Hãy đưa ra:
 - Lần bảo trì gần nhất: ${last_maintenance || "Chưa có"}
 - Vấn đề hiện tại: ${issue}
 
-Hãy đưa ra:
-1. Đánh giá tình trạng thiết bị
-2. Các bước bảo trì cần thực hiện
-3. Thời gian bảo trì dự kiến
-4. Lịch bảo trì định kỳ đề xuất
+${similarCase ? `Ghi chú từ một phiếu tương tự đã hoàn tất: ${similarCase}` : "Chưa tìm thấy phiếu đã hoàn tất có ghi chú tương tự."}
+Trả lời tối đa 100 từ: đánh giá thận trọng, 2–3 bước kiểm tra và điều kiện lên lịch.
+Không tự đặt ngày, thời lượng hoặc khẳng định nguyên nhân khi chưa kiểm tra thực tế.
 `;
 
-      const response = await generateContent(prompt);
+      let response = shortGuide;
+      let source = "local";
+      if (!shortGuide) {
+        try {
+          response = await generateContent(prompt, { mode: "quick" });
+          source = "gemini";
+        } catch (error) {
+          if (!isTemporaryGeminiError(error)) throw error;
+          response = buildMaintenanceFallback({ device_name, issue, similarCase });
+          source = "fallback";
+        }
+      }
 
       await db.query(
         `
@@ -1320,7 +1430,7 @@ Hãy đưa ra:
         [req.user.id, prompt, response],
       );
 
-      return res.json({ response });
+      return res.json({ response, source });
     } catch (error) {
       return sendAIError(
         res,
