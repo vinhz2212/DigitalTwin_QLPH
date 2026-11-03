@@ -84,7 +84,10 @@ export default function Register() {
         password: form.password,
         phone: form.phone.trim(),
       });
-      navigate("/login", { state: { registered: true } });
+      navigate("/verify-email", {
+        state: { email: form.email.trim(), sent: true },
+        replace: true,
+      });
     } catch (err) {
       setError(
         err.response?.data?.message || "Đăng ký thất bại. Vui lòng thử lại.",

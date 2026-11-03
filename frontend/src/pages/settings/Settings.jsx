@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import {
@@ -107,7 +108,8 @@ function SelectField({ label, value, onChange, options }) {
 }
 
 export default function Settings() {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, logout } = useAuth();
+  const navigate = useNavigate();
 
   const preferenceId = user?.id || user?.username || "default";
   const notificationStorageKey = `smart-campus-notifications:${preferenceId}`;
@@ -198,6 +200,15 @@ export default function Settings() {
     try {
       const response = await api.put("/users/profile", profile);
       const updatedUser = response.data?.user;
+
+      if (response.data?.verificationRequired) {
+        await logout({ skipServer: true });
+        navigate("/verify-email", {
+          state: { email: updatedUser?.email || profile.email, sent: true },
+          replace: true,
+        });
+        return;
+      }
 
       if (updatedUser) {
         updateUser(updatedUser);

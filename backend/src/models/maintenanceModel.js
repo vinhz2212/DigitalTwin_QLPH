@@ -14,7 +14,7 @@ const MaintenanceModel = {
       JOIN Rooms r ON d.room_id = r.id
       JOIN Floors f ON r.floor_id = f.id
       JOIN Buildings b ON f.building_id = b.id
-      JOIN Users u1 ON m.reported_by = u1.id
+      LEFT JOIN Users u1 ON m.reported_by = u1.id
       LEFT JOIN Users u2 ON m.resolved_by = u2.id
       ORDER BY m.created_at DESC
     `);

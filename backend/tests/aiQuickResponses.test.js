@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 let geminiCalls = 0;
 let completedCases = [];
+let deviceRows = [];
 
 function mockModule(path, exports) {
   const filename = require.resolve(path);
@@ -21,6 +22,12 @@ mockModule("../src/config/database", {
   query: async (sql) => {
     if (sql.includes("FROM Maintenance m") && sql.includes("m.notes")) {
       return [completedCases];
+    }
+    if (sql.includes("FROM Devices d") && sql.includes("SELECT d.name, d.status")) {
+      return [deviceRows];
+    }
+    if (sql.includes("FROM Devices") && sql.includes("AS broken")) {
+      return [[{ total: 240, active: 92, off: 147, broken: 1, repairing: 0 }]];
     }
     if (sql.includes("INSERT INTO AIAnalysis")) return [{ insertId: 1 }];
     throw new Error(`Unexpected query: ${sql}`);
@@ -153,6 +160,38 @@ test("room power count reads MySQL stats without Gemini", async () => {
   await aiController.chat(makeRequest({ message: "Có bao nhiêu phòng ngắt điện?" }), res);
   assert.equal(res.statusCode, 200);
   assert.match(res.body.response, /2 phòng đang ngắt điện/);
+  assert.equal(geminiCalls, 0);
+});
+
+test("follow-up about a broken device fetches its current name from MySQL", async () => {
+  geminiCalls = 0;
+  deviceRows = [{
+    name: "Máy chiếu A101",
+    status: "hong",
+    device_type: "may_chieu",
+    room_code: "A101",
+    building_code: "A",
+  }];
+  const first = makeResponse();
+  await aiController.chat(
+    makeRequest({ message: "Bạn cho tôi biết có bao nhiêu thiết bị bị hỏng không?" }),
+    first,
+  );
+  assert.match(first.body.response, /1 thiết bị bị hỏng/);
+
+  const followUp = makeResponse();
+  await aiController.chat(
+    makeRequest({
+      message: "thiết bị đó là gì",
+      history: [
+        { role: "user", content: "Bạn cho tôi biết có bao nhiêu thiết bị bị hỏng không?" },
+        { role: "assistant", content: first.body.response },
+      ],
+    }),
+    followUp,
+  );
+  assert.equal(followUp.statusCode, 200);
+  assert.match(followUp.body.response, /Máy chiếu A101 \(A101, Tòa A\)/);
   assert.equal(geminiCalls, 0);
 });
 

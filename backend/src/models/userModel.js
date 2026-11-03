@@ -14,7 +14,8 @@ const UserModel = {
 
   findById: async (id) => {
     const [rows] = await db.query(
-      `SELECT u.id, u.username, u.email, u.full_name, u.phone, u.avatar,
+      `SELECT u.id, u.username, u.email, u.email_verified_at,
+              u.full_name, u.phone, u.avatar,
               u.is_active, u.created_at, r.name as role_name
        FROM users u 
        JOIN roles r ON u.role_id = r.id 
@@ -43,24 +44,43 @@ const UserModel = {
   create: async (userData) => {
     const { role_id, username, email, password_hash, full_name, phone } = userData;
     const [result] = await db.query(
-      `INSERT INTO users (role_id, username, email, password_hash, full_name, phone) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (role_id, username, email, email_verified_at,
+                          password_hash, full_name, phone)
+       VALUES (?, ?, ?, NOW(), ?, ?, ?)`,
       [role_id, username, email, password_hash, full_name, phone],
     );
     return result.insertId;
   },
 
-  update: async (id, data) => {
+  update: async (id, data, emailChanged = false) => {
     const { role_id, full_name, email, phone, is_active } = data;
+    const verificationReset = emailChanged
+      ? `, email_verified_at=NULL, email_verification_token_hash=NULL,
+           email_verification_expires_at=NULL, email_verification_attempts=0`
+      : "";
     await db.query(
-      `UPDATE users SET role_id=?, full_name=?, email=?, phone=?, is_active=? WHERE id=?`,
+      `UPDATE users
+       SET role_id=?, full_name=?, email=?, phone=?, is_active=?${verificationReset}
+       WHERE id=?`,
       [role_id, full_name, email, phone, is_active, id],
     );
   },
 
   // Cập nhật hồ sơ cá nhân (chỉ các trường được phép)
-  updateProfile: async (id, { full_name, email, phone }) => {
-    await db.query(
+  updateProfile: async (id, { full_name, email, phone }, verification = null, connection = db) => {
+    if (verification) {
+      await connection.query(
+        `UPDATE users
+         SET full_name=?, email=?, phone=?, email_verified_at=NULL,
+             email_verification_token_hash=?, email_verification_expires_at=?,
+             email_verification_attempts=0,
+             updated_at=NOW()
+         WHERE id=?`,
+        [full_name, email, phone || null, verification.hash, verification.expiresAt, id],
+      );
+      return;
+    }
+    await connection.query(
       `UPDATE users SET full_name=?, email=?, phone=?, updated_at=NOW() WHERE id=?`,
       [full_name, email, phone || null, id],
     );
@@ -83,7 +103,37 @@ const UserModel = {
   },
 
   delete: async (id) => {
-    await db.query("DELETE FROM users WHERE id=?", [id]);
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [users] = await connection.query(
+        "SELECT id FROM Users WHERE id = ? FOR UPDATE",
+        [id],
+      );
+      if (users.length === 0) {
+        await connection.rollback();
+        return false;
+      }
+
+      // Xóa dữ liệu riêng; giữ lịch sử vận hành chung nhưng bỏ liên kết đến người đã xóa.
+      await connection.query("DELETE FROM AIAnalysis WHERE user_id = ?", [id]);
+      await connection.query("DELETE FROM Bookings WHERE user_id = ?", [id]);
+      await connection.query("DELETE FROM Notifications WHERE user_id = ?", [id]);
+      await connection.query("DELETE FROM ActivityLogs WHERE user_id = ?", [id]);
+      await connection.query("UPDATE DeviceStatusHistory SET changed_by = NULL WHERE changed_by = ?", [id]);
+      await connection.query("UPDATE RoomStatusHistory SET changed_by = NULL WHERE changed_by = ?", [id]);
+      await connection.query("UPDATE Incidents SET triggered_by = NULL WHERE triggered_by = ?", [id]);
+      await connection.query("UPDATE Maintenance SET reported_by = NULL WHERE reported_by = ?", [id]);
+      await connection.query("UPDATE Maintenance SET resolved_by = NULL WHERE resolved_by = ?", [id]);
+      const [result] = await connection.query("DELETE FROM Users WHERE id = ?", [id]);
+      await connection.commit();
+      return result.affectedRows === 1;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   },
 };
 

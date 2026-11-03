@@ -956,7 +956,7 @@ const aiController = {
         return res.json({ response: responseText });
       }
 
-      const deviceStatus = [
+      const deviceStatuses = [
         { value: "hong", label: "bị hỏng", pattern: /(hong|loi|hu hong)/ },
         {
           value: "dang_sua",
@@ -969,7 +969,22 @@ const aiController = {
           label: "đang hoạt động",
           pattern: /(hoat dong|dang chay|binh thuong)/,
         },
-      ].find((item) => item.pattern.test(normalizedQuestion));
+      ];
+      const previousUserQuestion = [...history]
+        .reverse()
+        .find((item) => item.role === "user")?.content;
+      const previousQuestion = normalizeVietnamese(previousUserQuestion);
+      const asksAboutPreviousDevice =
+        /\b(?:thiet bi do|thiet bi nay|no|do)\b/.test(normalizedQuestion) &&
+        /\b(?:la gi|ten gi|thiet bi gi|thiet bi nao|o dau|phong nao)\b/.test(
+          normalizedQuestion,
+        ) &&
+        previousQuestion.includes("thiet bi");
+      const deviceStatus =
+        deviceStatuses.find((item) => item.pattern.test(normalizedQuestion)) ||
+        (asksAboutPreviousDevice
+          ? deviceStatuses.find((item) => item.pattern.test(previousQuestion))
+          : null);
       const asksDeviceCount = /(bao nhieu|co may|tong so|so luong|thong ke)/.test(
         normalizedQuestion,
       );
@@ -977,7 +992,7 @@ const aiController = {
         normalizedQuestion,
       );
       const asksDeviceQuestion =
-        normalizedQuestion.includes("thiet bi") &&
+        (normalizedQuestion.includes("thiet bi") || asksAboutPreviousDevice) &&
         !/(bao tri|phieu)/.test(normalizedQuestion) &&
         (Boolean(deviceStatus) || asksDeviceCount || asksDeviceList || Boolean(roomCode));
 
@@ -1039,7 +1054,7 @@ const aiController = {
         const resultLabel = statusLabel
           ? `thiết bị ${statusLabel}`
           : "thiết bị";
-        const shouldList = asksDeviceList || Boolean(roomCode);
+        const shouldList = asksDeviceList || Boolean(roomCode) || asksAboutPreviousDevice;
         const visibleDevices = devices.slice(0, 20);
         const deviceList = shouldList && visibleDevices.length
           ? ` Danh sách: ${visibleDevices

@@ -209,13 +209,15 @@ const maintenanceController = {
       await connection.commit();
       try {
         const statusLabel = completed ? "đã sửa xong" : "đang được sửa";
-        await createForUser({
-          io: req.app.get("io"),
-          userId: maintenance.reported_by,
-          content: `Thiết bị ${maintenance.device_name} tại phòng ${maintenance.room_code} ${statusLabel}.`,
-          type: "bao_tri",
-          severity: completed ? "info" : "warning",
-        });
+        if (maintenance.reported_by) {
+          await createForUser({
+            io: req.app.get("io"),
+            userId: maintenance.reported_by,
+            content: `Thiết bị ${maintenance.device_name} tại phòng ${maintenance.room_code} ${statusLabel}.`,
+            type: "bao_tri",
+            severity: completed ? "info" : "warning",
+          });
+        }
       } catch (notificationError) {
         console.error("Không thể tạo thông báo bảo trì:", notificationError);
       }

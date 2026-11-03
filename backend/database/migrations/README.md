@@ -35,5 +35,16 @@ thông tin tài khoản, nhật ký và nội dung AI. Không đưa bản này l
 Migration `001_ensure_current_schema.sql` bổ sung an toàn hai bảng lịch sử cảm
 biến và điện năng nếu database cũ chưa có chúng.
 
+Migration `006_verify_registered_email.sql` bổ sung trạng thái xác minh email
+và mã xác minh dùng một lần. Tài khoản đã có trước migration được giữ quyền
+đăng nhập; tài khoản tự đăng ký mới cần xác minh email trước khi sử dụng.
+
+Migration `007_email_verification_otp.sql` giới hạn số lần nhập sai mã OTP.
+Các liên kết xác minh cũ không dùng được với giao diện OTP; tài khoản chưa xác
+minh có thể yêu cầu gửi lại mã mới.
+
+Migration `008_allow_maintenance_without_reporter.sql` cho phép giữ phiếu bảo
+trì khi tài khoản người báo bị xóa vĩnh viễn; trường `reported_by` sẽ để trống.
+
 Mỗi migration được lưu tên, mã kiểm tra SHA-256 và thời điểm chạy trong bảng
 `SchemaMigrations`. Công cụ sẽ dừng nếu một migration đã chạy bị chỉnh sửa.

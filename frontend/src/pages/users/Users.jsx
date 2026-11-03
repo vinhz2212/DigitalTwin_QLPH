@@ -207,13 +207,16 @@ export default function Users() {
       setSaving(true);
 
       if (editUser) {
-        await api.put(`/users/${editUser.id}`, {
+        const response = await api.put(`/users/${editUser.id}`, {
           role_id: Number(form.role_id),
           email: form.email.trim(),
           full_name: form.full_name.trim(),
           phone: form.phone.trim(),
           is_active: form.is_active,
         });
+        if (response.data?.verificationRequired) {
+          window.alert(response.data.message);
+        }
       } else {
         await api.post("/users", {
           role_id: Number(form.role_id),
@@ -245,7 +248,7 @@ export default function Users() {
       return;
     }
 
-    if (!window.confirm(`Bạn có chắc muốn xóa tài khoản ${user.username}?`)) {
+    if (!window.confirm(`Xóa vĩnh viễn tài khoản ${user.username}? Lịch sử AI, đặt phòng, thông báo và nhật ký riêng của tài khoản này cũng sẽ bị xóa. Không thể hoàn tác.`)) {
       return;
     }
 

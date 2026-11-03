@@ -1,7 +1,15 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const UserModel = require("../models/userModel");
-const { passwordVersion } = require("../services/passwordResetService");
+const db = require("../config/database");
+const {
+  passwordVersion,
+  isMailConfigured,
+} = require("../services/passwordResetService");
+const {
+  createVerificationCode,
+  sendVerificationEmail,
+} = require("../services/emailVerificationService");
 
 const userController = {
   getAll: async (req, res) => {
@@ -48,12 +56,23 @@ const userController = {
 
   update: async (req, res) => {
     try {
-      await UserModel.update(req.params.id, req.body);
+      const currentUser = await UserModel.findById(req.params.id);
+      if (!currentUser) {
+        return res.status(404).json({ message: "Không tìm thấy tài khoản." });
+      }
+      const emailChanged = currentUser.email.toLowerCase() !==
+        String(req.body.email || "").trim().toLowerCase();
+      await UserModel.update(req.params.id, req.body, emailChanged);
       const io = req.app.get("io");
       if (io) {
         io.to(`user:${req.params.id}`).emit("account_changed");
       }
-      res.json({ message: "Cập nhật thành công" });
+      res.json({
+        message: emailChanged
+          ? "Đã đổi email. Người dùng cần xác minh email mới trước khi đăng nhập lại."
+          : "Cập nhật thành công",
+        verificationRequired: emailChanged,
+      });
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
     }
@@ -79,16 +98,65 @@ const userController = {
       if (!full_name || !email) {
         return res.status(400).json({ message: "Tên và email không được để trống" });
       }
+      const cleanEmail = String(email).trim().toLowerCase();
+      if (cleanEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        return res.status(400).json({ message: "Vui lòng nhập email hợp lệ." });
+      }
+      const currentUser = await UserModel.findById(userId);
+      if (!currentUser) {
+        return res.status(404).json({ message: "Không tìm thấy tài khoản." });
+      }
+      const emailChanged = currentUser.email.toLowerCase() !== cleanEmail;
+      if (emailChanged && !isMailConfigured()) {
+        return res.status(503).json({ message: "Hệ thống chưa cấu hình email xác minh." });
+      }
 
-      await UserModel.updateProfile(userId, { full_name, email, phone });
+      if (emailChanged) {
+        const verification = createVerificationCode(cleanEmail);
+        const connection = await db.getConnection();
+        try {
+          await connection.beginTransaction();
+          await UserModel.updateProfile(
+            userId,
+            { full_name: full_name.trim(), email: cleanEmail, phone },
+            verification,
+            connection,
+          );
+          try {
+            await sendVerificationEmail(cleanEmail, verification.code);
+          } catch (error) {
+            error.emailDeliveryFailed = true;
+            throw error;
+          }
+          await connection.commit();
+        } catch (error) {
+          await connection.rollback();
+          throw error;
+        } finally {
+          connection.release();
+        }
+      } else {
+        await UserModel.updateProfile(userId, {
+          full_name: full_name.trim(), email: cleanEmail, phone,
+        });
+      }
 
       // Trả về data mới
       const updated = await UserModel.findById(userId);
       const { password_hash, ...safeUser } = updated;
-      res.json({ message: "Cập nhật hồ sơ thành công", user: safeUser });
+      res.json({
+        message: emailChanged
+          ? "Đã gửi mã xác minh đến email mới. Vui lòng nhập mã trước khi đăng nhập lại."
+          : "Cập nhật hồ sơ thành công",
+        verificationRequired: emailChanged,
+        user: safeUser,
+      });
     } catch (error) {
       if (error.code === "ER_DUP_ENTRY") {
         return res.status(400).json({ message: "Email này đã được sử dụng!" });
+      }
+      if (error.emailDeliveryFailed) {
+        return res.status(503).json({ message: "Không thể gửi email xác minh lúc này. Vui lòng thử lại." });
       }
       res.status(500).json({ message: "Lỗi server", error: error.message });
     }
@@ -129,17 +197,28 @@ const userController = {
 
   delete: async (req, res) => {
     try {
-      if (req.params.id == req.user.id) {
+      const id = Number(req.params.id);
+      if (!Number.isSafeInteger(id) || id <= 0) {
+        return res.status(400).json({ message: "Mã tài khoản không hợp lệ." });
+      }
+      if (id === Number(req.user.id)) {
         return res.status(400).json({ message: "Không thể xóa tài khoản đang đăng nhập!" });
       }
-      await UserModel.delete(req.params.id);
+      const deleted = await UserModel.delete(id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Tài khoản không tồn tại hoặc đã bị xóa." });
+      }
       const io = req.app.get("io");
       if (io) {
-        io.to(`user:${req.params.id}`).emit("account_changed");
+        io.to(`user:${id}`).emit("account_changed");
       }
-      res.json({ message: "Xóa người dùng thành công" });
+      res.json({ message: "Đã xóa vĩnh viễn tài khoản và dữ liệu riêng liên quan." });
     } catch (error) {
-      res.status(500).json({ message: "Lỗi server", error: error.message });
+      console.error("Không thể xóa tài khoản:", error);
+      if (error.code === "ER_ROW_IS_REFERENCED_2") {
+        return res.status(409).json({ message: "Tài khoản còn dữ liệu liên kết chưa được xử lý. Vui lòng kiểm tra cấu trúc cơ sở dữ liệu." });
+      }
+      res.status(500).json({ message: "Không thể xóa tài khoản lúc này." });
     }
   },
 };

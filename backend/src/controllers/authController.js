@@ -10,12 +10,23 @@ const {
   isMailConfigured,
   sendResetEmail,
 } = require("../services/passwordResetService");
+const {
+  createVerificationCode,
+  hashVerificationCode,
+  isValidVerificationCode,
+  sendVerificationEmail,
+} = require("../services/emailVerificationService");
 
 const RESET_MESSAGE =
   "Nếu email thuộc tài khoản đang hoạt động, bạn sẽ nhận được liên kết đặt lại mật khẩu.";
 const resetRequestsByIp = new Map();
 const resetRequestsByEmail = new Map();
+const registrationRequestsByIp = new Map();
+const verificationRequestsByIp = new Map();
+const verificationRequestsByEmail = new Map();
 const RESET_WINDOW_MS = 15 * 60 * 1000;
+const VERIFICATION_MESSAGE =
+  "Nếu email thuộc tài khoản chưa xác minh, bạn sẽ nhận được mã xác minh mới.";
 
 // Giới hạn yêu cầu để tránh gửi mail liên tục. Không lưu mật khẩu hay token.
 const resetCleanup = setInterval(() => {
@@ -25,6 +36,15 @@ const resetCleanup = setInterval(() => {
   }
   for (const [email, sentAt] of resetRequestsByEmail) {
     if (now - sentAt >= 60 * 1000) resetRequestsByEmail.delete(email);
+  }
+  for (const [ip, entry] of registrationRequestsByIp) {
+    if (now - entry.startedAt >= RESET_WINDOW_MS) registrationRequestsByIp.delete(ip);
+  }
+  for (const [ip, entry] of verificationRequestsByIp) {
+    if (now - entry.startedAt >= RESET_WINDOW_MS) verificationRequestsByIp.delete(ip);
+  }
+  for (const [email, sentAt] of verificationRequestsByEmail) {
+    if (now - sentAt >= 60 * 1000) verificationRequestsByEmail.delete(email);
   }
 }, RESET_WINDOW_MS);
 resetCleanup.unref();
@@ -101,6 +121,14 @@ const login = async (req, res) => {
       return res
         .status(401)
         .json({ message: "Tên đăng nhập hoặc mật khẩu không đúng!" });
+    }
+
+    if (!user.email_verified_at) {
+      return res.status(403).json({
+        code: "EMAIL_NOT_VERIFIED",
+        message: "Email chưa được xác minh. Vui lòng nhập mã đã gửi vào hộp thư.",
+        email: user.email,
+      });
     }
 
     const token = jwt.sign(
@@ -269,11 +297,32 @@ const register = async (req, res) => {
         .json({ message: "Mật khẩu phải có ít nhất 6 ký tự!" });
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      return res.status(400).json({ message: "Vui lòng nhập email hợp lệ." });
+    }
+
+    if (!isMailConfigured()) {
+      return res.status(503).json({
+        message: "Hệ thống chưa cấu hình email xác minh. Vui lòng liên hệ quản trị viên.",
+      });
+    }
+
     const cleanFullName = full_name.trim();
     const cleanUsername = username.trim();
-    const cleanEmail = email.trim();
     const cleanPhone =
       typeof phone === "string" && phone.trim() ? phone.trim() : null;
+
+    const now = Date.now();
+    let attempts = registrationRequestsByIp.get(req.ip);
+    if (!attempts || now - attempts.startedAt >= RESET_WINDOW_MS) {
+      attempts = { startedAt: now, count: 0 };
+    }
+    attempts.count += 1;
+    registrationRequestsByIp.set(req.ip, attempts);
+    if (attempts.count > 5) {
+      return res.status(429).json({ message: "Bạn đã đăng ký quá nhiều lần. Vui lòng thử lại sau." });
+    }
 
     const [existingUsername] = await pool.query(
       "SELECT id FROM Users WHERE username = ?",
@@ -306,19 +355,40 @@ const register = async (req, res) => {
     }
 
     // Tài khoản tự đăng ký luôn là Giảng viên. Chỉ admin mới được đổi vai trò.
-    const [result] = await pool.query(
-      `INSERT INTO Users
-        (role_id, username, email, password_hash, full_name, phone)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [
-        lecturerRoles[0].id,
-        cleanUsername,
-        cleanEmail,
-        passwordHash,
-        cleanFullName,
-        cleanPhone,
-      ],
-    );
+    const { code, hash, expiresAt } = createVerificationCode(cleanEmail);
+    const connection = await pool.getConnection();
+    let result;
+    try {
+      await connection.beginTransaction();
+      [result] = await connection.query(
+        `INSERT INTO Users
+          (role_id, username, email, password_hash, full_name, phone,
+           email_verification_token_hash, email_verification_expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          lecturerRoles[0].id,
+          cleanUsername,
+          cleanEmail,
+          passwordHash,
+          cleanFullName,
+          cleanPhone,
+          hash,
+          expiresAt,
+        ],
+      );
+      try {
+        await sendVerificationEmail(cleanEmail, code);
+      } catch (error) {
+        error.emailDeliveryFailed = true;
+        throw error;
+      }
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
 
     await recordAuthLog(req, {
       user_id: result.insertId,
@@ -330,17 +400,134 @@ const register = async (req, res) => {
 
     return res
       .status(201)
-      .json({ message: "Đăng ký thành công! Vui lòng đăng nhập." });
+      .json({ message: "Đăng ký thành công. Vui lòng nhập mã xác minh đã gửi đến email." });
   } catch (error) {
-    console.error("Lỗi đăng ký:", error);
-
     if (error.code === "ER_DUP_ENTRY") {
       return res
         .status(400)
         .json({ message: "Username hoặc email đã được sử dụng!" });
     }
 
+    if (error.emailDeliveryFailed) {
+      console.error("Không thể gửi email xác minh:", error.message);
+      return res.status(503).json({
+        message: "Không thể gửi email xác minh. Tài khoản chưa được tạo, vui lòng thử lại.",
+      });
+    }
+
+    console.error("Lỗi đăng ký:", error);
     return res.status(500).json({ message: "Lỗi server!" });
+  }
+};
+
+const verifyEmail = async (req, res) => {
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const code = req.body?.code;
+  if (email.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !isValidVerificationCode(code)) {
+    return res.status(400).json({ message: "Vui lòng nhập email và mã xác minh gồm 6 chữ số." });
+  }
+
+  try {
+    const hash = hashVerificationCode(email, code);
+    const [result] = await pool.query(
+      `UPDATE Users
+       SET email_verified_at = NOW(),
+           email_verification_token_hash = NULL,
+           email_verification_expires_at = NULL,
+           email_verification_attempts = 0
+       WHERE email = ? AND email_verification_token_hash = ?
+         AND email_verification_expires_at > NOW()
+         AND email_verification_attempts < 5
+         AND email_verified_at IS NULL
+         AND is_active = 1`,
+      [email, hash],
+    );
+    if (result.affectedRows !== 1) {
+      await pool.query(
+        `UPDATE Users
+         SET email_verification_attempts = email_verification_attempts + 1
+         WHERE email = ? AND email_verification_token_hash IS NOT NULL
+           AND email_verification_token_hash <> ?
+           AND email_verification_expires_at > NOW()
+           AND email_verification_attempts < 5
+           AND email_verified_at IS NULL AND is_active = 1`,
+        [email, hash],
+      );
+      return res.status(400).json({ message: "Mã xác minh không đúng, đã hết hạn hoặc đã vượt số lần thử. Vui lòng gửi lại mã nếu cần." });
+    }
+    return res.json({ message: "Xác minh email thành công. Bạn có thể đăng nhập." });
+  } catch (error) {
+    console.error("Lỗi xác minh email:", error);
+    return res.status(500).json({ message: "Không thể xác minh email lúc này." });
+  }
+};
+
+const resendVerification = async (req, res) => {
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ message: "Vui lòng nhập email hợp lệ." });
+  }
+  if (!isMailConfigured()) {
+    return res.status(503).json({ message: "Hệ thống chưa cấu hình email xác minh." });
+  }
+
+  const now = Date.now();
+  const ip = req.ip;
+  let attempts = verificationRequestsByIp.get(ip);
+  if (!attempts || now - attempts.startedAt >= RESET_WINDOW_MS) {
+    attempts = { startedAt: now, count: 0 };
+  }
+  attempts.count += 1;
+  verificationRequestsByIp.set(ip, attempts);
+  if (attempts.count > 5) {
+    return res.status(429).json({ message: "Bạn đã yêu cầu quá nhiều lần. Vui lòng thử lại sau." });
+  }
+  if (now - (verificationRequestsByEmail.get(email) || 0) < 60 * 1000) {
+    return res.json({ message: VERIFICATION_MESSAGE });
+  }
+  verificationRequestsByEmail.set(email, now);
+
+  try {
+    const [users] = await pool.query(
+      `SELECT id, email, email_verification_token_hash,
+              email_verification_expires_at, email_verification_attempts
+       FROM Users
+       WHERE email = ? AND is_active = 1 AND email_verified_at IS NULL
+       LIMIT 1`,
+      [email],
+    );
+    if (users.length) {
+      const user = users[0];
+      const { code, hash, expiresAt } = createVerificationCode(user.email);
+      const [result] = await pool.query(
+        `UPDATE Users
+         SET email_verification_token_hash = ?,
+             email_verification_expires_at = ?,
+             email_verification_attempts = 0
+         WHERE id = ? AND email_verified_at IS NULL AND is_active = 1`,
+        [hash, expiresAt, user.id],
+      );
+      if (result.affectedRows === 1) {
+        try {
+          await sendVerificationEmail(user.email, code);
+        } catch (error) {
+          await pool.query(
+            `UPDATE Users
+             SET email_verification_token_hash = ?,
+                 email_verification_expires_at = ?,
+                 email_verification_attempts = ?
+             WHERE id = ? AND email_verification_token_hash = ?`,
+            [user.email_verification_token_hash, user.email_verification_expires_at, user.email_verification_attempts, user.id, hash],
+          );
+          throw error;
+        }
+      }
+    }
+    return res.json({ message: VERIFICATION_MESSAGE });
+  } catch (error) {
+    verificationRequestsByEmail.delete(email);
+    console.error("Không thể gửi lại email xác minh:", error);
+    return res.json({ message: VERIFICATION_MESSAGE });
   }
 };
 
@@ -387,4 +574,13 @@ const logout = async (req, res) => {
   return res.json({ message: "Đăng xuất thành công." });
 };
 
-module.exports = { login, register, getMe, logout, forgotPassword, resetPassword };
+module.exports = {
+  login,
+  register,
+  verifyEmail,
+  resendVerification,
+  getMe,
+  logout,
+  forgotPassword,
+  resetPassword,
+};

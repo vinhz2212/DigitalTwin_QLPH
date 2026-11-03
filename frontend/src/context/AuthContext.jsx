@@ -53,8 +53,8 @@ export function AuthProvider({ children }) {
     setUser(userData);
   };
 
-  const logout = () => {
-    const token = localStorage.getItem("token");
+  const logout = (options = {}) => {
+    const token = options?.skipServer === true ? null : localStorage.getItem("token");
     const logoutRequest = token
       ? api
           .post("/auth/logout", null, {

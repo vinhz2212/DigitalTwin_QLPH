@@ -465,7 +465,8 @@ export default function Schedules() {
         )}
       </header>
 
-      <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm xl:flex-row xl:items-center xl:justify-between">
+      <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           {[
             { value: "all", label: "Tất cả" },
@@ -537,18 +538,15 @@ export default function Schedules() {
             <ChevronRight size={17} />
           </button>
         </div>
-      </section>
+        </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Tuần đang xem
-            </p>
-            <p className="font-semibold text-slate-800">{weekLabel}</p>
+        <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:items-center">
+          <div className="min-w-[165px]">
+            <p className="text-xs font-medium text-slate-500">Tuần đang xem</p>
+            <p className="text-sm font-semibold text-slate-800">{weekLabel}</p>
           </div>
 
-          <div className="flex self-start rounded-xl border border-slate-200 bg-white p-1 sm:self-auto">
+          <div className="flex self-start rounded-xl border border-slate-200 bg-white p-1 xl:col-start-3 xl:row-start-1 xl:self-auto">
             <button
               type="button"
               onClick={() => setViewMode("week")}
@@ -572,39 +570,39 @@ export default function Schedules() {
               Danh sách
             </button>
           </div>
-        </div>
 
-        <div className="flex flex-col gap-3 pt-3 sm:flex-row sm:items-center">
-          <label className="relative block flex-1">
-            <Search
-              size={18}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Tìm môn học, giảng viên, phòng, ngày..."
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
-            />
-          </label>
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center xl:col-start-2 xl:row-start-1">
+            <label className="relative block min-w-0 flex-1">
+              <Search
+                size={18}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Tìm môn học, giảng viên, phòng, ngày..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              />
+            </label>
 
-          {(selectedDay || search) && (
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedDay("");
-                setSearch("");
-              }}
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-            >
-              Xóa tìm kiếm
-            </button>
-          )}
+            {(selectedDay || search) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDay("");
+                  setSearch("");
+                }}
+                className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+              >
+                Xóa tìm kiếm
+              </button>
+            )}
+          </div>
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+      <section className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 xl:grid-cols-7">
         {statCards.map(({ date, day, count }) => {
           const active = selectedDay === day;
 
@@ -613,26 +611,30 @@ export default function Schedules() {
               key={date}
               type="button"
               onClick={() => setSelectedDay(active ? "" : day)}
-              className={`rounded-2xl border bg-white p-2.5 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              className={`flex min-h-16 items-center justify-between gap-2 rounded-xl border bg-white px-3.5 py-2.5 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md ${
                 active
                   ? "border-blue-300 ring-2 ring-blue-100"
                   : "border-slate-200"
               }`}
             >
-              <p className="text-xs font-bold text-slate-700">
-                {DAY_LABELS[day]}
-              </p>
-              <p className="text-xs font-medium text-slate-500">
-                {formatDate(date)}
-              </p>
-              <p
-                className={`mt-1 text-xl font-bold ${
-                  count ? "text-blue-600" : "text-slate-300"
-                }`}
-              >
-                {count}
-              </p>
-              <p className="text-xs text-slate-400">buổi</p>
+              <span className="min-w-0">
+                <span className="block text-xs font-bold text-slate-700">
+                  {DAY_LABELS[day]}
+                </span>
+                <span className="block text-xs text-slate-500">
+                  {formatDate(date)}
+                </span>
+              </span>
+              <span className="flex shrink-0 items-baseline gap-1">
+                <span
+                  className={`text-xl font-bold leading-none ${
+                    count ? "text-blue-600" : "text-slate-300"
+                  }`}
+                >
+                  {count}
+                </span>
+                <span className="text-[11px] text-slate-400">buổi</span>
+              </span>
             </button>
           );
         })}
@@ -690,15 +692,15 @@ export default function Schedules() {
                   return (
                     <div
                       key={date}
-                      className="border-r border-slate-100 px-3 py-3 text-center last:border-r-0"
+                      className="border-r border-slate-100 px-2 py-2.5 text-center last:border-r-0"
                     >
                       <p className="text-xs font-bold uppercase tracking-wide text-slate-700">
                         {DAY_LABELS[day]}
                       </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-800">
+                      <p className="mt-0.5 text-sm font-semibold text-slate-800">
                         {formatDate(date)}
                       </p>
-                      <p className="mt-1 text-xs text-slate-400">
+                      <p className="mt-0.5 text-xs text-slate-400">
                         {count} buổi
                       </p>
                     </div>
@@ -706,7 +708,7 @@ export default function Schedules() {
                 })}
               </div>
 
-              <div className="grid min-h-44 grid-cols-7">
+              <div className="grid min-h-36 grid-cols-7">
                 {weekDates.map((date) => {
                   const daySchedules = schedulesByDate[date] || [];
 
@@ -716,7 +718,7 @@ export default function Schedules() {
                       className="space-y-2 border-r border-slate-100 p-2 last:border-r-0"
                     >
                       {daySchedules.length === 0 ? (
-                        <p className="py-4 text-center text-xs text-slate-300">
+                        <p className="py-3 text-center text-xs text-slate-400">
                           Chưa có lịch
                         </p>
                       ) : (
@@ -729,7 +731,7 @@ export default function Schedules() {
                               type="button"
                               onClick={() => openModal(schedule)}
                               disabled={!canManageSchedules}
-                              className={`block w-full rounded-xl border p-3 text-left ${canManageSchedules ? "transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-300" : "cursor-default"}`}
+                              className={`block w-full rounded-xl border p-2.5 text-left ${canManageSchedules ? "transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-300" : "cursor-default"}`}
                               style={{
                                 backgroundColor: style.bg,
                                 borderColor: style.border,
@@ -814,7 +816,7 @@ export default function Schedules() {
                   ].map((title) => (
                     <th
                       key={title}
-                      className="whitespace-nowrap px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                      className="whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500"
                     >
                       {title}
                     </th>
@@ -830,7 +832,7 @@ export default function Schedules() {
                       key={schedule.id}
                       className="transition hover:bg-slate-50/80"
                     >
-                      <td className="px-5 py-4">
+                      <td className="px-4 py-3">
                         <span
                           className="rounded-full border px-2.5 py-1 text-xs font-semibold"
                           style={{
@@ -843,15 +845,15 @@ export default function Schedules() {
                         </span>
                       </td>
 
-                      <td className="px-5 py-4 font-semibold text-slate-800">
+                      <td className="px-4 py-3 font-semibold text-slate-800">
                         {schedule.subject}
                       </td>
 
-                      <td className="px-5 py-4 text-sm text-slate-600">
+                      <td className="px-4 py-3 text-sm text-slate-600">
                         {schedule.instructor || "—"}
                       </td>
 
-                      <td className="px-5 py-4">
+                      <td className="px-4 py-3">
                         <p className="font-semibold text-blue-700">
                           {schedule.room_code || "—"}
                         </p>
@@ -861,23 +863,23 @@ export default function Schedules() {
                         </p>
                       </td>
 
-                      <td className="whitespace-nowrap px-5 py-4 text-sm">
+                      <td className="whitespace-nowrap px-4 py-3 text-sm">
                         {formatDateWithDay(schedule.class_date)}
                       </td>
 
-                      <td className="whitespace-nowrap px-5 py-4 text-sm font-medium text-slate-700">
+                      <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-700">
                         {getTime(schedule.start_time)} –{" "}
                         {getTime(schedule.end_time)}
                       </td>
 
-                      <td className="px-5 py-4">
+                      <td className="px-4 py-3">
                         <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
                           {schedule.semester || "—"}
                         </span>
                       </td>
 
                       {canManageSchedules && (
-                        <td className="px-5 py-4">
+                        <td className="px-4 py-3">
                           <div className="flex items-center gap-1">
                             <button
                               type="button"

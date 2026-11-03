@@ -212,6 +212,12 @@ export default function Login() {
       login(response.data.user, response.data.token);
       navigate("/dashboard", { replace: true });
     } catch (requestError) {
+      if (requestError.response?.data?.code === "EMAIL_NOT_VERIFIED") {
+        navigate("/verify-email", {
+          state: { email: requestError.response.data.email },
+        });
+        return;
+      }
       setError(
         requestError.response?.data?.message ||
           "Tên đăng nhập hoặc mật khẩu không đúng.",

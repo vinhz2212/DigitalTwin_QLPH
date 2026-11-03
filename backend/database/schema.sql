@@ -271,7 +271,7 @@ DROP TABLE IF EXISTS `maintenance`;
 CREATE TABLE `maintenance` (
   `id` int NOT NULL AUTO_INCREMENT,
   `device_id` int NOT NULL,
-  `reported_by` int NOT NULL,
+  `reported_by` int DEFAULT NULL,
   `description` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `image_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `status` enum('cho_xu_ly','dang_sua','da_xong','huy') COLLATE utf8mb4_unicode_ci DEFAULT 'cho_xu_ly',
@@ -477,6 +477,10 @@ CREATE TABLE `users` (
   `role_id` int NOT NULL,
   `username` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
   `email` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email_verified_at` datetime DEFAULT NULL,
+  `email_verification_token_hash` char(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email_verification_expires_at` datetime DEFAULT NULL,
+  `email_verification_attempts` tinyint unsigned NOT NULL DEFAULT '0',
   `password_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `full_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -487,6 +491,7 @@ CREATE TABLE `users` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`),
   UNIQUE KEY `email` (`email`),
+  UNIQUE KEY `uq_users_email_verification_token` (`email_verification_token_hash`),
   KEY `role_id` (`role_id`),
   CONSTRAINT `users_ibfk_1` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
